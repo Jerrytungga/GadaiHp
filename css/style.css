@@ -1,0 +1,244 @@
+body {
+    font-family: 'Poppins', sans-serif;
+    margin: 0;
+    padding: 0;
+  }
+  
+  .logo {
+    width: 120px;
+    height: auto;
+  }
+  
+  .bg {
+    background-color: #FBF8EF;
+  }
+  
+  .gambar {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .icon {
+    width: 100%;
+    height: 50%;
+    object-fit: cover;
+  }
+  
+  .headtext {
+    margin-top: 120px;
+    font-weight: 600;
+    font-size: 2.5rem;
+    color: #333;
+    word-wrap: break-word;  /* Ensures text wraps inside the section */
+  }
+  
+  .layanan {
+    background-color: #FBF8EF;
+    height: 300px;
+  }
+  
+  .tentangkami {
+    margin-top: 6%;
+    background-color: #FBF8EF;
+    height: 250px;
+  }
+  
+  .thubungikami {
+    margin-top: 4%;
+  }
+  
+  .des {
+    margin-bottom: 4%;
+    font-size: 1.1rem;
+    color: #555;
+    line-height: 1.6;
+    word-wrap: break-word;  /* Ensures text wraps inside the section */
+  }
+  
+  .navbar {
+    font-family: 'Poppins', sans-serif;
+  }
+  
+  .navbar-nav .nav-link {
+    font-weight: 400;
+    font-size: 1rem;
+    color: #333;
+  }
+  
+  .navbar-nav .nav-link:hover {
+    color: #007bff;
+  }
+  
+  .card-body {
+    font-size: 1rem;
+    color: #333;
+  }
+  
+  .card-title {
+    font-weight: 600;
+  }
+  
+  .badge {
+    font-weight: 600;
+  }
+  
+  .kontakkami {
+    margin-top: 6%;
+    background-color: #FBF8EF;
+    height: 400px;
+  }
+  
+  /* Animasi Zoom In & Out */
+  @keyframes zoomInOut {
+    0% {
+      transform: scale(1); /* Ukuran normal */
+    }
+    50% {
+      transform: scale(1.1); /* Sedikit lebih besar */
+    }
+    100% {
+      transform: scale(1); /* Kembali ke ukuran normal */
+    }
+  }
+  
+  .btn-primary {
+    font-weight: 500;
+    border-radius: 10px;
+    animation: zoomInOut 2s ease-in-out infinite; /* Animasi bergerak sendiri berulang */
+  }
+  
+  
+  .btn-success {
+    font-weight: 500;
+    border-radius: 30px;
+    animation: zoomInOut 2s ease-in-out infinite; /* Animasi bergerak sendiri berulang */
+  }
+  
+  section h2 {
+    font-weight: 600;
+    font-size: 2rem;
+    color: #333;
+    word-wrap: break-word;  /* Ensures text wraps inside the section */
+  }
+  
+  p {
+    font-size: 1.2rem;
+    line-height: 1.6;
+    color: #555;
+    word-wrap: break-word;  /* Ensures text wraps inside the section */
+  }
+  
+  /* Responsive Font Sizes for Mobile */
+  @media (max-width: 767px) {
+    .headtext {
+      font-size: 1.8rem;
+      text-align: center;
+      word-wrap: break-word;  /* Ensures text wraps inside the section */
+    }
+  
+    .gambar {
+      object-fit: contain;
+      height: auto;
+    }
+  
+    .card-body {
+      padding: 1rem;
+    }
+  
+    .des {
+      font-size: 1rem;
+    }
+  
+    .navbar-nav {
+      text-align: left;
+    }
+  
+    .navbar-nav .nav-link {
+      padding-left: 0;
+      padding-right: 0;
+      font-size: 0.9rem; /* Smaller font size for mobile */
+    }
+  
+    .btn-lg {
+      width: 100%;
+      text-align: center;
+    }
+  
+    .col-sm-6 {
+      text-align: center;
+    }
+  
+    .card {
+      margin-bottom: 15px;
+    }
+  
+    .container {
+      padding: 15px;
+    }
+  
+    section h2 {
+      font-size: 1.5rem;
+    }
+  
+    p {
+      font-size: 1rem; /* Smaller font size for paragraphs */
+    }
+  
+    /* Ensure no text overflows the section */
+    .container {
+      overflow-wrap: break-word;  /* Makes sure long words wrap and do not overflow */
+    }
+  
+    .layanan {
+    background-color: #FBF8EF;
+    height: 500px;
+  }
+  
+  .tentangkami {
+    margin-top: 6%;
+    background-color: #FBF8EF;
+    height: 400px;
+  }
+  .kontakkami {
+    margin-top: 6%;
+    background-color: #FBF8EF;
+    height: 400px;
+  }
+  }
+  
+  @media (max-width: 575px) {
+    .headtext {
+      font-size: 1.5rem; /* Smaller heading on very small screens */
+    }
+  
+    .col-sm-6 {
+      margin-bottom: 15px;
+    }
+  
+    .navbar-nav .nav-link {
+      font-size: 0.85rem; /* Further reduce font size for very small screens */
+    }
+  
+    .des {
+      font-size: 0.9rem; /* Smaller description text */
+    }
+  
+    .layanan {
+    background-color: #FBF8EF;
+    height: 500px;
+  }
+  
+  .tentangkami {
+    margin-top: 6%;
+    background-color: #FBF8EF;
+    height: 400px;
+  }
+  }
+    /* Mengatur lebar input lebih spesifik jika diperlukan */
+    #simulasi input {
+      width: 50%; /* Menentukan panjang input dengan persentase */
+      max-width: 400px; /* Maksimum lebar input */
+      margin: 0 auto; /* Membuat form input berada di tengah */
+    }
+  
