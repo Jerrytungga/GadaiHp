@@ -1,5 +1,16 @@
 <?php
-include 'database.php';
+include '../database.php';
+
+session_start();
+if (!isset($_SESSION['id'])) {
+  echo "<script type='text/javascript'>
+  alert('Anda harus login terlebih dahulu!');
+  window.location = '../index.php'
+</script>";
+} else {
+  $id = $_SESSION['id'];
+  $get_data = mysqli_query($conn, "SELECT * FROM admin WHERE id='$id'");
+  $data = mysqli_fetch_array($get_data);
 
 if (isset($_POST['kirim'])) {
     // Ambil data dari form dan lakukan validasi
@@ -27,11 +38,7 @@ if (isset($_POST['kirim'])) {
             return false;
         }
 
-        // Batasi ukuran file
-        if ($file['size'] > 2 * 1024 * 1024) { // 2MB max size
-            echo "File terlalu besar, maksimal 2MB.";
-            return false;
-        }
+       
 
         $target_file = $dir . $newName . "." . $file_extension;
         if (move_uploaded_file($file['tmp_name'], $target_file)) {
@@ -98,6 +105,7 @@ if (isset($_POST['kirim'])) {
 
     $stmt->close();
 }
+}
 ?>
 
 
@@ -107,8 +115,8 @@ if (isset($_POST['kirim'])) {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Gadai Cepat Timika Papua | Form Peminjaman</title>
-    <link rel="stylesheet" href="{{ asset('https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css')}}">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script> 
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
         // Fungsi untuk menghitung bunga otomatis dan format rupiah
         function hitungBiaya() {
@@ -163,7 +171,7 @@ if (isset($_POST['kirim'])) {
   <body>
     <div class="container">
         <center>
-            <img src="image/logo.ico" class="logo" alt="Logo">
+            <img src="../image/logo.ico" class="logo" alt="Logo">
         </center>
       <h1 class="text-center mt-5">Gadai Cepat Timika Papua</h1>
 
@@ -205,7 +213,7 @@ if (isset($_POST['kirim'])) {
                       <div class="mb-3 row">
                         <label for="hp" class="col-sm-2">Foto Diri :</label>
                         <div class="col-sm-10">
-                            <input type="file" accept="image/*" capture="camera" required name="fotodiri"  class="form-control">
+                            <input type="file" required name="fotodiri"  class="form-control">
                         </div>
                       </div>
                      
@@ -248,17 +256,17 @@ if (isset($_POST['kirim'])) {
                         <div class="mb-3 row">
                             <label for="Harga" class="col-sm-2">Foto Hp :</label>
                             <div class="col-sm-10">
-                            <input type="file" accept="image/*" capture="camera" class="form-control"  name="depan" id="" required>
+                            <input type="file" class="form-control"  name="depan" id="" required>
                             <p class="text-danger">Foto depan Hp</p>
-                            <input type="file" accept="image/*" capture="camera" class="form-control" name="belakang" id="" required>
+                            <input type="file" class="form-control" name="belakang" id="" required>
                             <p class="text-danger">Foto belakang Hp</p>
-                            <input type="file" accept="image/*" capture="camera" class="form-control" name="sampingkanan" id="" required>
+                            <input type="file" class="form-control" name="sampingkanan" id="" required>
                             <p class="text-danger">Foto Samping Kanan Hp</p>
-                            <input type="file" accept="image/*" capture="camera" class="form-control" name="sampingkiri" id="" required>
+                            <input type="file" class="form-control" name="sampingkiri" id="" required>
                             <p class="text-danger">Foto Samping Kiri Hp</p>
-                            <input type="file" accept="image/*" capture="camera" class="form-control" name="atas" id="" required>
+                            <input type="file" class="form-control" name="atas" id="" required>
                             <p class="text-danger">Foto Atas Hp</p>
-                            <input type="file" accept="image/*" capture="camera" class="form-control" name="bawa" id="" required>
+                            <input type="file" class="form-control" name="bawa" id="" required>
                             <p class="text-danger">Foto Bawa Hp</p>
                             </div>
                         </div>
@@ -333,7 +341,7 @@ if (isset($_POST['kirim'])) {
                           <div class="mb-2 row">
                             <label for="KTP" class="col-sm-2">KTP :</label>
                             <div class="col-sm-10">
-                              <input type="file" accept="image/*" capture="camera" class="form-control" name="ftktp" id="" required>
+                              <input type="file" class="form-control" name="ftktp" id="" required>
                             </div>
                           </div>
 
@@ -346,6 +354,14 @@ if (isset($_POST['kirim'])) {
         </div>
       </div>
 
+
+
+
+
+
+
+
+      
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
   </body>
 </html>

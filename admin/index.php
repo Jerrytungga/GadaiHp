@@ -58,6 +58,7 @@ if (!isset($_SESSION['id'])) {
         <div class="tab-content" id="myTabContent">
           <div class="tab-pane fade show active" id="DataNasabah-tab-pane" role="tabpanel" aria-labelledby="DataNasabah-tab" tabindex="0">
             <div class="container mt-5">
+            <a href="form_peminjaman.php" class="btn btn-info">Form Peminjaman</a>
               <h2>Data Nasabah</h2>
               <table id="example" class="table table-striped table-bordered" style="width:100%">
                 <thead>
@@ -111,6 +112,7 @@ if (!isset($_SESSION['id'])) {
       <div class="modal-dialog modal-xl">
         <div class="modal-content">
           <div class="modal-header">
+           
             <h5 class="modal-title" id="detailModalLabel">Detail Nasabah</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
