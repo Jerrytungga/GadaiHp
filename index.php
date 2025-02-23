@@ -41,6 +41,34 @@
       <img src="image/logo.ico" alt="Loading...">
     </div>
 
+
+     <!-- Modal -->
+     <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="exampleModalLabel">Welcome to Gadai Cepat Timika Papua</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            Selamat datang di layanan Gadai Cepat Timika Papua. Kami siap membantu Anda dengan proses gadai yang cepat dan mudah.
+            <hr>
+            <h2 class="text-center">SYARAT & KETENTUAN</h2>
+            1️⃣ Nasabah wajib berusia minimal 18 tahun dan membawa KTP asli. <br>
+            2️⃣ HP yang digadaikan harus dalam kondisi baik dan tidak terkunci akun Google/iCloud. <br>
+            3️⃣ Pinjaman maksimal 70% dari harga pasar HP.  <br>
+            4️⃣ Bunga gadai : 10% per bulan, tergantung kondisi HP. <br>
+            5️⃣ Masa gadai maksimal 3 bulan (dapat diperpanjang dengan syarat tertentu). <br>
+            6️⃣ Denda keterlambatan Rp 10.000/hari jika pembayaran melewati jatuh tempo. <br>
+            7️⃣ Jika HP tidak ditebus dalam 7 hari setelah jatuh tempo, HP akan dijual oleh penyedia gadai.  <br>
+            8️⃣ Nasabah wajib mencadangkan data pribadi sebelum gadai, karena penyedia gadai tidak bertanggung jawab atas kehilangan data. <br>
+            9️⃣ Penyedia gadai berhak menolak HP yang dicurigai hasil curian. <br><p></p>
+          </div>
+        
+        </div>
+      </div>
+    </div>
+
     <nav class="navbar navbar-expand-lg navbar-light bg">
         <div class="container">
           <a class="navbar-brand" href="index.php"></a>
@@ -69,7 +97,8 @@
             </ul>
             <div class="d-flex">
               <span class="navbar-text">
-                <b>GADAI CEPAT TIMIKA PAPUA</b>
+                <b>GADAI CEPAT TIMIKA PAPUA</b> | 
+                <a href="login.php" rel="noopener noreferrer">Login</a>
               </span>
             </div>
           </div>
@@ -93,6 +122,11 @@
         </div>
       </section>
     </div>
+
+
+  
+
+
 
     <section class="layanan" id="layanan">
       <div class="container">
@@ -174,9 +208,6 @@
             <div class="col-sm-6 flex-column">
             <h2 class="mt-5">Hasil Simulasi Gadai</h2>
             <div id="result"></div>
-
-     
-      
         </div>
       </div>
     </section>
@@ -194,6 +225,15 @@
         </div>
       </div>
     </section>
+
+
+
+
+
+
+
+
+
     <script>
       // Fungsi untuk memformat angka ke format Rupiah
       function formatRupiah(value) {
@@ -255,6 +295,7 @@
       // Menghilangkan flash screen setelah halaman dimuat
       $(window).on('load', function() {
         $('#flash-screen').addClass('hidden');
+        $('#exampleModal').modal('show'); // Menampilkan modal secara otomatis
       });
     </script>
 
