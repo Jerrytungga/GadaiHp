@@ -7,20 +7,20 @@ if (!isset($_SESSION['id'])) {
   alert('Anda harus login terlebih dahulu!');
   window.location = '../index.php'
 </script>";
+  exit();
 } else {
   $id = $_SESSION['id'];
-  $get_data = mysqli_query($conn, "SELECT * FROM admin WHERE id='$id'");
-  $data = mysqli_fetch_array($get_data);
+  $get_data = $conn->prepare("SELECT * FROM admin WHERE id=?");
+  $get_data->bind_param("s", $id);
+  $get_data->execute();
+  $data = $get_data->get_result()->fetch_array(MYSQLI_ASSOC);
 
-if (isset($_POST['kirim'])) {
+  if (isset($_POST['kirim'])) {
     // Ambil data dari form dan lakukan validasi
     $ktp = mysqli_real_escape_string($conn, trim($_POST['ktp']));
     $namalengkap = mysqli_real_escape_string($conn, trim($_POST['namalengkap']));
     $alamat = mysqli_real_escape_string($conn, trim($_POST['alamat']));
     $nohp = mysqli_real_escape_string($conn, trim($_POST['nohp']));
-
-    // Debugging: Check KTP value
-   
 
     // Tentukan folder berdasarkan KTP
     $target_dir = "uploads/{$ktp}/"; 
@@ -32,13 +32,12 @@ if (isset($_POST['kirim'])) {
     function uploadFile($file, $dir, $newName) {
         $allowed = ['jpg', 'jpeg', 'png', 'gif'];
         $file_extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $mime_type = mime_content_type($file['tmp_name']);
 
-        if (!in_array($file_extension, $allowed)) {
+        if (!in_array($file_extension, $allowed) || !strstr($mime_type, 'image')) {
             echo "Format file tidak diizinkan.";
             return false;
         }
-
-       
 
         $target_file = $dir . $newName . "." . $file_extension;
         if (move_uploaded_file($file['tmp_name'], $target_file)) {
@@ -85,12 +84,12 @@ if (isset($_POST['kirim'])) {
 
     // Pastikan semuanya ter-bind dengan benar, pastikan urutan dan tipe datanya sesuai
     $stmt->bind_param("ssssssssssssssssssssssss", 
-        $ktp, $namalengkap, $alamat, $nohp, $target_fotodiri, 
-        $_POST['mrkhp'], $_POST['imeihp'], $_POST['kondisihp'], $_POST['akun'], $_POST['Kelengkapan'],
-        $foto_hp_paths['depan'], $foto_hp_paths['belakang'], $foto_hp_paths['sampingkanan'], 
-        $foto_hp_paths['sampingkiri'], $foto_hp_paths['atas'], $foto_hp_paths['bawa'], 
-        $_POST['harga'], $_POST['bunga'], $_POST['biayaAdministrasi'], 
-        $_POST['biayaAsuransi'], $_POST['totalPinjaman'], $waktuakhir, $ktp, $target_ftktp);
+    $ktp, $namalengkap, $alamat, $nohp, $target_fotodiri, 
+    $_POST['mrkhp'], $_POST['imeihp'], $_POST['kondisihp'], $_POST['akun'], $_POST['Kelengkapan'],
+    $foto_hp_paths['depan'], $foto_hp_paths['belakang'], $foto_hp_paths['sampingkanan'], 
+    $foto_hp_paths['sampingkiri'], $foto_hp_paths['atas'], $foto_hp_paths['bawa'], 
+    str_replace(['Rp ', '.'], '', $_POST['harga']), str_replace(['Rp ', '.'], '', $_POST['bunga']), str_replace(['Rp ', '.'], '', $_POST['biayaAdministrasi']), 
+    str_replace(['Rp ', '.'], '', $_POST['biayaAsuransi']), str_replace(['Rp ', '.'], '', $_POST['totalPinjaman']), $waktuakhir, $ktp, $target_ftktp);
 
     // Eksekusi query
     if ($stmt->execute()) {
@@ -104,7 +103,7 @@ if (isset($_POST['kirim'])) {
     }
 
     $stmt->close();
-}
+  }
 }
 ?>
 
@@ -353,8 +352,6 @@ if (isset($_POST['kirim'])) {
             </form>
         </div>
       </div>
-
-
 
 
 

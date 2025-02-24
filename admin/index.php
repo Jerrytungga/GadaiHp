@@ -11,7 +11,14 @@ if (!isset($_SESSION['id'])) {
   $get_data = mysqli_query($conn, "SELECT * FROM admin WHERE id='$id'");
   $data = mysqli_fetch_array($get_data);
 
-  $ambil_data = mysqli_query($conn, "SELECT * FROM From_gadai");
+  $ambil_data = mysqli_query($conn, "SELECT * FROM From_gadai WHERE status IS NULL");
+
+  // Query untuk mendapatkan data jatuh tempo yang mendekati tanggal sekarang
+  $tanggal_sekarang = date('Y-m-d');
+  $jatuh_tempo_data = mysqli_query($conn, "SELECT *, (jumlah_pinjaman + bunga + administrasi + asuransi) AS total_tebus_hp FROM From_gadai WHERE tanggal_jatuh_tempo >= '$tanggal_sekarang' AND status IS NULL ORDER BY tanggal_jatuh_tempo ASC");
+
+  // Query untuk mendapatkan data gadai selesai dan pembayaran lunas
+  $selesai_data = mysqli_query($conn, "SELECT * FROM From_gadai WHERE status = 'selesai' ORDER BY tanggal_jatuh_tempo ASC");
 }
 ?>
 <!doctype html>
@@ -46,10 +53,10 @@ if (!isset($_SESSION['id'])) {
             <button class="nav-link active" id="DataNasabah-tab" data-bs-toggle="tab" data-bs-target="#DataNasabah-tab-pane" type="button" role="tab" aria-controls="DataNasabah-tab-pane" aria-selected="true">Data Nasabah</button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link" id="profile-tab" data-bs-toggle="tab" data-bs-target="#profile-tab-pane" type="button" role="tab" aria-controls="profile-tab-pane" aria-selected="false">Daftar Jatuh Tempo</button>
+            <button class="nav-link" id="profile-tab" data-bs-toggle="tab" data-bs-target="#jatuh-tempo" type="button" role="tab" aria-controls="profile-tab-pane" aria-selected="false">Daftar Jatuh Tempo</button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link" id="contact-tab" data-bs-toggle="tab" data-bs-target="#contact-tab-pane" type="button" role="tab" aria-controls="contact-tab-pane" aria-selected="false">Contact</button>
+            <button class="nav-link" id="selesai-tab" data-bs-toggle="tab" data-bs-target="#selesai-tab-pane" type="button" role="tab" aria-controls="selesai-tab-pane" aria-selected="false">Gadai Selesai dan Pembayaran Lunas</button>
           </li>
           <li class="nav-item" role="presentation">
             <button class="nav-link" id="disabled-tab" data-bs-toggle="tab" data-bs-target="#disabled-tab-pane" type="button" role="tab" aria-controls="disabled-tab-pane" aria-selected="false" disabled>Disabled</button>
@@ -58,47 +65,124 @@ if (!isset($_SESSION['id'])) {
         <div class="tab-content" id="myTabContent">
           <div class="tab-pane fade show active" id="DataNasabah-tab-pane" role="tabpanel" aria-labelledby="DataNasabah-tab" tabindex="0">
             <div class="container mt-5">
-            <a href="form_peminjaman.php" class="btn btn-info">Form Peminjaman</a>
+              <a href="form_peminjaman.php" class="btn btn-info">Form Peminjaman</a>
               <h2>Data Nasabah</h2>
-              <table id="example" class="table table-striped table-bordered" style="width:100%">
-                <thead>
-                  <tr>
-                    <th scope="col">No</th>
-                    <th scope="col">Ktp</th>
-                    <th scope="col">Nama</th>
-                    <th scope="col">Tanggal Gadai</th>
-                    <th scope="col">Jumlah Pinjaman</th>
-                    <th scope="col">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <?php 
-                  $i = 1;
-                  foreach ($ambil_data as $row) :
-                  ?>
-                  <tr>
-                    <td scope="row"><?= $i; ?></td>
-                    <td><?= $row['ktp_nasabah'];?></td>
-                    <td><?= $row['nama'];?></td>
-                    <td><?= $row['tanggal_pinjaman'];?></td>
-                    <td class="rupiah"><?= $row['jumlah_pinjaman']; ?></td>
-                    <td>
-                      <button class="btn btn-primary detail-btn" data-idform="<?= $row['id_form']; ?>">Detail</button>
-                    </td>
-                  </tr>
-                  <?php 
-                  $i++; 
-                  endforeach ;
-                  ?>
-                </tbody>
-              </table>
+              <div class="table-responsive">
+                <table id="example" class="table table-striped table-bordered table-hover" style="width:100%">
+                  <thead>
+                    <tr>
+                      <th scope="col">No</th>
+                      <th scope="col">Ktp</th>
+                      <th scope="col">Nama</th>
+                      <th scope="col">Tanggal Gadai</th>
+                      <th scope="col">Jumlah Pinjaman</th>
+                      <th scope="col">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php 
+                    $i = 1;
+                    foreach ($ambil_data as $row) :
+                    ?>
+                    <tr>
+                      <td scope="row"><?= $i; ?></td>
+                      <td><?= $row['ktp_nasabah'];?></td>
+                      <td><?= $row['nama'];?></td>
+                      <td><?= $row['tanggal_pinjaman'];?></td>
+                      <td class="rupiah"><?= $row['jumlah_pinjaman']; ?></td>
+                      <td>
+                        <button class="btn btn-primary detail-btn" data-idform="<?= $row['id_form']; ?>">Detail</button>
+                        <button class="btn btn-success selesai-btn" data-idform="<?= $row['id_form']; ?>">Gadai Selesai</button>
+                      </td>
+                    </tr>
+                    <?php 
+                    $i++; 
+                    endforeach ;
+                    ?>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-          <div class="tab-pane fade" id="profile-tab-pane" role="tabpanel" aria-labelledby="profile-tab" tabindex="0">
-            <!-- Content for Daftar Jatuh Tempo -->
+          <div class="tab-pane fade" id="jatuh-tempo" role="tabpanel" aria-labelledby="profile-tab" tabindex="0">
+            <div class="container mt-5">
+              <h2>Daftar Jatuh Tempo</h2>
+              <div class="table-responsive">
+                <table id="jatuhTempoTable" class="table table-striped table-bordered table-hover" style="width:100%">
+                  <thead>
+                    <tr>
+                      <th scope="col">No</th>
+                      <th scope="col">Ktp</th>
+                      <th scope="col">Nama</th>
+                      <th scope="col">Tanggal Jatuh Tempo</th>
+                      <th scope="col">Jumlah Pinjaman</th>
+                      <th scope="col">Total Bayar</th>
+                      <th scope="col">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php 
+                    $i = 1;
+                    while ($row = mysqli_fetch_assoc($jatuh_tempo_data)) :
+                      // Tambahkan 4 digit terakhir nomor HP ke nominal pembayaran
+                      $nominal_bayar = $row['total_tebus_hp'] + substr($row['no_hp'], -4);
+                    ?>
+                    <tr>
+                      <td scope="row"><?= $i; ?></td>
+                      <td><?= $row['ktp_nasabah'];?></td>
+                      <td><?= $row['nama'];?></td>
+                      <td><?= $row['tanggal_jatuh_tempo'];?></td>
+                      <td class="rupiah"><?= $row['jumlah_pinjaman']; ?></td>
+                      <td class="rupiah"><?= $nominal_bayar; ?></td>
+                      <td>
+                        <a href="https://wa.me/<?= $row['no_hp']; ?>?text=Halo%20<?= urlencode($row['nama']); ?>,%20ini%20adalah%20pengingat%20bahwa%20tanggal%20jatuh%20tempo%20gadai%20Anda%20adalah%20<?= urlencode($row['tanggal_jatuh_tempo']); ?>.%20Harap%20segera%20melakukan%20pembayaran%20sebesar%20Rp.%20<?= urlencode(number_format($nominal_bayar, 0, ',', '.')); ?>.%20Transfer%20ke%20Bank%20BRI%20305101007702502%20atas%20nama%20JERRI%20CHRISTIAN%20GEDEON%20TUNGGA." class="btn btn-success" target="_blank">Hubungi WhatsApp</a>
+                      </td>
+                    </tr>
+                    <?php 
+                    $i++; 
+                    endwhile ;
+                    ?>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
-          <div class="tab-pane fade" id="contact-tab-pane" role="tabpanel" aria-labelledby="contact-tab" tabindex="0">
-            <!-- Content for Contact -->
+          <div class="tab-pane fade" id="selesai-tab-pane" role="tabpanel" aria-labelledby="selesai-tab" tabindex="0">
+            <div class="container mt-5">
+              <h2>Gadai Selesai dan Pembayaran Lunas</h2>
+              <div class="table-responsive">
+                <table id="selesaiTable" class="table table-striped table-bordered table-hover" style="width:100%">
+                  <thead>
+                    <tr>
+                      <th scope="col">No</th>
+                      <th scope="col">Ktp</th>
+                      <th scope="col">Nama</th>
+                      <th scope="col">Tanggal Jatuh Tempo</th>
+                      <th scope="col">Jumlah Pinjaman</th>
+                      <th scope="col">Total Bayar</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php 
+                    $i = 1;
+                    while ($row = mysqli_fetch_assoc($selesai_data)) :
+                    ?>
+                    <tr>
+                      <td scope="row"><?= $i; ?></td>
+                      <td><?= $row['ktp_nasabah'];?></td>
+                      <td><?= $row['nama'];?></td>
+                      <td><?= $row['tanggal_jatuh_tempo'];?></td>
+                      <td class="rupiah"><?= $row['jumlah_pinjaman']; ?></td>
+                      <td class="rupiah"><?= $row['total_tebus_hp']; ?></td>
+                    </tr>
+                    <?php 
+                    $i++; 
+                    endwhile ;
+                    ?>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
           <div class="tab-pane fade" id="disabled-tab-pane" role="tabpanel" aria-labelledby="disabled-tab" tabindex="0">
             <!-- Content for Disabled -->
@@ -112,7 +196,6 @@ if (!isset($_SESSION['id'])) {
       <div class="modal-dialog modal-xl">
         <div class="modal-content">
           <div class="modal-header">
-           
             <h5 class="modal-title" id="detailModalLabel">Detail Nasabah</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
@@ -126,6 +209,25 @@ if (!isset($_SESSION['id'])) {
       </div>
     </div>
 
+    <!-- Modal Konfirmasi Gadai Selesai -->
+    <div class="modal fade" id="selesaiModal" tabindex="-1" aria-labelledby="selesaiModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="selesaiModalLabel">Konfirmasi Gadai Selesai</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            Apakah Anda yakin ingin menandai gadai ini sebagai selesai?
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+            <button type="button" class="btn btn-success" id="confirmSelesaiBtn">Ya, Selesai</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.11.3/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -133,6 +235,24 @@ if (!isset($_SESSION['id'])) {
     <script>
       $(document).ready(function() {
         $('#example').DataTable({
+          "scrollX": true, // Enables horizontal scrolling
+          "scrollY": "600px", // Enables vertical scrolling with a fixed height
+          "paging": true, // Enable pagination
+          "searching": true, // Enable search
+          "info": true, // Enable information display (e.g., "Showing 1 to 10 of 100 entries")
+          "ordering": true // Enable column ordering
+        });
+
+        $('#jatuhTempoTable').DataTable({
+          "scrollX": true, // Enables horizontal scrolling
+          "scrollY": "600px", // Enables vertical scrolling with a fixed height
+          "paging": true, // Enable pagination
+          "searching": true, // Enable search
+          "info": true, // Enable information display (e.g., "Showing 1 to 10 of 100 entries")
+          "ordering": true // Enable column ordering
+        });
+
+        $('#selesaiTable').DataTable({
           "scrollX": true, // Enables horizontal scrolling
           "scrollY": "600px", // Enables vertical scrolling with a fixed height
           "paging": true, // Enable pagination
@@ -154,6 +274,34 @@ if (!isset($_SESSION['id'])) {
             },
             error: function() {
               alert('Terjadi kesalahan saat mengambil data detail.');
+            }
+          });
+        });
+
+        // Handle selesai button click
+        $('.selesai-btn').on('click', function() {
+          var id = $(this).data('idform');
+          $('#confirmSelesaiBtn').data('idform', id);
+          $('#selesaiModal').modal('show');
+        });
+
+        // Handle confirm selesai button click
+        $('#confirmSelesaiBtn').on('click', function() {
+          var id = $(this).data('idform');
+          $.ajax({
+            url: 'selesai.php', // URL to handle selesai action
+            type: 'POST',
+            data: { id: id },
+            success: function(response) {
+              if (response == 'success') {
+                alert('Gadai berhasil ditandai sebagai selesai.');
+                location.reload();
+              } else {
+                alert('Terjadi kesalahan saat menandai gadai sebagai selesai.');
+              }
+            },
+            error: function() {
+              alert('Terjadi kesalahan saat mengirim permintaan.');
             }
           });
         });
