@@ -1,6 +1,10 @@
 <?php
 include '../database.php';
 
+function formatRupiah($number) {
+    return 'Rp ' . number_format($number, 0, ',', '.');
+}
+
 if (isset($_GET['id'])) {
     $id = $_GET['id'];
     $query = mysqli_query($conn, "SELECT * FROM From_gadai WHERE id_form='$id'");
@@ -51,11 +55,11 @@ if (isset($_GET['id'])) {
         <div class="col-md-4">
           <div class="card bg-light">
             <div class="card-body text-center">
-              <img src="../<?= $data['foto_nasabah'] ?>" class="rounded-circle mb-3 img-thumbnail" alt="Foto Nasabah" width="150" height="150" onclick="showImageModal(this)">
+              <img src="<?= $data['foto_nasabah'] ?>" class="rounded-circle mb-3 img-thumbnail" alt="Foto Nasabah" width="150" height="150" onclick="showImageModal(this)">
               <h5 class="card-title"><?= $data['nama'] ?></h5>
               <p class="card-text"><span class="badge badge-custom">KTP:</span> <?= $data['ktp_nasabah'] ?></p>
               <p class="card-text">Foto KTP: <br>
-                <img src="../<?= $data['foto_ktp'] ?>" class="rounded float-start img-thumbnail" alt="Foto KTP" width="100" height="100" onclick="showImageModal(this)">
+                <img src="<?= $data['foto_ktp'] ?>" class="rounded float-start img-thumbnail" alt="Foto KTP" width="100" height="100" onclick="showImageModal(this)">
               </p>
             </div>
           </div>
@@ -74,30 +78,30 @@ if (isset($_GET['id'])) {
               <p class="card-text"><span class="badge badge-custom">Kelengkapan HP:</span> <?= $data['kelengkapan_hp'] ?></p>
               <div class="row">
                 <div class="col-md-4">
-                  <img src="../<?= $data['foto_depan_hp'] ?>" class="img-fluid mb-2 img-thumbnail" alt="Foto Depan HP" onclick="showImageModal(this)">
+                  <img src="<?= $data['foto_depan_hp'] ?>" class="img-fluid mb-2 img-thumbnail" alt="Foto Depan HP" onclick="showImageModal(this)">
                 </div>
                 <div class="col-md-4">
-                  <img src="../<?= $data['foto_belakang_hp'] ?>" class="img-fluid mb-2 img-thumbnail" alt="Foto Belakang HP" onclick="showImageModal(this)">
+                  <img src="<?= $data['foto_belakang_hp'] ?>" class="img-fluid mb-2 img-thumbnail" alt="Foto Belakang HP" onclick="showImageModal(this)">
                 </div>
                 <div class="col-md-4">
-                  <img src="../<?= $data['foto_samping_kanan_hp'] ?>" class="img-fluid mb-2 img-thumbnail" alt="Foto Samping Kanan HP" onclick="showImageModal(this)">
+                  <img src="<?= $data['foto_samping_kanan_hp'] ?>" class="img-fluid mb-2 img-thumbnail" alt="Foto Samping Kanan HP" onclick="showImageModal(this)">
                 </div>
                 <div class="col-md-4">
-                  <img src="../<?= $data['foto_samping_kiri_hp'] ?>" class="img-fluid mb-2 img-thumbnail" alt="Foto Samping Kiri HP" onclick="showImageModal(this)">
+                  <img src="<?= $data['foto_samping_kiri_hp'] ?>" class="img-fluid mb-2 img-thumbnail" alt="Foto Samping Kiri HP" onclick="showImageModal(this)">
                 </div>
                 <div class="col-md-4">
-                  <img src="../<?= $data['foto_atas_hp'] ?>" class="img-fluid mb-2 img-thumbnail" alt="Foto Atas HP" onclick="showImageModal(this)">
+                  <img src="<?= $data['foto_atas_hp'] ?>" class="img-fluid mb-2 img-thumbnail" alt="Foto Atas HP" onclick="showImageModal(this)">
                 </div>
                 <div class="col-md-4">
-                  <img src="../<?= $data['foto_bawa_hp'] ?>" class="img-fluid mb-2 img-thumbnail" alt="Foto Bawa HP" onclick="showImageModal(this)">
+                  <img src="<?= $data['foto_bawa_hp'] ?>" class="img-fluid mb-2 img-thumbnail" alt="Foto Bawa HP" onclick="showImageModal(this)">
                 </div>
               </div>
               <h5 class="card-title mt-4">Ketentuan Gadai</h5>
-              <p class="card-text"><span class="badge badge-custom">Jumlah Pinjaman:</span> <?= $data['jumlah_pinjaman'] ?></p>
-              <p class="card-text"><span class="badge badge-custom">Bunga:</span> <?= $data['bunga'] ?></p>
-              <p class="card-text"><span class="badge badge-custom">Biaya Administrasi:</span> <?= $data['administrasi'] ?></p>
-              <p class="card-text"><span class="badge badge-custom">Biaya Asuransi:</span> <?= $data['asuransi'] ?></p>
-              <p class="card-text"><span class="badge badge-custom">Total yang Harus Ditebus:</span> <?= $data['total_tebus_hp'] ?></p>
+              <p class="card-text"><span class="badge badge-custom">Jumlah Pinjaman:</span> <?= formatRupiah($data['jumlah_pinjaman']) ?></p>
+              <p class="card-text"><span class="badge badge-custom">Bunga:</span> <?= formatRupiah($data['bunga']) ?></p>
+              <p class="card-text"><span class="badge badge-custom">Biaya Administrasi:</span> <?= formatRupiah($data['administrasi']) ?></p>
+              <p class="card-text"><span class="badge badge-custom">Biaya Asuransi:</span> <?= formatRupiah($data['asuransi']) ?></p>
+              <p class="card-text"><span class="badge badge-custom">Total yang Harus Ditebus:</span> <?= formatRupiah($data['total_tebus_hp']) ?></p>
               <p class="card-text"><span class="badge badge-custom">Tanggal Jatuh Tempo:</span> <?= $data['tanggal_jatuh_tempo'] ?></p>
               <h5 class="card-title mt-4">Pernyataan Nasabah</h5>
               <p>Saya, yang bertanda tangan di bawah ini, menyatakan bahwa HP yang saya gadaikan bukan hasil curian dan saya bersedia memenuhi kewajiban sesuai perjanjian. Jika saya tidak menebus HP dalam waktu yang ditentukan, saya memahami bahwa HP akan dijual oleh pihak penyedia gadai.</p>

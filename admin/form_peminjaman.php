@@ -226,7 +226,7 @@ if (!isset($_SESSION['id'])) {
                       <div class="mb-3 row">
                         <label for="Nomor IMEI" class="col-sm-2">Nomor IMEI : </label>
                         <div class="col-sm-10">
-                          <input type="text" name="imeihp"  class="form-control" placeholder="Masukan Imei Hp anda" required>
+                          <input type="number" name="imeihp"  class="form-control" placeholder="Masukan Imei Hp anda" required>
                         </div>
                       </div>
                       <div class="mb-3 row">
