@@ -206,7 +206,7 @@ if (!isset($_SESSION['id'])) {
                       <div class="mb-3 row">
                         <label for="hp" class="col-sm-2">No Hp :</label>
                         <div class="col-sm-10">
-                            <input type="number" name="nohp" required  class="form-control">
+                            <input type="text" name="nohp" required  class="form-control">
                         </div>
                       </div>
                       <div class="mb-3 row">
