@@ -26,8 +26,7 @@ if (!isset($_SESSION['id'])) {
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Admin</title>
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.11.3/css/jquery.dataTables.min.css">
+    <title>Gadai HP</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <style>
         .logo {
@@ -58,14 +57,11 @@ if (!isset($_SESSION['id'])) {
           <li class="nav-item" role="presentation">
             <button class="nav-link" id="selesai-tab" data-bs-toggle="tab" data-bs-target="#selesai-tab-pane" type="button" role="tab" aria-controls="selesai-tab-pane" aria-selected="false">Gadai Selesai dan Pembayaran Lunas</button>
           </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link" id="disabled-tab" data-bs-toggle="tab" data-bs-target="#disabled-tab-pane" type="button" role="tab" aria-controls="disabled-tab-pane" aria-selected="false" disabled>Disabled</button>
-          </li>
         </ul>
         <div class="tab-content" id="myTabContent">
           <div class="tab-pane fade show active" id="DataNasabah-tab-pane" role="tabpanel" aria-labelledby="DataNasabah-tab" tabindex="0">
             <div class="container mt-5">
-              <a href="form_peminjaman.php" class="btn btn-info">Form Peminjaman</a>
+              <a href="form_peminjaman.php" class="btn btn-info mb-3">Form Peminjaman</a>
               <h2>Data Nasabah</h2>
               <div class="table-responsive">
                 <table id="example" class="table table-striped table-bordered table-hover" style="width:100%">
@@ -183,9 +179,6 @@ if (!isset($_SESSION['id'])) {
                 </table>
               </div>
             </div>
-          </div>
-          <div class="tab-pane fade" id="disabled-tab-pane" role="tabpanel" aria-labelledby="disabled-tab" tabindex="0">
-            <!-- Content for Disabled -->
           </div>
         </div>
       </div>

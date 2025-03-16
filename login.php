@@ -9,7 +9,7 @@ if (isset($_POST['login'])) {
       $row = mysqli_fetch_assoc($result);
       $_SESSION['id'] = $row['id'];
       if ($result) {
-        header("Location: admin/index.php");
+        header("Location: AdminGadai/index.php");
       }
     }
 }

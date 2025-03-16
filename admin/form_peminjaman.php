@@ -212,7 +212,7 @@ if (!isset($_SESSION['id'])) {
                       <div class="mb-3 row">
                         <label for="hp" class="col-sm-2">Foto Diri :</label>
                         <div class="col-sm-10">
-                            <input type="file" required name="fotodiri"  class="form-control">
+                            <input type="file" required name="fotodiri"  class="form-control" accept="image/*" capture="camera">
                         </div>
                       </div>
                      
@@ -255,17 +255,17 @@ if (!isset($_SESSION['id'])) {
                         <div class="mb-3 row">
                             <label for="Harga" class="col-sm-2">Foto Hp :</label>
                             <div class="col-sm-10">
-                            <input type="file" class="form-control"  name="depan" id="" required>
+                            <input type="file" class="form-control"  name="depan" id="" required accept="image/*" capture="camera">
                             <p class="text-danger">Foto depan Hp</p>
-                            <input type="file" class="form-control" name="belakang" id="" required>
+                            <input type="file" class="form-control" name="belakang" id="" required accept="image/*" capture="camera">
                             <p class="text-danger">Foto belakang Hp</p>
-                            <input type="file" class="form-control" name="sampingkanan" id="" required>
+                            <input type="file" class="form-control" name="sampingkanan" id="" required accept="image/*" capture="camera">
                             <p class="text-danger">Foto Samping Kanan Hp</p>
-                            <input type="file" class="form-control" name="sampingkiri" id="" required>
+                            <input type="file" class="form-control" name="sampingkiri" id="" required accept="image/*" capture="camera">
                             <p class="text-danger">Foto Samping Kiri Hp</p>
-                            <input type="file" class="form-control" name="atas" id="" required>
+                            <input type="file" class="form-control" name="atas" id="" required accept="image/*" capture="camera">
                             <p class="text-danger">Foto Atas Hp</p>
-                            <input type="file" class="form-control" name="bawa" id="" required>
+                            <input type="file" class="form-control" name="bawa" id="" required accept="image/*" capture="camera">
                             <p class="text-danger">Foto Bawa Hp</p>
                             </div>
                         </div>
