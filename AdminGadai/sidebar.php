@@ -14,7 +14,7 @@
           <img src="dist/img/user2-160x160.jpg" class="img-circle elevation-2" alt="User Image">
         </div>
         <div class="info">
-          <a href="#" class="d-block">Alexander Pierce</a>
+          <a href="index.php" class="d-block">JERRI CHRISTIAN</a>
         </div>
       </div>
 
@@ -49,18 +49,14 @@
                 </a>
               </li>
               <li class="nav-item">
-                <a href="jtp.php" class="nav-link">
+                <a href="tr1.php" class="nav-link">
                   <i class="far fa-circle nav-icon"></i>
-                  <p>Daftar Jatuh Tempo</p>
+                  <p>Transaksi</p>
                 </a>
               </li>
+          
               
-              <li class="nav-item">
-                <a href="../examples/contact-us.html" class="nav-link">
-                  <i class="far fa-circle nav-icon"></i>
-                  <p>Contact us</p>
-                </a>
-              </li>
+           
             </ul>
           </li>
 

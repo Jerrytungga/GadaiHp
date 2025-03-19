@@ -57,7 +57,7 @@
             1️⃣ Nasabah wajib berusia minimal 18 tahun dan membawa KTP asli. <br>
             2️⃣ HP yang digadaikan harus dalam kondisi baik dan tidak terkunci akun Google/iCloud. <br>
             3️⃣ Pinjaman maksimal 70% dari harga pasar HP.  <br>
-            4️⃣ Bunga gadai : 10% per bulan, tergantung kondisi HP. <br>
+            4️⃣ Bunga gadai : 20% per bulan, tergantung kondisi HP. <br>
             5️⃣ Masa gadai maksimal 3 bulan (dapat diperpanjang dengan syarat tertentu). <br>
             6️⃣ Denda keterlambatan Rp 10.000/hari jika pembayaran melewati jatuh tempo. <br>
             7️⃣ Jika HP tidak ditebus dalam 7 hari setelah jatuh tempo, HP akan dijual oleh penyedia gadai.  <br>

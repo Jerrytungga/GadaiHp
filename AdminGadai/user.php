@@ -2,42 +2,139 @@
 include 'head.php';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-  $ktp = $_POST['ktp'];
-  $nama = $_POST['nama'];
-  $nomor_hp = $_POST['nomor_hp'];
-  $alamat = $_POST['alamat'];
-  $status = $_POST['status'];
+  if (isset($_POST['edit_user'])) {
+    $ktp = $_POST['ktp'];
+    $nama = $_POST['nama'];
+    $nomor_hp = $_POST['nomor_hp'];
+    $alamat = $_POST['alamat'];
+    $status = $_POST['status'];
 
-  // Handle file uploads
-  $foto_ktp = $_FILES['foto_ktp']['name'];
-  $foto_diri = $_FILES['foto_diri']['name'];
+    // Handle file uploads
+    $foto_ktp = $_FILES['foto_ktp']['name'];
+    $foto_diri = $_FILES['foto_diri']['name'];
 
-  // Set the target directory for file uploads
-  $target_dir = "uploads/";
+    // Set the target directory for file uploads
+    $target_dir = "uploads/";
 
-  // Set the target file paths
-  $target_file_ktp = $target_dir . basename($foto_ktp);
-  $target_file_diri = $target_dir . basename($foto_diri);
+    // Set the target file paths
+    $target_file_ktp = $target_dir . basename($foto_ktp);
+    $target_file_diri = $target_dir . basename($foto_diri);
 
-  // Move the uploaded files to the target directory
-  move_uploaded_file($_FILES['foto_ktp']['tmp_name'], $target_file_ktp);
-  move_uploaded_file($_FILES['foto_diri']['tmp_name'], $target_file_diri);
+    // Move the uploaded files to the target directory
+    if ($foto_ktp) {
+      move_uploaded_file($_FILES['foto_ktp']['tmp_name'], $target_file_ktp);
+      $update_ktp = ", foto_ktp='$target_file_ktp'";
+    } else {
+      $update_ktp = "";
+    }
 
-  // Insert the data into the database
-  $sql = "INSERT INTO pelanggan (nik, foto_ktp, foto_diri, nama, nomor_hp, alamat, status) VALUES ('$ktp', '$target_file_ktp', '$target_file_diri', '$nama', '$nomor_hp', '$alamat', '$status')";
+    if ($foto_diri) {
+      move_uploaded_file($_FILES['foto_diri']['tmp_name'], $target_file_diri);
+      $update_diri = ", foto_diri='$target_file_diri'";
+    } else {
+      $update_diri = "";
+    }
 
-  if (mysqli_query($conn, $sql)) {
-      echo "New record created successfully";
+    // Update the data in the database
+    $sql = "UPDATE pelanggan SET nik='$ktp', nama='$nama', nomor_hp='$nomor_hp', alamat='$alamat', status='$status' $update_ktp $update_diri WHERE nik='$ktp'";
+
+    if (mysqli_query($conn, $sql)) {
+      echo "<script>
+        Swal.fire({
+          icon: 'success',
+          title: 'Berhasil',
+          text: 'Data user berhasil diperbarui!'
+        }).then(() => {
+          window.location = 'user.php';
+        });
+      </script>";
+    } else {
+      echo "<script>
+        Swal.fire({
+          icon: 'error',
+          title: 'Gagal',
+          text: 'Terjadi kesalahan saat memperbarui data!'
+        });
+      </script>";
+    }
+    exit();
   } else {
-      echo "Error: " . $sql . "<br>" . mysqli_error($conn);
+    $ktp = $_POST['ktp'];
+    $nama = $_POST['nama'];
+    $nomor_hp = $_POST['nomor_hp'];
+    $alamat = $_POST['alamat'];
+    $status = $_POST['status'];
+
+    // Handle file uploads
+    $foto_ktp = $_FILES['foto_ktp']['name'];
+    $foto_diri = $_FILES['foto_diri']['name'];
+
+    // Set the target directory for file uploads
+    $target_dir = "uploads/";
+
+    // Set the target file paths
+    $target_file_ktp = $target_dir . basename($foto_ktp);
+    $target_file_diri = $target_dir . basename($foto_diri);
+
+    // Move the uploaded files to the target directory
+    move_uploaded_file($_FILES['foto_ktp']['tmp_name'], $target_file_ktp);
+    move_uploaded_file($_FILES['foto_diri']['tmp_name'], $target_file_diri);
+
+    // Insert the data into the database
+    $sql = "INSERT INTO pelanggan (nik, foto_ktp, foto_diri, nama, nomor_hp, alamat, status) VALUES ('$ktp', '$target_file_ktp', '$target_file_diri', '$nama', '$nomor_hp', '$alamat', '$status')";
+
+    if (mysqli_query($conn, $sql)) {
+      echo "<script>
+        Swal.fire({
+          icon: 'success',
+          title: 'Berhasil',
+          text: 'Data user berhasil ditambahkan!'
+        }).then(() => {
+          window.location = 'user.php';
+        });
+      </script>";
+    } else {
+      echo "<script>
+        Swal.fire({
+          icon: 'error',
+          title: 'Gagal',
+          text: 'Terjadi kesalahan saat menambahkan data!'
+        });
+      </script>";
+    }
+    exit();
   }
-
-  mysqli_close($conn);
-
-  // Redirect back to the user list page
-  header("Location: user.php");
-  exit();
 }
+
+if ($_SERVER['REQUEST_METHOD'] == 'GET' && isset($_GET['hapus_nik'])) {
+    $nik = $_GET['hapus_nik'];
+
+    // Query untuk menghapus data berdasarkan NIK
+    $sql = "DELETE FROM pelanggan WHERE nik = '$nik'";
+
+    if (mysqli_query($conn, $sql)) {
+        echo "<script>
+            Swal.fire({
+                icon: 'success',
+                title: 'Berhasil',
+                text: 'Data user berhasil dihapus!'
+            }).then(() => {
+                window.location = 'user.php';
+            });
+        </script>";
+    } else {
+        echo "<script>
+            Swal.fire({
+                icon: 'error',
+                title: 'Gagal',
+                text: 'Terjadi kesalahan saat menghapus data!'
+            }).then(() => {
+                window.location = 'user.php';
+            });
+        </script>";
+    }
+}
+
 include 'navbar.php';
 include 'sidebar.php';
 ?>
@@ -110,7 +207,7 @@ include 'sidebar.php';
             <td><?= $row['status'];?></td>
             <td>
               <a href="rw_user.php?nik=<?= $row['nik'];?>" type="button" class="btn btn-info btn-sm">Lihat Riwayat</a>
-              <button type="button" class="btn btn-warning btn-sm">Edit</button>
+              <button type="button" class="btn btn-warning btn-sm" data-toggle="modal" data-target="#editUserModal" data-ktp="<?= $row['nik']; ?>" data-nama="<?= $row['nama']; ?>" data-nomor_hp="<?= $row['nomor_hp']; ?>" data-alamat="<?= $row['alamat']; ?>" data-status="<?= $row['status']; ?>">Edit</button>
               <button type="button" class="btn btn-danger btn-sm" onclick="hapusUser(<?= $row['nik']; ?>)">Hapus</button>
             </td>
             </tr>
@@ -204,6 +301,57 @@ include 'sidebar.php';
   </div>
 </div>
 
+<!-- Modal for editing user -->
+<div class="modal fade" id="editUserModal" tabindex="-1" role="dialog" aria-labelledby="editUserModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editUserModalLabel">Edit User</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form action="user.php" method="POST" enctype="multipart/form-data">
+          <input type="hidden" id="edit_id" name="id">
+          <div class="form-group">
+            <label for="edit_ktp">KTP</label>
+            <input type="text" class="form-control" id="edit_ktp" name="ktp" required>
+          </div>
+          <div class="form-group">
+            <label for="edit_foto_ktp">Foto KTP</label>
+            <input type="file" class="form-control" id="edit_foto_ktp" name="foto_ktp">
+          </div>
+          <div class="form-group">
+            <label for="edit_foto_diri">Foto Diri</label>
+            <input type="file" class="form-control" id="edit_foto_diri" name="foto_diri">
+          </div>
+          <div class="form-group">
+            <label for="edit_nama">Nama</label>
+            <input type="text" class="form-control" id="edit_nama" name="nama" required>
+          </div>
+          <div class="form-group">
+            <label for="edit_nomor_hp">Nomor HP</label>
+            <input type="text" class="form-control" id="edit_nomor_hp" name="nomor_hp" required>
+          </div>
+          <div class="form-group">
+            <label for="edit_alamat">Alamat</label>
+            <input type="text" class="form-control" id="edit_alamat" name="alamat" required>
+          </div>
+          <div class="form-group">
+            <label for="edit_status">Status</label>
+            <select class="form-control" id="edit_status" name="status" required>
+              <option value="Aktif">Aktif</option>
+              <option value="Tidak Aktif">Tidak Aktif</option>
+            </select>
+          </div>
+          <button type="submit" name="edit_user" class="btn btn-primary">Update</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
 <?php
 include 'script.php';
 ?>
@@ -223,13 +371,30 @@ $(document).ready(function() {
         var modal = $(this);
         modal.find('#modalPhoto').attr('src', photo);
     });
+
+    // Handle edit button click to show edit modal with pre-filled data
+    $('#editUserModal').on('show.bs.modal', function (event) {
+        var button = $(event.relatedTarget);
+        var id = button.data('id');
+        var ktp = button.data('ktp');
+        var nama = button.data('nama');
+        var nomor_hp = button.data('nomor_hp');
+        var alamat = button.data('alamat');
+        var status = button.data('status');
+        var modal = $(this);
+        modal.find('#edit_id').val(id);
+        modal.find('#edit_ktp').val(ktp);
+        modal.find('#edit_nama').val(nama);
+        modal.find('#edit_nomor_hp').val(nomor_hp);
+        modal.find('#edit_alamat').val(alamat);
+        modal.find('#edit_status').val(status);
+    });
 });
 
 function hapusUser(id) {
     // Implement the logic to delete the user
     if (confirm('Apakah Anda yakin ingin menghapus user ini?')) {
-        // Perform the delete operation
-        alert('Hapus User: ' + id);
+        window.location.href = 'user.php?hapus_nik=' + id;
     }
 }
 </script>

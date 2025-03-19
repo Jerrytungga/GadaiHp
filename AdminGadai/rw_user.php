@@ -47,9 +47,10 @@ function formatRupiah($number) {
         </div>
       </div>
       <div class="card-body">
-        <table id="userTable" class="table table-bordered table-striped">
-          <thead>
-          <tr>
+        <div style="overflow-x: auto;">
+          <table id="userTable" class="table table-bordered table-striped">
+            <thead>
+              <tr>
                 <th>ID</th>
                 <th>Nama Barang</th>
                 <th>Imei</th>
@@ -59,35 +60,30 @@ function formatRupiah($number) {
                 <th>Jatuh Tempo</th>
                 <th>Status</th>
                 <th>Aksi</th>
-            </tr>
-
-          </thead>
-          <tbody>
-            <?php
-            
-            $no = 1;
-            while ($gadai = mysqli_fetch_assoc($query)) {
-            ?>
-              <tr>
-                <td><?= $no++; ?></td>
-                <td><?= htmlspecialchars($gadai['nama_barang']); ?></td>
-                <td><?= htmlspecialchars($gadai['imei']); ?></td>
-                <td><?= htmlspecialchars($gadai['nama_pemilik']); ?></td>
-                <td><?= formatRupiah($gadai['nilai_taksir']); ?></td>
-                <td><?= formatRupiah($gadai['pinjaman'] + ($gadai['pinjaman'] * $gadai['bunga'] / 100)); ?></td>
-                <td><?= htmlspecialchars($gadai['jatuh_tempo']); ?></td>
-                <td><span class="badge bg-success"><?= htmlspecialchars($gadai['status']); ?></span></td>
-                <td>
-                  <a href="transaksi.php?id=<?= $gadai['id']; ?>" class="btn btn-sm btn-primary">Lihat Pembayaran</a>
-
-                </td>
-            </tr>
-            <?php } 
-
-            ?>
-        
-          </tbody>
-        </table>
+              </tr>
+            </thead>
+            <tbody>
+              <?php
+              $no = 1;
+              while ($gadai = mysqli_fetch_assoc($query)) {
+              ?>
+                <tr>
+                  <td><?= $no++; ?></td>
+                  <td><?= htmlspecialchars($gadai['nama_barang']); ?></td>
+                  <td><?= htmlspecialchars($gadai['imei']); ?></td>
+                  <td><?= htmlspecialchars($gadai['nama_pemilik']); ?></td>
+                  <td><?= formatRupiah($gadai['nilai_taksir']); ?></td>
+                  <td><?= formatRupiah($gadai['pinjaman'] + ($gadai['pinjaman'] * $gadai['bunga'] / 100)); ?></td>
+                  <td><?= htmlspecialchars($gadai['jatuh_tempo']); ?></td>
+                  <td><span class="badge bg-success"><?= htmlspecialchars($gadai['status']); ?></span></td>
+                  <td>
+                    <a href="transaksi.php?id=<?= $gadai['id']; ?>" class="btn btn-sm btn-primary">Lihat Pembayaran</a>
+                  </td>
+                </tr>
+              <?php } ?>
+            </tbody>
+          </table>
+        </div>
       </div>
       <!-- /.card-body -->
       <div class="card-footer">
