@@ -57,11 +57,10 @@ function formatRupiah($number) {
           <tr>
                 <th>No</th>
                 <th>Nama Barang</th>
-                <th>Jumlah Cicilan</th>
+                <th>Jumlah Pembayaran</th>
+                <th>Metode Pembayaran</th>
                 <th>Tanggal Bayar</th>
                 <th>Status</th>
-              
-                <th>Aksi</th>
             </tr>
 
           </thead>
@@ -75,6 +74,10 @@ function formatRupiah($number) {
                 <td><?= $no++; ?></td>
                 <td><?= htmlspecialchars($gadai['nama_barang']); ?></td>
                 <td><?= formatRupiah($gadai['jumlah_bayar']); ?></td>
+                <td>
+                    <?= $gadai['metode_pembayaran']; ?> <br>
+                    <a href="#" data-toggle="modal" data-target="#viewBuktiModal" data-bukti="../payment/<?= $gadai['bukti']; ?>">Lihat bukti transfer</a>
+                  </td>
                 <td><?= htmlspecialchars($gadai['tanggal_bayar']); ?></td>
                 <td>
                   <?php if ($gadai['keterangan'] == 'cicilan') { ?>
@@ -85,7 +88,7 @@ function formatRupiah($number) {
                     <span class="badge bg-secondary"><?= htmlspecialchars($gadai['keterangan']); ?></span>
                   <?php } ?>
                 </td>
-                <td></td>
+            
             </tr>
             <?php } 
 
@@ -107,6 +110,22 @@ function formatRupiah($number) {
 </div>
 <!-- /.content-wrapper -->
 
+<!-- Modal untuk melihat bukti transfer -->
+<div class="modal fade" id="viewBuktiModal" tabindex="-1" aria-labelledby="viewBuktiModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewBuktiModalLabel">Bukti Transfer</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="buktiImage" src="" alt="Bukti Transfer" class="img-fluid">
+            </div>
+        </div>
+    </div>
+</div>
 
 <?php
 include 'script.php';
@@ -119,6 +138,14 @@ include 'script.php';
 <script>
 $(document).ready(function() {
     $('#userTable').DataTable();
+
+    // Ketika tautan "Lihat bukti transfer" diklik
+    $('#viewBuktiModal').on('show.bs.modal', function(event) {
+        var button = $(event.relatedTarget); // Tombol yang diklik
+        var bukti = button.data('bukti'); // Ambil data-bukti dari atribut data
+        var modal = $(this);
+        modal.find('#buktiImage').attr('src', bukti); // Setel src gambar di modal
+    });
 });
 </script>
 

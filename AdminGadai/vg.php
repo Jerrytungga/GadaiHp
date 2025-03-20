@@ -68,7 +68,7 @@ if (isset($_POST['reminder_cicilan'])) {
     $totalPembayaran = $bungaBulanan + (int)$lastThreeDigits;
 
     // URL ke halaman upload bukti pembayaran
-    $uploadUrl = "http://localhost:8888/Gadaihp/upload_bukti.php?id_gadai=$idGadai";
+    $uploadUrl = "https://gadaicepat.online/upload_bukti.php?id_gadai=$idGadai";
 
     // Pesan WhatsApp
     $whatsappMessage = "Halo $namaPemilik,\n\nIni adalah pengingat bahwa jatuh tempo pembayaran cicilan gadai untuk barang '$namaBarang' adalah pada $jatuhTempo.\n\nJumlah yang harus dibayar: Rp " . number_format($totalPembayaran, 0, ',', '.') . "\n\nSilakan lakukan pembayaran melalui transfer ke Rekening BRI 305101007702502 a/n JERRI CHRISTIAN GEDEON TUNGGA.\n\nSetelah melakukan pembayaran, Anda dapat mengunggah bukti pembayaran melalui tautan berikut:\n$uploadUrl\n\nTerima kasih.";
@@ -350,10 +350,6 @@ while ($cicilan = mysqli_fetch_assoc($cicilanQuery)) {
               <div class="form-group">
                 <label for="imei">IMEI HP:</label>
                 <input type="text" name="imei" id="imei" class="form-control" required>
-              </div>
-              <div class="form-group">
-                <label for="gambarhp">Foto HP:</label>
-                <input type="file" name="gambarhp" id="gambarhp" class="form-control" required>
               </div>
             </div>
             <div class="col-md-6">

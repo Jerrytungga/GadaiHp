@@ -175,48 +175,50 @@ include 'sidebar.php';
         </div>
       </div>
       <div class="card-body">
-        <table id="userTable" class="table table-bordered table-striped">
-          <thead>
-            <tr>
-              <th>No</th>
-              <th>KTP</th>
-              <th>Foto</th>
-              <th>Nama</th>
-              <th>Nomor HP</th>
-              <th>Alamat</th>
-              <th>Status</th>
-              <th>Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-          <?php 
-                $i = 1;
-                $ambil_data = mysqli_query($conn, "SELECT * FROM pelanggan ");
-                foreach ($ambil_data as $row) :
-                ?>
-            <tr>
-            <td scope="row"><?= $i; ?></td>
-            <td><?= $row['nik'];?></td>
-            <td>
-              <img src="<?= $row['foto_ktp'] ?>" class="mb-3 img-thumbnail" alt="Foto Nasabah" width="50" height="50" data-toggle="modal" data-target="#viewPhotoModal" data-photo="<?= $row['foto_ktp'] ?>">
-              <img src="<?= $row['foto_diri'] ?>" class="mb-3 img-thumbnail" alt="Foto Nasabah" width="50" height="50" data-toggle="modal" data-target="#viewPhotoModal" data-photo="<?= $row['foto_diri'] ?>">
-            </td>
-            <td><?= $row['nama'];?></td>
-            <td><?= $row['nomor_hp'];?></td>
-            <td><?= $row['alamat'];?></td>
-            <td><?= $row['status'];?></td>
-            <td>
-              <a href="rw_user.php?nik=<?= $row['nik'];?>" type="button" class="btn btn-info btn-sm">Lihat Riwayat</a>
-              <button type="button" class="btn btn-warning btn-sm" data-toggle="modal" data-target="#editUserModal" data-ktp="<?= $row['nik']; ?>" data-nama="<?= $row['nama']; ?>" data-nomor_hp="<?= $row['nomor_hp']; ?>" data-alamat="<?= $row['alamat']; ?>" data-status="<?= $row['status']; ?>">Edit</button>
-              <button type="button" class="btn btn-danger btn-sm" onclick="hapusUser(<?= $row['nik']; ?>)">Hapus</button>
-            </td>
-            </tr>
+        <div class="table-responsive"> <!-- Tambahkan div ini untuk membuat tabel responsif -->
+          <table id="userTable" class="table table-bordered table-striped">
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>KTP</th>
+                <th>Foto</th>
+                <th>Nama</th>
+                <th>Nomor HP</th>
+                <th>Alamat</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
             <?php 
-                $i++; 
-                endforeach ;
-                ?>
-          </tbody>
-        </table>
+                  $i = 1;
+                  $ambil_data = mysqli_query($conn, "SELECT * FROM pelanggan ");
+                  foreach ($ambil_data as $row) :
+                  ?>
+              <tr>
+              <td scope="row"><?= $i; ?></td>
+              <td><?= $row['nik'];?></td>
+              <td>
+                <img src="<?= $row['foto_ktp'] ?>" class="mb-3 img-thumbnail" alt="Foto Nasabah" width="50" height="50" data-toggle="modal" data-target="#viewPhotoModal" data-photo="<?= $row['foto_ktp'] ?>">
+                <img src="<?= $row['foto_diri'] ?>" class="mb-3 img-thumbnail" alt="Foto Nasabah" width="50" height="50" data-toggle="modal" data-target="#viewPhotoModal" data-photo="<?= $row['foto_diri'] ?>">
+              </td>
+              <td><?= $row['nama'];?></td>
+              <td><?= $row['nomor_hp'];?></td>
+              <td><?= $row['alamat'];?></td>
+              <td><?= $row['status'];?></td>
+              <td>
+                <a href="rw_user.php?nik=<?= $row['nik'];?>" type="button" class="btn btn-info btn-sm">Lihat Riwayat</a>
+                <button type="button" class="btn btn-warning btn-sm" data-toggle="modal" data-target="#editUserModal" data-ktp="<?= $row['nik']; ?>" data-nama="<?= $row['nama']; ?>" data-nomor_hp="<?= $row['nomor_hp']; ?>" data-alamat="<?= $row['alamat']; ?>" data-status="<?= $row['status']; ?>">Edit</button>
+                <button type="button" class="btn btn-danger btn-sm" onclick="hapusUser(<?= $row['nik']; ?>)">Hapus</button>
+              </td>
+              </tr>
+              <?php 
+                  $i++; 
+                  endforeach ;
+                  ?>
+            </tbody>
+          </table>
+        </div> <!-- Tutup div table-responsive -->
       </div>
       <!-- /.card-body -->
       <div class="card-footer">
@@ -362,7 +364,9 @@ include 'script.php';
 
 <script>
 $(document).ready(function() {
-    $('#userTable').DataTable();
+    $('#userTable').DataTable({
+        responsive: true
+    });
 
     // Handle photo click to show in modal
     $('#viewPhotoModal').on('show.bs.modal', function (event) {

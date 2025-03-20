@@ -4,7 +4,7 @@ $id_gadai = $_GET['id_gadai'];
 
 if (isset($_POST['byrcicilan'])) {
     $pelanggan = $_POST['ktp'];
-    $payment = str_replace(['Rp', '.', ','], '', $_POST['amount']); // Hapus format Rupiah
+    $payment = $_POST['amount']; // Hapus format Rupiah
     $metode = $_POST['method'];
     $bukti = $_FILES['receipt'];
 
