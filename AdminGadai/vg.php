@@ -3,43 +3,7 @@ include 'head.php';
 include 'navbar.php';
 include 'sidebar.php';
 
-if (isset($_POST['byrcicilan'])) {
-  $pelanggan = $_POST['pelanggan'];
-  $id_gadai = $_POST['id_gadai'];
-  $status = $_POST['status'];
-  $bunga = $_POST['bunga'];
 
-  // Check if pelanggan_nik exists in pelanggan table
-  $checkPelanggan = mysqli_query($conn, "SELECT nik FROM pelanggan WHERE nik = '$pelanggan'");
-  if (mysqli_num_rows($checkPelanggan) > 0) {
-    $query = mysqli_query($conn, "INSERT INTO `transaksi`(`pelanggan_nik`, `barang_id`, `jumlah_bayar`, `keterangan`) VALUES ('$pelanggan','$id_gadai','$bunga','$status')");
-    if ($query) {
-      echo "<script>
-        Swal.fire({
-          icon: 'success',
-          title: 'Berhasil',
-          text: 'Berhasil membayar cicilan'
-        });
-      </script>";
-    } else {
-      echo "<script>
-        Swal.fire({
-          icon: 'error',
-          title: 'Gagal',
-          text: 'Gagal membayar cicilan'
-        });
-      </script>";
-    }
-  } else {
-    echo "<script>
-      Swal.fire({
-        icon: 'error',
-        title: 'Gagal',
-        text: 'Pelanggan tidak ditemukan'
-      });
-    </script>";
-  }
-}
 
 if (isset($_POST['lunas'])) {
   $idbarang = $_POST['lunas'];
@@ -87,6 +51,69 @@ if (isset($_POST['edit_gadai'])) {
       });
     </script>";
   }
+}
+
+if (isset($_POST['reminder_cicilan'])) {
+    $idGadai = $_POST['id_gadai'];
+    $namaPemilik = $_POST['nama_pemilik'];
+    $namaBarang = $_POST['nama_barang'];
+    $jatuhTempo = $_POST['jatuh_tempo'];
+    $bungaBulanan = $_POST['bunga_bulanan'];
+    $nomorHp = $_POST['nomor_hp']; // Nomor tujuan (format internasional tanpa "+")
+
+    // Ambil 3 angka terakhir dari nomor telepon
+    $lastThreeDigits = substr($nomorHp, -3);
+
+    // Tambahkan 3 angka terakhir ke jumlah pembayaran
+    $totalPembayaran = $bungaBulanan + (int)$lastThreeDigits;
+
+    // URL ke halaman upload bukti pembayaran
+    $uploadUrl = "http://localhost:8888/Gadaihp/upload_bukti.php?id_gadai=$idGadai";
+
+    // Pesan WhatsApp
+    $whatsappMessage = "Halo $namaPemilik,\n\nIni adalah pengingat bahwa jatuh tempo pembayaran cicilan gadai untuk barang '$namaBarang' adalah pada $jatuhTempo.\n\nJumlah yang harus dibayar: Rp " . number_format($totalPembayaran, 0, ',', '.') . "\n\nSilakan lakukan pembayaran melalui transfer ke Rekening BRI 305101007702502 a/n JERRI CHRISTIAN GEDEON TUNGGA.\n\nSetelah melakukan pembayaran, Anda dapat mengunggah bukti pembayaran melalui tautan berikut:\n$uploadUrl\n\nTerima kasih.";
+
+    // Kirim pesan menggunakan Fonnte API
+    $url = "https://api.fonnte.com/send";
+    $data = [
+        'target' => $nomorHp, // Nomor tujuan
+        'message' => $whatsappMessage, // Isi pesan
+        'countryCode' => '62', // Kode negara (62 untuk Indonesia)
+    ];
+
+    $headers = [
+        "Authorization: g6i1PFe8Zcu8AvLjidiw", // Ganti dengan API Key Fonnte Anda
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    // Log hasil pengiriman
+    if ($httpCode == 200) {
+        echo "<script>
+            Swal.fire({
+                icon: 'success',
+                title: 'Berhasil',
+                text: 'Pesan WhatsApp berhasil dikirim ke $nomorHp'
+            });
+        </script>";
+    } else {
+        echo "<script>
+            Swal.fire({
+                icon: 'error',
+                title: 'Gagal',
+                text: 'Gagal mengirim pesan WhatsApp. Response: $response'
+            });
+        </script>";
+    }
 }
 
 $userQuery = mysqli_query($conn, "SELECT nik, nama FROM pelanggan");
@@ -216,7 +243,7 @@ while ($cicilan = mysqli_fetch_assoc($cicilanQuery)) {
                           <input type="text" name="id_gadai" value="<?= $gadai['id']; ?>" hidden>
                           <input type="text" name="status" value="cicilan" hidden>
                           <input type="text" name="bunga" value="<?= $gadai['bunga']; ?>" hidden>
-                          <button type="submit" name="byrcicilan" class="btn btn-info btn-sm">
+                          <button type="submit" name="byrcicilan" class="btn btn-info m-1 btn-sm">
                             Bayar Cicilan <span class="badge badge-light"><?= isset($cicilanCounts[$gadai['id']]) ? $cicilanCounts[$gadai['id']] : 0; ?></span>
                           </button>
                         </form>
@@ -226,7 +253,16 @@ while ($cicilan = mysqli_fetch_assoc($cicilanQuery)) {
                           <input type="text" name="jumlah_tebus" value="<?= $gadai['pinjaman'] + ($gadai['pinjaman'] * $gadai['bunga'] / 100); ?>" hidden>
                           <button type="submit" name="lunas" value="<?= $gadai['id']; ?>" class="btn m-1 btn-dark btn-sm">Lunasin</button>
                         </form>
-                        <a href="https://wa.me/<?= htmlspecialchars($gadai['telepon_pemilik']); ?>?text=<?= urlencode($whatsappMessageCicilan); ?>" target="_blank" class="btn btn-success m-1 btn-sm">Reminder Cicilan WA</a>
+                        <form action="" method="post" style="display: inline;" class="mb-1">
+                            <input type="hidden" name="id_gadai" value="<?= $gadai['id']; ?>">
+                            <input type="hidden" name="pelanggan" value="<?= $gadai['pelanggan_nik']; ?>">
+                            <input type="hidden" name="nama_pemilik" value="<?= htmlspecialchars($gadai['nama_pemilik']); ?>">
+                            <input type="hidden" name="nama_barang" value="<?= htmlspecialchars($gadai['nama_barang']); ?>">
+                            <input type="hidden" name="jatuh_tempo" value="<?= htmlspecialchars($gadai['jatuh_tempo']); ?>">
+                            <input type="hidden" name="bunga_bulanan" value="<?= $gadai['pinjaman'] * ($gadai['bunga'] / 100); ?>">
+                            <input type="hidden" name="nomor_hp" value="<?= htmlspecialchars($gadai['telepon_pemilik']); ?>">
+                            <button type="submit" name="reminder_cicilan" class="btn m-1 btn-success btn-sm">Reminder Cicilan WA</button>
+                        </form>
                         <a href="https://wa.me/<?= htmlspecialchars($gadai['telepon_pemilik']); ?>?text=<?= urlencode($whatsappMessageLunas); ?>" target="_blank" class="btn btn-primary m-1 btn-sm">Reminder Lunas WA</a>
                       </div>
                       <div class="d-block d-md-none">
@@ -249,7 +285,16 @@ while ($cicilan = mysqli_fetch_assoc($cicilanQuery)) {
                               <input type="text" name="jumlah_tebus" value="<?= $gadai['pinjaman'] + ($gadai['pinjaman'] * $gadai['bunga'] / 100); ?>" hidden>
                               <button type="submit" name="lunas" value="<?= $gadai['id']; ?>" class="dropdown-item">Lunasin</button>
                             </form>
-                            <a class="dropdown-item" href="https://wa.me/<?= htmlspecialchars($gadai['telepon_pemilik']); ?>?text=<?= urlencode($whatsappMessageCicilan); ?>" target="_blank">Reminder Cicilan WA</a>
+                            <form action="" method="post" style="display: inline;" class="mb-1">
+                                <input type="hidden" name="id_gadai" value="<?= $gadai['id']; ?>">
+                                <input type="hidden" name="pelanggan" value="<?= $gadai['pelanggan_nik']; ?>">
+                                <input type="hidden" name="nama_pemilik" value="<?= htmlspecialchars($gadai['nama_pemilik']); ?>">
+                                <input type="hidden" name="nama_barang" value="<?= htmlspecialchars($gadai['nama_barang']); ?>">
+                                <input type="hidden" name="jatuh_tempo" value="<?= htmlspecialchars($gadai['jatuh_tempo']); ?>">
+                                <input type="hidden" name="bunga_bulanan" value="<?= $gadai['pinjaman'] * ($gadai['bunga'] / 100); ?>">
+                                <input type="hidden" name="nomor_hp" value="<?= htmlspecialchars($gadai['telepon_pemilik']); ?>">
+                                <button type="submit" name="reminder_cicilan" class="btn btn-success btn-sm">Reminder Cicilan WA</button>
+                            </form>
                             <a class="dropdown-item" href="https://wa.me/<?= htmlspecialchars($gadai['telepon_pemilik']); ?>?text=<?= urlencode($whatsappMessageLunas); ?>" target="_blank">Reminder Lunas WA</a>
                           </div>
                         </div>
