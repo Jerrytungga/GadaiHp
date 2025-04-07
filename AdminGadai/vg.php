@@ -219,7 +219,16 @@ while ($cicilan = mysqli_fetch_assoc($cicilanQuery)) {
                 } elseif (isDueSoon($gadai['days_to_due'])) {
                   $rowClass = 'bg-warning';
                 }
-                $bungaBulanan = $gadai['pinjaman'] * ($gadai['bunga'] / 100);
+
+                $pinjaman = $gadai['pinjaman'];
+                // Menghitung biaya administrasi 1%
+                $satupersen = 1;  // Persentase yang diinginkan (1%)
+                $Administrasi = ($pinjaman * $satupersen) / 100;
+
+                // Biaya admin tetap 10.000
+                $biaya_admin = 10000; 
+
+                $bungaBulanan = $biaya_admin + $Administrasi + $gadai['pinjaman'] * ($gadai['bunga'] / 100);
                 $whatsappMessageCicilan = "Halo " . htmlspecialchars($gadai['nama_pemilik']) . ",\n\nIni adalah pengingat bahwa jatuh tempo pembayaran cicilan gadai untuk barang " . htmlspecialchars($gadai['nama_barang']) . " adalah pada " . htmlspecialchars($gadai['jatuh_tempo']) . ".\n\nJumlah yang harus dibayar: " . formatRupiah($bungaBulanan) . "\n\nSilakan lakukan pembayaran melalui transfer ke Rekening BRI 305101007702502 a/n JERRI CHRISTIAN GEDEON TUNGGA.\n\nTerima kasih.";
                 $whatsappMessageLunas = "Halo " . htmlspecialchars($gadai['nama_pemilik']) . ",\n\nIni adalah pengingat bahwa jatuh tempo pembayaran lunas gadai untuk barang " . htmlspecialchars($gadai['nama_barang']) . " adalah pada " . htmlspecialchars($gadai['jatuh_tempo']) . ".\n\nJumlah yang harus dibayar: " . formatRupiah($gadai['pinjaman'] + $bungaBulanan) . "\n\nSilakan lakukan pembayaran melalui transfer ke Rekening BRI 305101007702502 a/n JERRI CHRISTIAN GEDEON TUNGGA.\n\nTerima kasih.";
               ?>

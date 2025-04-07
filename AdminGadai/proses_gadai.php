@@ -12,7 +12,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $keteranganhp = $_POST['keteranganhp'];
 
     // Hitung total tagihan (pinjaman + bunga)
-    $sisa_tagihan = $pinjaman + ($pinjaman * $bunga / 100);
+
+ // Menghitung biaya administrasi 1%
+ $satupersen = 1;  // Persentase yang diinginkan (1%)
+ $Administrasi = ($pinjaman * $satupersen) / 100;
+
+ // Biaya admin tetap 10.000
+ $biaya_admin = 10000; 
+
+ $sisa_tagihan = $biaya_admin + $Administrasi + $pinjaman * ($bunga / 100);
+
+
 
     // Masukkan ke database tanpa upload gambar
     $insert_query = "
@@ -27,8 +37,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $namaPelanggan = htmlspecialchars($pelanggan['nama']);
         $nomorHp = htmlspecialchars($pelanggan['nomor_hp']); // Nomor tujuan (format internasional tanpa "+")
 
-        // Hitung bunga bulanan
-        $bungaBulanan = $pinjaman * ($bunga / 100);
+ 
+        // Menghitung biaya administrasi 1%
+        $satupersen = 1;  // Persentase yang diinginkan (1%)
+        $Administrasi = ($pinjaman * $satupersen) / 100;
+
+        // Biaya admin tetap 10.000
+        $biaya_admin = 10000; 
+
+        $bungaBulanan = $biaya_admin + $Administrasi + $pinjaman * ($bunga / 100);
 
         // Pesan WhatsApp
         $whatsappMessage = "Halo $namaPelanggan,\n\nTerima kasih telah melakukan gadai di layanan kami.\n\nDetail Gadai:\n- Nama Barang: $merek_hp\n- IMEI: $imei\n- Nilai Taksir: Rp " . number_format($nilai_taksir, 0, ',', '.') . "\n- Jumlah Pinjaman: Rp " . number_format($pinjaman, 0, ',', '.') . "\n- Bunga Bulanan: Rp " . number_format($bungaBulanan, 0, ',', '.') . "\n- Jatuh Tempo: $jatuh_tempo\n\nSilakan simpan informasi ini sebagai referensi. Terima kasih.";

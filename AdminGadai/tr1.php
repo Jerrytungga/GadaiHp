@@ -2,10 +2,11 @@
 include 'head.php';
 include 'navbar.php';
 include 'sidebar.php';
-$query = mysqli_query($conn, "SELECT transaksi.*, barang_gadai.nama_barang, pelanggan.nama AS nama_pemilik 
+$query = mysqli_query($conn, "SELECT transaksi.*, barang_gadai.nama_barang, barang_gadai.pinjaman, barang_gadai.bunga, pelanggan.nama AS nama_pemilik 
                               FROM transaksi 
                               JOIN barang_gadai ON transaksi.barang_id = barang_gadai.id 
-                              JOIN pelanggan ON transaksi.pelanggan_nik = pelanggan.nik");
+                              JOIN pelanggan ON transaksi.pelanggan_nik = pelanggan.nik 
+                              ");
 
 // Function to format numbers as Rupiah
 function formatRupiah($number) {
@@ -52,6 +53,11 @@ function formatRupiah($number) {
             Data gadai berhasil ditambahkan!
           </div>
         <?php } ?>
+        <div class="mb-3">
+    <button class="btn btn-primary filter-btn" data-filter="">Semua</button>
+    <button class="btn btn-success filter-btn" data-filter="lunas">Lunas</button>
+    <button class="btn btn-warning filter-btn" data-filter="cicilan">Cicilan</button>
+</div>
         <div class="table-responsive"> <!-- Tambahkan div ini untuk membuat tabel responsif -->
           <table id="userTable" class="table table-bordered table-striped">
             <thead>
@@ -59,6 +65,8 @@ function formatRupiah($number) {
                 <th>No</th>
                 <th>Nama Pemilik</th>
                 <th>Nama Barang</th>
+                <th>Jumlah Gadai</th>
+                <th>Bunga (Profit)</th>
                 <th>Jumlah Pembayaran</th>
                 <th>Metode Pembayaran</th>
                 <th>Tanggal Bayar</th>
@@ -69,11 +77,22 @@ function formatRupiah($number) {
               <?php
               $no = 1;
               while ($gadai = mysqli_fetch_assoc($query)) {
+
+                $pinjaman = $gadai['pinjaman'];
+                // Menghitung biaya administrasi 1%
+                $satupersen = 1;  // Persentase yang diinginkan (1%)
+                $Administrasi = ($pinjaman * $satupersen) / 100;
+
+                // Biaya admin tetap 10.000
+                $biaya_admin = 10000; 
+               $totalbunga = $Administrasi + $biaya_admin + $gadai['pinjaman'] * ($gadai['bunga'] / 100);
               ?>
                 <tr>
                   <td><?= $no++; ?></td>
                   <td><?= htmlspecialchars($gadai['nama_pemilik']); ?></td>
                   <td><?= htmlspecialchars($gadai['nama_barang']); ?></td>
+                  <td><?= formatRupiah($gadai['pinjaman']); ?></td>
+                  <td><?= formatRupiah($totalbunga); ?></td>
                   <td><?= formatRupiah($gadai['jumlah_bayar']); ?></td>
                   <td>
                     <?= $gadai['metode_pembayaran']; ?> <br>
@@ -135,16 +154,18 @@ include 'script.php';
 
 <script>
 $(document).ready(function() {
-    $('#userTable').DataTable({
+    var table = $('#userTable').DataTable({
         responsive: true
     });
-    
-    // Ketika tautan "Lihat bukti transfer" diklik
-    $('#viewBuktiModal').on('show.bs.modal', function(event) {
-        var button = $(event.relatedTarget); // Tombol yang diklik
-        var bukti = button.data('bukti'); // Ambil data-bukti dari atribut data
-        var modal = $(this);
-        modal.find('#buktiImage').attr('src', bukti); // Setel src gambar di modal
+
+    // Filter berdasarkan keterangan (Lunas / Cicilan)
+    $('.filter-btn').on('click', function() {
+        var filterValue = $(this).data('filter');
+        if (filterValue) {
+            table.column(8).search(filterValue).draw(); // Kolom ke-8 adalah kolom Keterangan
+        } else {
+            table.column(8).search('').draw(); // Reset filter jika tombol "Semua" ditekan
+        }
     });
 });
 </script>
