@@ -1,90 +1,54 @@
 <?php
 include '../database.php';
 
+// Periksa apakah tabel modal memiliki data
+$modalCountQuery = "SELECT SUM(jumlah) AS total_modal FROM modal";
+$modalCountResult = mysqli_query($conn, $modalCountQuery);
+$modalCountRow = mysqli_fetch_assoc($modalCountResult);
+$totalModal = $modalCountRow['total_modal'] ?? 0; // Jika null, set ke 0
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $user_id = $_POST['user_id'];
-    $merek_hp = $_POST['merek_hp'];
-    $imei = $_POST['imei'];
-    $nilai_taksir = $_POST['nilai_taksir'];
-    $pinjaman = $_POST['pinjaman'];
-    $bunga = $_POST['bunga'];
-    $jatuh_tempo = $_POST['jatuh_tempo'];
-    $keteranganhp = $_POST['keteranganhp'];
+    // Jika tabel modal kosong, hentikan proses dan kembali ke halaman vg.php
+    if ($totalModal == 0) {
+        header("Location: vg.php?status=warning&message=Tidak dapat menambahkan data gadai karena modal kosong!");
+        exit();
+    }
 
-    // Hitung total tagihan (pinjaman + bunga)
+    // Validasi input
+    $user_id = mysqli_real_escape_string($conn, $_POST['user_id'] ?? '');
+    $merek_hp = mysqli_real_escape_string($conn, $_POST['merek_hp'] ?? '');
+    $imei = mysqli_real_escape_string($conn, $_POST['imei'] ?? '');
+    $nilai_taksir = mysqli_real_escape_string($conn, $_POST['nilai_taksir'] ?? '');
+    $pinjaman = mysqli_real_escape_string($conn, $_POST['pinjaman'] ?? '');
+    $bunga = mysqli_real_escape_string($conn, $_POST['bunga'] ?? '');
+    $jatuh_tempo = mysqli_real_escape_string($conn, $_POST['jatuh_tempo'] ?? '');
+    $keteranganhp = mysqli_real_escape_string($conn, $_POST['keteranganhp'] ?? '');
 
- // Menghitung biaya administrasi 1%
- $satupersen = 1;  // Persentase yang diinginkan (1%)
- $Administrasi = ($pinjaman * $satupersen) / 100;
+    // Pastikan semua input tidak kosong
+    if (empty($user_id) || empty($merek_hp) || empty($imei) || empty($nilai_taksir) || empty($pinjaman) || empty($bunga) || empty($jatuh_tempo) || empty($keteranganhp)) {
+        header("Location: vg.php?status=warning&message=Semua field harus diisi!");
+        exit();
+    }
 
- // Biaya admin tetap 10.000
- $biaya_admin = 10000; 
+    // Periksa apakah jumlah pinjaman lebih besar dari modal yang tersedia
+    if ($pinjaman > $totalModal) {
+        header("Location: vg.php?status=warning&message=Jumlah pinjaman melebihi modal yang tersedia!");
+        exit();
+    }
 
- $sisa_tagihan = $biaya_admin + $Administrasi + $pinjaman * ($bunga / 100);
-
-
-
-    // Masukkan ke database tanpa upload gambar
+    // Masukkan data gadai ke database
     $insert_query = "
         INSERT INTO barang_gadai (pelanggan_nik, nama_barang, imei, deskripsi, nilai_taksir, pinjaman, bunga, jatuh_tempo, status, created_at)
         VALUES ('$user_id', '$merek_hp', '$imei', '$keteranganhp', '$nilai_taksir', '$pinjaman', '$bunga', '$jatuh_tempo', 'Aktif', NOW())
     ";
 
     if (mysqli_query($conn, $insert_query)) {
-        // Ambil nomor HP pelanggan
-        $pelangganQuery = mysqli_query($conn, "SELECT nama, nomor_hp FROM pelanggan WHERE nik = '$user_id'");
-        $pelanggan = mysqli_fetch_assoc($pelangganQuery);
-        $namaPelanggan = htmlspecialchars($pelanggan['nama']);
-        $nomorHp = htmlspecialchars($pelanggan['nomor_hp']); // Nomor tujuan (format internasional tanpa "+")
-
- 
-        // Menghitung biaya administrasi 1%
-        $satupersen = 1;  // Persentase yang diinginkan (1%)
-        $Administrasi = ($pinjaman * $satupersen) / 100;
-
-        // Biaya admin tetap 10.000
-        $biaya_admin = 10000; 
-
-        $bungaBulanan = $biaya_admin + $Administrasi + $pinjaman * ($bunga / 100);
-
-        // Pesan WhatsApp
-        $whatsappMessage = "Halo $namaPelanggan,\n\nTerima kasih telah melakukan gadai di layanan kami.\n\nDetail Gadai:\n- Nama Barang: $merek_hp\n- IMEI: $imei\n- Nilai Taksir: Rp " . number_format($nilai_taksir, 0, ',', '.') . "\n- Jumlah Pinjaman: Rp " . number_format($pinjaman, 0, ',', '.') . "\n- Bunga Bulanan: Rp " . number_format($bungaBulanan, 0, ',', '.') . "\n- Jatuh Tempo: $jatuh_tempo\n\nSilakan simpan informasi ini sebagai referensi. Terima kasih.";
-
-        // Kirim pesan menggunakan Fonnte API
-        $url = "https://api.fonnte.com/send";
-        $data = [
-            'target' => $nomorHp, // Nomor tujuan
-            'message' => $whatsappMessage, // Isi pesan
-            'countryCode' => '62', // Kode negara (62 untuk Indonesia)
-        ];
-
-        $headers = [
-            "Authorization: g6i1PFe8Zcu8AvLjidiw", // Ganti dengan API Key Fonnte Anda
-        ];
-
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        // Log hasil pengiriman
-        if ($httpCode == 200) {
-            error_log("Pesan WhatsApp berhasil dikirim ke $nomorHp: $whatsappMessage");
-        } else {
-            error_log("Gagal mengirim pesan WhatsApp ke $nomorHp. Response: $response");
-        }
-
-        // Redirect kembali ke halaman utama dengan pesan sukses
-        header("Location: vg.php?message=success");
+        // Kurangi jumlah modal
+        header("Location: vg.php?status=success&message=Data gadai berhasil ditambahkan dan modal telah dikurangi!");
         exit();
     } else {
-        echo "Gagal menambahkan gadai: " . mysqli_error($conn);
+        header("Location: vg.php?status=error&message=Gagal menambahkan gadai: " . mysqli_error($conn));
+        exit();
     }
 }
 ?>

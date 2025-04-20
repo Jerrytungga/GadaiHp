@@ -55,8 +55,8 @@ function formatRupiah($number) {
                 <th>Nama Barang</th>
                 <th>Imei</th>
                 <th>Pemilik</th>
-                <th>Nilai Taksir</th>
                 <th>Pinjaman</th>
+                <th>Total Tebus</th>
                 <th>Jatuh Tempo</th>
                 <th>Status</th>
                 <th>Aksi</th>
@@ -73,7 +73,7 @@ function formatRupiah($number) {
                   <td><?= htmlspecialchars($gadai['imei']); ?></td>
                   <td><?= htmlspecialchars($gadai['nama_pemilik']); ?></td>
                   <td><?= formatRupiah($gadai['nilai_taksir']); ?></td>
-                  <td><?= formatRupiah($gadai['pinjaman'] + ($gadai['pinjaman'] * $gadai['bunga'] / 100)); ?></td>
+                  <td><?= formatRupiah($gadai['pinjaman'] + $gadai['bunga']); ?></td>
                   <td><?= htmlspecialchars($gadai['jatuh_tempo']); ?></td>
                   <td><span class="badge bg-success"><?= htmlspecialchars($gadai['status']); ?></span></td>
                   <td>

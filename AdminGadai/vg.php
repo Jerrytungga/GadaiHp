@@ -2,24 +2,100 @@
 include 'head.php';
 include 'navbar.php';
 include 'sidebar.php';
+?>
 
+<!-- SweetAlert -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
 
+<?php
+// Tampilkan alert jika ada parameter status dan message
+if (isset($_GET['status']) && isset($_GET['message'])) {
+    $status = htmlspecialchars($_GET['status']);
+    $message = htmlspecialchars($_GET['message']);
+
+    echo "<script>
+        Swal.fire({
+            icon: '$status',
+            title: '" . ucfirst($status) . "',
+            text: '$message'
+        });
+    </script>";
+}
 
 if (isset($_POST['lunas'])) {
-  $idbarang = $_POST['lunas'];
-  $pelanggan = $_POST['pelanggan'];
-  $jumlah_tebus = $_POST['jumlah_tebus'];
-  $status = 'lunas';
-  mysqli_query($conn, "INSERT INTO `transaksi`(`pelanggan_nik`, `barang_id`, `jumlah_bayar`, `keterangan`) VALUES ('$pelanggan','$idbarang','$jumlah_tebus','$status')");
-  mysqli_query($conn, "UPDATE barang_gadai SET status='ditebus' WHERE id='$idbarang'");
-  echo "<script>
-    Swal.fire({
-      icon: 'success',
-      title: 'Berhasil',
-      text: 'Barang berhasil ditebus'
-    });
-  </script>";
+    $idbarang = $_POST['lunas'];
+    $pelanggan = $_POST['pelanggan'];
+    $jumlah_tebus = $_POST['jumlah_tebus'];
+    $status = 'lunas';
+
+    // Mulai transaksi untuk memastikan konsistensi data
+    mysqli_begin_transaction($conn);
+
+    try {
+        // Masukkan data transaksi ke tabel `transaksi`
+        $insertTransaksiQuery = "INSERT INTO `transaksi`(`pelanggan_nik`, `barang_id`, `jumlah_bayar`, `keterangan`) 
+                                 VALUES ('$pelanggan', '$idbarang', '$jumlah_tebus', '$status')";
+        mysqli_query($conn, $insertTransaksiQuery);
+
+        // Perbarui status barang gadai menjadi "ditebus"
+        $updateBarangQuery = "UPDATE barang_gadai SET status='ditebus' WHERE id='$idbarang'";
+        mysqli_query($conn, $updateBarangQuery);
+
+
+        // Commit transaksi jika semua query berhasil
+        mysqli_commit($conn);
+
+        // Tampilkan pesan sukses
+        echo "<script>
+            Swal.fire({
+                icon: 'success',
+                title: 'Berhasil',
+                text: 'Barang berhasil ditebus dan modal telah dikurangi!'
+            }).then(() => {
+                window.location.href = 'vg.php';
+            });
+        </script>";
+    } catch (Exception $e) {
+        // Rollback transaksi jika terjadi kesalahan
+        mysqli_rollback($conn);
+
+        // Tampilkan pesan error
+        echo "<script>
+            Swal.fire({
+                icon: 'error',
+                title: 'Gagal',
+                text: 'Terjadi kesalahan saat memproses pelunasan: " . $e->getMessage() . "'
+            }).then(() => {
+                window.location.href = 'vg.php';
+            });
+        </script>";
+    }
 }
+
+
+
+$result_pinjaman = mysqli_query($conn, "SELECT SUM(pinjaman) AS total_pinjaman FROM barang_gadai WHERE status = 'aktif'");
+$row_pinjaman = mysqli_fetch_assoc($result_pinjaman);
+$totalPinjaman = $row_pinjaman['total_pinjaman'] ?? 0; // Jika null, set ke 0
+
+$result_bunga = mysqli_query($conn, "SELECT SUM(bunga) AS total_bunga FROM barang_gadai WHERE status = 'ditebus'");
+$row_bunga = mysqli_fetch_assoc($result_bunga);
+$totalbunga = $row_bunga['total_bunga'] ?? 0; // Jika null, set ke 0
+
+$result_pinjaman_ditebus = mysqli_query($conn, "SELECT SUM(pinjaman) AS total_pinjaman_tebus FROM barang_gadai WHERE status = 'ditebus'");
+$row_pinjaman_ditebus = mysqli_fetch_assoc($result_pinjaman_ditebus);
+$totalPinjamantebus = $row_pinjaman_ditebus['total_pinjaman_tebus'] ?? 0; // Jika null, set ke 0
+
+
+
+
+$modalQuery = "SELECT SUM(jumlah) AS total_modal FROM modal";
+$modalResult = mysqli_query($conn, $modalQuery);
+$modalRow = mysqli_fetch_assoc($modalResult);
+$totalModal = $modalRow['total_modal'] ?? 0; // Jika null, set ke 0
+
+$sisa_modal = $totalModal - $totalPinjaman + $totalbunga;
 
 if (isset($_POST['edit_gadai'])) {
   $id_gadai = $_POST['id_gadai'];
@@ -116,6 +192,164 @@ if (isset($_POST['reminder_cicilan'])) {
     }
 }
 
+if (isset($_POST['reminder_pelunasan'])) {
+    $idGadai = $_POST['id_gadai'];
+    $namaPemilik = $_POST['nama_pemilik'];
+    $namaBarang = $_POST['nama_barang'];
+    $jatuhTempo = $_POST['jatuh_tempo'];
+    $totalPelunasan = $_POST['total_pelunasan'];
+    $nomorHp = $_POST['nomor_hp']; // Nomor tujuan (format internasional tanpa "+")
+
+    // URL ke halaman upload bukti pembayaran
+    $uploadUrl = "https://gadaicepat.online/upload_bukti.php?id_gadai=$idGadai";
+
+    // Pesan WhatsApp
+    $whatsappMessage = "Halo $namaPemilik,\n\nIni adalah pengingat bahwa jatuh tempo pembayaran pelunasan gadai untuk barang '$namaBarang' adalah pada $jatuhTempo.\n\nJumlah yang harus dibayar: Rp " . number_format($totalPelunasan, 0, ',', '.') . "\n\nSilakan lakukan pembayaran melalui transfer ke Rekening BRI 305101007702502 a/n JERRI CHRISTIAN GEDEON TUNGGA.\n\nSetelah melakukan pembayaran, Anda dapat mengunggah bukti pembayaran melalui tautan berikut:\n$uploadUrl\n\nTerima kasih.";
+
+    // Kirim pesan menggunakan Fonnte API
+    $url = "https://api.fonnte.com/send";
+    $data = [
+        'target' => $nomorHp, // Nomor tujuan
+        'message' => $whatsappMessage, // Isi pesan
+        'countryCode' => '62', // Kode negara (62 untuk Indonesia)
+    ];
+
+    $headers = [
+        "Authorization: g6i1PFe8Zcu8AvLjidiw", // Ganti dengan API Key Fonnte Anda
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    // Log hasil pengiriman
+    if ($httpCode == 200) {
+        echo "<script>
+            Swal.fire({
+                icon: 'success',
+                title: 'Berhasil',
+                text: 'Pesan WhatsApp berhasil dikirim ke $nomorHp'
+            });
+        </script>";
+    } else {
+        echo "<script>
+            Swal.fire({
+                icon: 'error',
+                title: 'Gagal',
+                text: 'Gagal mengirim pesan WhatsApp. Response: $response'
+            });
+        </script>";
+    }
+}
+
+if (isset($_POST['bayar_cicilan'])) {
+    $idGadai = mysqli_real_escape_string($conn, $_POST['id_gadai']);
+    $pelanggan = mysqli_real_escape_string($conn, $_POST['pelanggan']);
+    $jumlahCicilan = floatval($_POST['jumlah_cicilan']); // Pastikan jumlah cicilan berupa angka
+    $metodePembayaran = 'transfer'; // Contoh metode pembayaran
+
+    // Validasi jumlah cicilan
+    if ($jumlahCicilan <= 0) {
+        echo "<script>
+            Swal.fire({
+                icon: 'error',
+                title: 'Gagal',
+                text: 'Jumlah cicilan tidak valid.'
+            });
+        </script>";
+        exit;
+    }
+
+    // Masukkan data cicilan ke tabel transaksi
+    $insertCicilanQuery = "INSERT INTO transaksi (pelanggan_nik, barang_id, jumlah_bayar, keterangan, metode_pembayaran) 
+                           VALUES ('$pelanggan', '$idGadai', '$jumlahCicilan', 'cicilan', '$metodePembayaran')";
+    $result = mysqli_query($conn, $insertCicilanQuery);
+
+    if ($result) {
+        echo "<script>
+            Swal.fire({
+                icon: 'success',
+                title: 'Berhasil',
+                text: 'Pembayaran cicilan berhasil diproses!'
+            }).then(() => {
+                window.location.href = 'vg.php';
+            });
+        </script>";
+    } else {
+        echo "<script>
+            Swal.fire({
+                icon: 'error',
+                title: 'Gagal',
+                text: 'Terjadi kesalahan saat memproses pembayaran cicilan.'
+            });
+        </script>";
+    }
+}
+
+if (isset($_POST['bayar_pelunasan'])) {
+    $idGadai = mysqli_real_escape_string($conn, $_POST['id_gadai']);
+    $pelanggan = mysqli_real_escape_string($conn, $_POST['pelanggan']);
+    $jumlahPelunasan = floatval($_POST['jumlah_pelunasan']); // Pastikan jumlah pelunasan berupa angka
+    $metodePembayaran = 'transfer'; // Contoh metode pembayaran
+
+    // Validasi jumlah pelunasan
+    if ($jumlahPelunasan <= 0) {
+        echo "<script>
+            Swal.fire({
+                icon: 'error',
+                title: 'Gagal',
+                text: 'Jumlah pelunasan tidak valid.'
+            });
+        </script>";
+        exit;
+    }
+
+    // Mulai transaksi untuk memastikan konsistensi data
+    mysqli_begin_transaction($conn);
+
+    try {
+        // Masukkan data pelunasan ke tabel transaksi
+        $insertPelunasanQuery = "INSERT INTO transaksi (pelanggan_nik, barang_id, jumlah_bayar, keterangan, metode_pembayaran) 
+                                 VALUES ('$pelanggan', '$idGadai', '$jumlahPelunasan', 'lunas', '$metodePembayaran')";
+        mysqli_query($conn, $insertPelunasanQuery);
+
+        // Perbarui status barang gadai menjadi "ditebus"
+        $updateBarangQuery = "UPDATE barang_gadai SET status='ditebus' WHERE id='$idGadai'";
+        mysqli_query($conn, $updateBarangQuery);
+
+        // Commit transaksi jika semua query berhasil
+        mysqli_commit($conn);
+
+        echo "<script>
+            Swal.fire({
+                icon: 'success',
+                title: 'Berhasil',
+                text: 'Pelunasan berhasil diproses dan saldo bertambah!'
+            }).then(() => {
+                window.location.href = 'vg.php';
+            });
+        </script>";
+    } catch (Exception $e) {
+        // Rollback transaksi jika terjadi kesalahan
+        mysqli_rollback($conn);
+
+        echo "<script>
+            Swal.fire({
+                icon: 'error',
+                title: 'Gagal',
+                text: 'Terjadi kesalahan saat memproses pelunasan.'
+            });
+        </script>";
+    }
+}
+
 $userQuery = mysqli_query($conn, "SELECT nik, nama FROM pelanggan");
 $query = mysqli_query($conn, "SELECT barang_gadai.*, pelanggan.nama AS nama_pemilik, pelanggan.nomor_hp AS telepon_pemilik, 
                               DATEDIFF(jatuh_tempo, CURDATE()) AS days_to_due 
@@ -162,7 +396,41 @@ while ($cicilan = mysqli_fetch_assoc($cicilanQuery)) {
             Tambah Gadai
           </button>
         </div>
+       
       </div>
+      <div class="row">
+        <!-- Card Sisa Modal -->
+        <div class="col-lg-6 col-md-6 col-sm-12">
+            <div class="small-box bg-info">
+                <div class="inner">
+                    <h3><?= 'Rp ' . number_format($sisa_modal, 0, ',', '.'); ?></h3>
+                    <p>Sisa Modal</p>
+                </div>
+                <div class="icon">
+                    <i class="fas fa-wallet"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card Jumlah Bunga -->
+        <div class="col-lg-6 col-md-6 col-sm-12">
+            <div class="small-box bg-success">
+                <div class="inner">
+                    <?php
+                    // Hitung total bunga
+                    $bungaQuery = mysqli_query($conn, "SELECT SUM(bunga) AS total_bunga FROM barang_gadai");
+                    $bungaRow = mysqli_fetch_assoc($bungaQuery);
+                    $totalBunga = $bungaRow['total_bunga'] ?? 0; // Jika null, set ke 0
+                    ?>
+                    <h3><?= 'Rp ' . number_format($totalBunga, 0, ',', '.'); ?></h3>
+                    <p>Total Profit</p>
+                </div>
+                <div class="icon">
+                    <i class="fas fa-percentage"></i>
+                </div>
+            </div>
+        </div>
+    </div>
     </div><!-- /.container-fluid -->
   </section>
 
@@ -220,17 +488,10 @@ while ($cicilan = mysqli_fetch_assoc($cicilanQuery)) {
                   $rowClass = 'bg-warning';
                 }
 
-                $pinjaman = $gadai['pinjaman'];
-                // Menghitung biaya administrasi 1%
-                $satupersen = 1;  // Persentase yang diinginkan (1%)
-                $Administrasi = ($pinjaman * $satupersen) / 100;
 
-                // Biaya admin tetap 10.000
-                $biaya_admin = 10000; 
-
-                $bungaBulanan = $biaya_admin + $Administrasi + $gadai['pinjaman'] * ($gadai['bunga'] / 100);
-                $whatsappMessageCicilan = "Halo " . htmlspecialchars($gadai['nama_pemilik']) . ",\n\nIni adalah pengingat bahwa jatuh tempo pembayaran cicilan gadai untuk barang " . htmlspecialchars($gadai['nama_barang']) . " adalah pada " . htmlspecialchars($gadai['jatuh_tempo']) . ".\n\nJumlah yang harus dibayar: " . formatRupiah($bungaBulanan) . "\n\nSilakan lakukan pembayaran melalui transfer ke Rekening BRI 305101007702502 a/n JERRI CHRISTIAN GEDEON TUNGGA.\n\nTerima kasih.";
-                $whatsappMessageLunas = "Halo " . htmlspecialchars($gadai['nama_pemilik']) . ",\n\nIni adalah pengingat bahwa jatuh tempo pembayaran lunas gadai untuk barang " . htmlspecialchars($gadai['nama_barang']) . " adalah pada " . htmlspecialchars($gadai['jatuh_tempo']) . ".\n\nJumlah yang harus dibayar: " . formatRupiah($gadai['pinjaman'] + $bungaBulanan) . "\n\nSilakan lakukan pembayaran melalui transfer ke Rekening BRI 305101007702502 a/n JERRI CHRISTIAN GEDEON TUNGGA.\n\nTerima kasih.";
+                // $bungaBulanan = $biaya_admin + $Administrasi + $gadai['pinjaman'] * ($gadai['bunga'] / 100);
+                $whatsappMessageCicilan = "Halo " . htmlspecialchars($gadai['nama_pemilik']) . ",\n\nIni adalah pengingat bahwa jatuh tempo pembayaran cicilan gadai untuk barang " . htmlspecialchars($gadai['nama_barang']) . " adalah pada " . htmlspecialchars($gadai['jatuh_tempo']) . ".\n\nJumlah yang harus dibayar: " . formatRupiah($gadai['bunga']) . "\n\nSilakan lakukan pembayaran melalui transfer ke Rekening BRI 305101007702502 a/n JERRI CHRISTIAN GEDEON TUNGGA.\n\nTerima kasih.";
+                $whatsappMessageLunas = "Halo " . htmlspecialchars($gadai['nama_pemilik']) . ",\n\nIni adalah pengingat bahwa jatuh tempo pembayaran lunas gadai untuk barang " . htmlspecialchars($gadai['nama_barang']) . " adalah pada " . htmlspecialchars($gadai['jatuh_tempo']) . ".\n\nJumlah yang harus dibayar: " . formatRupiah($gadai['pinjaman'] + $gadai['bunga']) . "\n\nSilakan lakukan pembayaran melalui transfer ke Rekening BRI 305101007702502 a/n JERRI CHRISTIAN GEDEON TUNGGA.\n\nTerima kasih.";
               ?>
                 <tr class="<?= $rowClass; ?>">
                   <td><?= $no++; ?></td>
@@ -240,75 +501,52 @@ while ($cicilan = mysqli_fetch_assoc($cicilanQuery)) {
                   <td><?= htmlspecialchars($gadai['nama_pemilik']); ?></td>
                   <td><?= formatRupiah($gadai['nilai_taksir']); ?></td>
                   <td><?= formatRupiah($gadai['pinjaman']); ?></td>
-                  <td><?= formatRupiah($bungaBulanan); ?></td>
+                  <td><?= formatRupiah($gadai['bunga']); ?></td>
                   <td><?= htmlspecialchars($gadai['jatuh_tempo']); ?></td>
                   <td><span class="badge bg-success"><?= htmlspecialchars($gadai['status']); ?></span></td>
                   <td>
-                    <?php if ($gadai['status'] != 'ditebus') { ?>
-                      <div class="d-none d-md-block">
-                        <button type="button" class="btn btn-light btn-sm btn-edit m-1" data-gadai='<?= json_encode($gadai); ?>'>Edit</button>
-                        <form action="" method="post" style="display: inline;" class="mb-1">
-                          <input type="text" name="pelanggan" value="<?= $gadai['pelanggan_nik']; ?>" hidden>
-                          <input type="text" name="id_gadai" value="<?= $gadai['id']; ?>" hidden>
-                          <input type="text" name="status" value="cicilan" hidden>
-                          <input type="text" name="bunga" value="<?= $gadai['bunga']; ?>" hidden>
-                          <button type="submit" name="byrcicilan" class="btn btn-info m-1 btn-sm">
-                            Bayar Cicilan <span class="badge badge-light"><?= isset($cicilanCounts[$gadai['id']]) ? $cicilanCounts[$gadai['id']] : 0; ?></span>
-                          </button>
-                        </form>
-                        <form action="" method="post" style="display: inline;" class="mb-1">
-                          <input type="text" name="lunas" value="<?= $gadai['id']; ?>" hidden>
-                          <input type="text" name="pelanggan" value="<?= $gadai['pelanggan_nik']; ?>" hidden>
-                          <input type="text" name="jumlah_tebus" value="<?= $gadai['pinjaman'] + ($gadai['pinjaman'] * $gadai['bunga'] / 100); ?>" hidden>
-                          <button type="submit" name="lunas" value="<?= $gadai['id']; ?>" class="btn m-1 btn-dark btn-sm">Lunasin</button>
-                        </form>
-                        <form action="" method="post" style="display: inline;" class="mb-1">
-                            <input type="hidden" name="id_gadai" value="<?= $gadai['id']; ?>">
-                            <input type="hidden" name="pelanggan" value="<?= $gadai['pelanggan_nik']; ?>">
-                            <input type="hidden" name="nama_pemilik" value="<?= htmlspecialchars($gadai['nama_pemilik']); ?>">
-                            <input type="hidden" name="nama_barang" value="<?= htmlspecialchars($gadai['nama_barang']); ?>">
-                            <input type="hidden" name="jatuh_tempo" value="<?= htmlspecialchars($gadai['jatuh_tempo']); ?>">
-                            <input type="hidden" name="bunga_bulanan" value="<?= $gadai['pinjaman'] * ($gadai['bunga'] / 100); ?>">
-                            <input type="hidden" name="nomor_hp" value="<?= htmlspecialchars($gadai['telepon_pemilik']); ?>">
-                            <button type="submit" name="reminder_cicilan" class="btn m-1 btn-success btn-sm">Reminder Cicilan WA</button>
-                        </form>
-                        <a href="https://wa.me/<?= htmlspecialchars($gadai['telepon_pemilik']); ?>?text=<?= urlencode($whatsappMessageLunas); ?>" target="_blank" class="btn btn-primary m-1 btn-sm">Reminder Lunas WA</a>
-                      </div>
-                      <div class="d-block d-md-none">
-                        <div class="dropdown">
-                          <button class="btn btn-secondary btn-sm dropdown-toggle mb-1" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                            Aksi
-                          </button>
-                          <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
-                            <a class="dropdown-item btn-edit" href="#" data-gadai='<?= json_encode($gadai); ?>'>Edit</a>
-                            <form action="" method="post" style="display: inline;" class="mb-1">
-                              <input type="text" name="pelanggan" value="<?= $gadai['pelanggan_nik']; ?>" hidden>
-                              <input type="text" name="id_gadai" value="<?= $gadai['id']; ?>" hidden>
-                              <input type="text" name="status" value="cicilan" hidden>
-                              <input type="text" name="bunga" value="<?= $gadai['bunga']; ?>" hidden>
-                              <button type="submit" name="byrcicilan" class="dropdown-item">Bayar Cicilan <span class="badge badge-light"><?= isset($cicilanCounts[$gadai['id']]) ? $cicilanCounts[$gadai['id']] : 0; ?></span></button>
-                            </form>
-                            <form action="" method="post" style="display: inline;" class="mb-1">
-                              <input type="text" name="lunas" value="<?= $gadai['id']; ?>" hidden>
-                              <input type="text" name="pelanggan" value="<?= $gadai['pelanggan_nik']; ?>" hidden>
-                              <input type="text" name="jumlah_tebus" value="<?= $gadai['pinjaman'] + ($gadai['pinjaman'] * $gadai['bunga'] / 100); ?>" hidden>
-                              <button type="submit" name="lunas" value="<?= $gadai['id']; ?>" class="dropdown-item">Lunasin</button>
-                            </form>
-                            <form action="" method="post" style="display: inline;" class="mb-1">
-                                <input type="hidden" name="id_gadai" value="<?= $gadai['id']; ?>">
-                                <input type="hidden" name="pelanggan" value="<?= $gadai['pelanggan_nik']; ?>">
-                                <input type="hidden" name="nama_pemilik" value="<?= htmlspecialchars($gadai['nama_pemilik']); ?>">
-                                <input type="hidden" name="nama_barang" value="<?= htmlspecialchars($gadai['nama_barang']); ?>">
-                                <input type="hidden" name="jatuh_tempo" value="<?= htmlspecialchars($gadai['jatuh_tempo']); ?>">
-                                <input type="hidden" name="bunga_bulanan" value="<?= $gadai['pinjaman'] * ($gadai['bunga'] / 100); ?>">
-                                <input type="hidden" name="nomor_hp" value="<?= htmlspecialchars($gadai['telepon_pemilik']); ?>">
-                                <button type="submit" name="reminder_cicilan" class="btn btn-success btn-sm">Reminder Cicilan WA</button>
-                            </form>
-                            <a class="dropdown-item" href="https://wa.me/<?= htmlspecialchars($gadai['telepon_pemilik']); ?>?text=<?= urlencode($whatsappMessageLunas); ?>" target="_blank">Reminder Lunas WA</a>
-                          </div>
-                        </div>
-                      </div>
-                    <?php } ?>
+                    <button type="button" class="btn btn-light btn-sm btn-edit m-1" data-gadai='<?= json_encode($gadai); ?>'>Edit</button>
+                    <form action="" method="post" style="display: inline;" class="mb-1">
+                        <input type="hidden" name="id_gadai" value="<?= $gadai['id']; ?>">
+                        <input type="hidden" name="pelanggan" value="<?= $gadai['pelanggan_nik']; ?>">
+                        <input type="hidden" name="nama_pemilik" value="<?= htmlspecialchars($gadai['nama_pemilik']); ?>">
+                        <input type="hidden" name="nama_barang" value="<?= htmlspecialchars($gadai['nama_barang']); ?>">
+                        <input type="hidden" name="jatuh_tempo" value="<?= htmlspecialchars($gadai['jatuh_tempo']); ?>">
+                        <input type="hidden" name="bunga_bulanan" value="<?= $gadai['pinjaman'] + ($gadai['bunga']); ?>">
+                        <input type="hidden" name="nomor_hp" value="<?= htmlspecialchars($gadai['telepon_pemilik']); ?>">
+                        <button type="submit" name="reminder_cicilan" class="btn m-1 btn-success btn-sm">
+                            <i class="fab fa-whatsapp"></i> Reminder Cicilan WA
+                        </button>
+                    </form>
+                    <form action="" method="post" style="display: inline;" class="mb-1">
+                        <input type="hidden" name="id_gadai" value="<?= $gadai['id']; ?>">
+                        <input type="hidden" name="nama_pemilik" value="<?= htmlspecialchars($gadai['nama_pemilik']); ?>">
+                        <input type="hidden" name="nama_barang" value="<?= htmlspecialchars($gadai['nama_barang']); ?>">
+                        <input type="hidden" name="jatuh_tempo" value="<?= htmlspecialchars($gadai['jatuh_tempo']); ?>">
+                        <input type="hidden" name="total_pelunasan" value="<?= $gadai['pinjaman'] + $gadai['bunga']; ?>">
+                        <input type="hidden" name="nomor_hp" value="<?= htmlspecialchars($gadai['telepon_pemilik']); ?>">
+                        <button type="submit" name="reminder_pelunasan" class="btn m-1 btn-info btn-sm">
+                            <i class="fab fa-whatsapp"></i> Reminder Pelunasan WA
+                        </button>
+                    </form>
+                    <!-- Tombol untuk membuka modal -->
+                  
+                    <form action="" method="post" style="display: inline;" class="mb-1">
+                        <input type="hidden" name="id_gadai" value="<?= $gadai['id']; ?>">
+                        <input type="hidden" name="pelanggan" value="<?= $gadai['pelanggan_nik']; ?>">
+                        <input type="hidden" name="jumlah_cicilan" value="<?= $gadai['bunga']; ?>"> <!-- Contoh cicilan 10% -->
+                        <button type="submit" name="bayar_cicilan" class="btn m-1 btn-success btn-sm">
+                            Bayar Cicilan
+                        </button>
+                    </form>
+                    <form action="" method="post" style="display: inline;" class="mb-1">
+                        <input type="hidden" name="id_gadai" value="<?= $gadai['id']; ?>">
+                        <input type="hidden" name="pelanggan" value="<?= $gadai['pelanggan_nik']; ?>">
+                        <input type="hidden" name="jumlah_pelunasan" value="<?= $gadai['pinjaman'] + $gadai['bunga']; ?>">
+                        <button type="submit" name="bayar_pelunasan" class="btn m-1 btn-dark btn-sm">
+                            Bayar Pelunasan
+                        </button>
+                    </form>
                   </td>
                 </tr>
               <?php } ?>
@@ -323,6 +561,8 @@ while ($cicilan = mysqli_fetch_assoc($cicilanQuery)) {
       <!-- /.card-footer-->
     </div>
     <!-- /.card -->
+
+ 
 
   </section>
   <!-- /.content -->
@@ -375,8 +615,8 @@ while ($cicilan = mysqli_fetch_assoc($cicilanQuery)) {
                 <input type="number" name="pinjaman" id="pinjaman" class="form-control" required>
               </div>
               <div class="form-group">
-                <label for="bunga">Bunga (%):</label>
-                <input type="number" name="bunga" id="bunga" class="form-control" step="0.01" required>
+                <label for="bunga">Bunga (Rp):</label>
+                <input type="number" name="bunga" id="bunga" class="form-control"  required>
               </div>
               <div class="form-group">
                 <label for="jatuh_tempo">Jatuh Tempo:</label>
@@ -440,8 +680,8 @@ while ($cicilan = mysqli_fetch_assoc($cicilanQuery)) {
                 <input type="number" name="pinjaman" id="edit_pinjaman" class="form-control" required>
               </div>
               <div class="form-group">
-                <label for="edit_bunga">Bunga (%):</label>
-                <input type="number" name="bunga" id="edit_bunga" class="form-control" step="0.01" required>
+                <label for="edit_bunga">Bunga (Rp):</label>
+                <input type="number" name="bunga" id="edit_bunga" class="form-control"  required>
               </div>
               <div class="form-group">
                 <label for="edit_jatuh_tempo">Jatuh Tempo:</label>
@@ -455,6 +695,8 @@ while ($cicilan = mysqli_fetch_assoc($cicilanQuery)) {
     </div>
   </div>
 </div>
+
+
 
 <?php
 include 'script.php';
@@ -484,6 +726,26 @@ $(document).ready(function() {
         $('#edit_bunga').val(gadai.bunga);
         $('#edit_jatuh_tempo').val(gadai.jatuh_tempo);
         $('#editGadaiModal').modal('show');
+    });
+
+    // Handle tombol Aksi
+    $('.btn-action').on('click', function() {
+        var gadai = $(this).data('gadai');
+        // Isi data untuk Reminder Pelunasan
+        $('#pelunasan_id_gadai').val(gadai.id);
+        $('#pelunasan_nama_pemilik').val(gadai.nama_pemilik);
+        $('#pelunasan_nama_barang').val(gadai.nama_barang);
+        $('#pelunasan_jatuh_tempo').val(gadai.jatuh_tempo);
+        $('#pelunasan_total_pelunasan').val(gadai.pinjaman + (gadai.pinjaman * (gadai.bunga / 100)));
+        $('#pelunasan_nomor_hp').val(gadai.telepon_pemilik);
+
+        // Tampilkan modal
+        $('#actionModal').modal('show');
+    });
+
+    // Handle tombol Reminder Pelunasan
+    $('#btn-reminder-pelunasan').on('click', function() {
+        $('#reminderPelunasanForm').show();
     });
 });
 </script>

@@ -77,22 +77,13 @@ function formatRupiah($number) {
               <?php
               $no = 1;
               while ($gadai = mysqli_fetch_assoc($query)) {
-
-                $pinjaman = $gadai['pinjaman'];
-                // Menghitung biaya administrasi 1%
-                $satupersen = 1;  // Persentase yang diinginkan (1%)
-                $Administrasi = ($pinjaman * $satupersen) / 100;
-
-                // Biaya admin tetap 10.000
-                $biaya_admin = 10000; 
-               $totalbunga = $Administrasi + $biaya_admin + $gadai['pinjaman'] * ($gadai['bunga'] / 100);
               ?>
                 <tr>
                   <td><?= $no++; ?></td>
                   <td><?= htmlspecialchars($gadai['nama_pemilik']); ?></td>
                   <td><?= htmlspecialchars($gadai['nama_barang']); ?></td>
                   <td><?= formatRupiah($gadai['pinjaman']); ?></td>
-                  <td><?= formatRupiah($totalbunga); ?></td>
+                  <td><?= formatRupiah($gadai['bunga']); ?></td>
                   <td><?= formatRupiah($gadai['jumlah_bayar']); ?></td>
                   <td>
                     <?= $gadai['metode_pembayaran']; ?> <br>

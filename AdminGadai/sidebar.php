@@ -1,70 +1,77 @@
- <!-- Main Sidebar Container -->
-  <aside class="main-sidebar sidebar-dark-primary elevation-4">
-    <!-- Brand Logo -->
-    <a href="index3.html" class="brand-link">
-      <img src="dist/img/AdminLTELogo.png" alt="AdminLTE Logo" class="brand-image img-circle elevation-3" style="opacity: .8">
-      <span class="brand-text font-weight-light">Admin</span>
-    </a>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 
-    <!-- Sidebar -->
-    <div class="sidebar">
-      <!-- Sidebar user (optional) -->
-      <div class="user-panel mt-3 pb-3 mb-3 d-flex">
-        <div class="image">
-          <img src="dist/img/user2-160x160.jpg" class="img-circle elevation-2" alt="User Image">
-        </div>
-        <div class="info">
-          <a href="index.php" class="d-block">JERRI CHRISTIAN</a>
-        </div>
-      </div>
+<!-- Main Sidebar Container -->
+<aside class="main-sidebar sidebar-light-primary elevation-4" style="background: #ffffff;">
+  <!-- Brand Logo -->
+  <a href="index3.html" class="brand-link text-center">
+    <span class="brand-text font-weight-bold text-dark">
+      GADAI CEPAT TIMIKA</span>
+  </a>
 
-   
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <!-- Sidebar Menu -->
+    <nav class="mt-2">
+      <ul class="nav nav-pills nav-sidebar flex-column" role="menu">
+        <!-- Menu Header -->
+        <li class="nav-header text-dark">Menu</li>
 
-      <!-- Sidebar Menu -->
-      <nav class="mt-2">
-        <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
-          <!-- Add icons to the links using the .nav-icon class
-               with font-awesome or any other icon font library -->
-         
-          <li class="nav-header">Menu</li>
-          <li class="nav-item">
-            <a href="#" class="nav-link">
-              <i class="nav-icon fas fa-book"></i>
-              <p>
-                Pages
-                <i class="fas fa-angle-left right"></i>
-              </p>
-            </a>
-            <ul class="nav nav-treeview">
-              <li class="nav-item">
-                <a href="user.php" class="nav-link">
-                  <i class="far fa-circle nav-icon"></i>
-                  <p>User</p>
-                </a>
-              </li>
-              <li class="nav-item">
-                <a href="vg.php" class="nav-link">
-                  <i class="far fa-circle nav-icon"></i>
-                  <p>Daftar Barang Gadai</p>
-                </a>
-              </li>
-              <li class="nav-item">
-                <a href="tr1.php" class="nav-link">
-                  <i class="far fa-circle nav-icon"></i>
-                  <p>Transaksi</p>
-                </a>
-              </li>
-          
-              
-           
-            </ul>
-          </li>
+        <!-- User Menu -->
+        <li class="nav-item">
+          <a href="index.php" class="nav-link text-dark">
+            <i class="nav-icon fas fa-home me-2"></i> <!-- Ganti ikon menjadi 'fa-home' -->
+            <p>Dashboard</p>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="user.php" class="nav-link text-dark">
+            <i class="nav-icon fas fa-users me-2"></i>
+            <p>User</p>
+          </a>
+        </li>
 
+        <!-- Daftar Barang Gadai -->
+        <li class="nav-item">
+          <a href="vg.php" class="nav-link text-dark">
+            <i class="nav-icon fas fa-box-open me-2"></i>
+            <p>Daftar Barang Gadai</p>
+          </a>
+        </li>
 
+        <!-- Modal -->
+        <li class="nav-item">
+          <a href="modal.php" class="nav-link text-dark">
+            <i class="nav-icon fas fa-coins me-2"></i>
+            <p>Modal</p>
+          </a>
+        </li>
 
-        </ul>
-      </nav>
-      <!-- /.sidebar-menu -->
-    </div>
-    <!-- /.sidebar -->
-  </aside>
+        <!-- Transaksi -->
+        <li class="nav-item">
+          <a href="tr1.php" class="nav-link text-dark">
+            <i class="nav-icon fas fa-exchange-alt me-2"></i>
+            <p>Transaksi</p>
+          </a>
+        </li>
+
+        <!-- Settings -->
+        <li class="nav-item">
+          <a href="settings.php" class="nav-link text-dark">
+            <i class="nav-icon fas fa-tools me-2"></i>
+            <p>Settings</p>
+          </a>
+        </li>
+
+        <!-- Logout -->
+        <li class="nav-item">
+          <a href="../logout.php" class="nav-link text-danger">
+            <i class="nav-icon fas fa-sign-out-alt me-2"></i>
+            <p>Logout</p>
+          </a>
+        </li>
+      </ul>
+    </nav>
+    <!-- /.sidebar-menu -->
+  </div>
+  <!-- /.sidebar -->
+</aside>
