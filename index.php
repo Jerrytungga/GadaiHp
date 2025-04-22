@@ -33,7 +33,152 @@
         opacity: 0;
         visibility: hidden;
       }
-    </style>
+      .logo {
+  width: 85px;
+  height: auto;
+  margin: 1px 0;
+  padding: 0; 
+}
+      .ulasan .card {
+  background-color: #e3f2fd; /* Biru muda */
+  border: 1px solid #0056b3;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 15px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.ulasan .card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+.ulasan h2 {
+  font-weight: bold;
+}
+
+.btn-primary {
+  background-color: #0056b3; /* Biru gelap */
+  border-color: #004494;
+}
+
+.btn-primary:hover {
+  background-color: #004494; /* Biru lebih gelap */
+  border-color: #003366;
+}
+
+.btn-success {
+  background-color: #007bff; /* Biru terang */
+  border-color: #0056b3;
+}
+
+.btn-success:hover {
+  background-color: #0056b3; /* Biru gelap */
+  border-color: #003f7f;
+}
+
+.btn-danger {
+  background-color: #003366; /* Biru sangat gelap */
+  border-color: #002244;
+}
+
+.btn-danger:hover {
+  background-color: #002244; /* Biru lebih gelap */
+  border-color: #001122;
+}
+
+#kontakkami {
+  background-color: #e3f2fd; /* Biru muda */
+  color: #003f7f; /* Biru gelap */
+}
+
+#kontakkami h2 {
+  color: #0056b3; /* Biru gelap */
+}
+
+#tentangkami {
+  background-color: #f0f8ff; /* Biru sangat muda */
+  color: #003f7f; /* Biru gelap */
+}
+
+#tentangkami h2 {
+  color: #0056b3; /* Biru gelap */
+}
+#layanan {
+  background-color: #f0f8ff; /* Biru sangat muda */
+  color: #003f7f; /* Biru gelap */
+}
+
+#layanan h2 {
+  color: #0056b3; /* Biru gelap */
+}
+#ulasan {
+  background-color: #f0f8ff; /* Biru sangat muda */
+  color: #003f7f; /* Biru gelap */
+}
+
+#ulasan h2 {
+  color: #0056b3; /* Biru gelap */
+}
+
+.navbar {
+  background-color: #f0f8ff; /* Biru gelap */
+}
+
+.navbar .nav-link {
+  color: #ffffff; /* Putih */
+}
+
+.navbar .nav-link:hover {
+  color: #007bff; /* Biru terang */
+}
+
+.navbar-text {
+  color: #ffffff; /* Putih */
+}
+
+#flash-screen {
+  background-color: #0056b3; /* Biru gelap */
+}
+
+#flash-screen img {
+  filter: brightness(0) invert(1); /* Membuat logo menjadi putih */
+}
+
+.modal-content {
+  background-color: #e3f2fd; /* Biru muda */
+  color: #003f7f; /* Biru gelap */
+}
+
+.modal-header {
+  background-color: #0056b3; /* Biru gelap */
+  color: #ffffff; /* Putih */
+}
+
+.modal-body {
+  background-color: #ffffff; /* Putih */
+  color: #003f7f; /* Biru gelap */
+}
+#ulasan {
+  background-color:rgb(255, 255, 255); /* Biru sangat muda */
+  padding: 60px 20px; /* Tambahkan padding */
+  margin-bottom: 50px; /* Tambahkan jarak bawah */
+  text-align: center; /* Pusatkan teks */
+}
+
+#ulasan h2 {
+  color: #0056b3; /* Biru gelap */
+  margin-bottom: 20px; /* Tambahkan jarak bawah */
+}
+
+#ulasan p {
+  color: #003f7f; /* Biru gelap */
+  margin-bottom: 30px; /* Tambahkan jarak bawah */
+}
+
+#ulasanCarousel .card {
+  margin: 0 auto; /* Pusatkan kartu */
+  max-width: 600px; /* Batasi lebar kartu */
+}
+  </style>
   </head>
   <body>
     <!-- Flash screen -->
@@ -72,7 +217,7 @@
     <nav class="navbar navbar-expand-lg navbar-light bg">
         <div class="container">
           <a class="navbar-brand" href="index.php"></a>
-            <img src="image/logo.ico" class="logo" alt="Logo">
+            <img src="image/GC.png" class="logo" alt="Logo">
           </a>
           <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
@@ -212,7 +357,57 @@
       </div>
     </section>
     
-    
+
+
+    <section id="ulasan" class="ulasan">
+      <div class="container">
+        <div class="row text-center m-4">
+          <h2 class="mt-5">ULASAN PENGGUNA</h2>
+          <p class="fst-italic">Berikut adalah ulasan dari pengguna layanan kami:</p>
+        </div>
+        <div id="ulasanCarousel" class="carousel slide" data-bs-ride="carousel">
+          <div class="carousel-inner">
+            <div class="carousel-item active">
+              <div class="card mb-3">
+                <div class="card-body">
+                  <h5 class="card-title">John Doe</h5>
+                  <p class="card-text">Layanan sangat cepat dan memuaskan! Prosesnya mudah dan tidak ribet.</p>
+                  <p class="text-muted">⭐⭐⭐⭐⭐</p>
+                </div>
+              </div>
+            </div>
+            <div class="carousel-item">
+              <div class="card mb-3">
+                <div class="card-body">
+                  <h5 class="card-title">Jane Smith</h5>
+                  <p class="card-text">Pelayanan ramah dan profesional. Sangat direkomendasikan!</p>
+                  <p class="text-muted">⭐⭐⭐⭐⭐</p>
+                </div>
+              </div>
+            </div>
+            <div class="carousel-item">
+              <div class="card mb-3">
+                <div class="card-body">
+                  <h5 class="card-title">Michael Johnson</h5>
+                  <p class="card-text">Proses cepat dan transparan. Tidak ada biaya tersembunyi.</p>
+                  <p class="text-muted">⭐⭐⭐⭐</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button class="carousel-control-prev" type="button" data-bs-target="#ulasanCarousel" data-bs-slide="prev">
+            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+            <span class="visually-hidden">Previous</span>
+          </button>
+          <button class="carousel-control-next" type="button" data-bs-target="#ulasanCarousel" data-bs-slide="next">
+            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+            <span class="visually-hidden">Next</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+
     <section id="kontakkami" class="kontakkami">
       <div class="container">
         <div class="row mb-5">
@@ -225,12 +420,7 @@
         </div>
       </div>
     </section>
-
-
-
-
-
-
+ 
 
 
 
@@ -299,8 +489,11 @@
       });
     </script>
 
+   
+
     <!-- Include Bootstrap JS and Popper JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
 
   </body>
 </html>

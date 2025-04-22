@@ -3,10 +3,12 @@
 <!-- Main Sidebar Container -->
 <aside class="main-sidebar sidebar-light-primary elevation-4" style="background: #ffffff;">
   <!-- Brand Logo -->
-  <a href="index3.html" class="brand-link text-center">
-    <span class="brand-text font-weight-bold text-dark">
-      GADAI CEPAT TIMIKA</span>
-  </a>
+  <a href="index.php" class="brand-link text-center">
+  <!-- Tambahkan logo aplikasi -->
+  <img src="../image/GC.png" alt="Logo" class="brand-image " style=" width: 50px; height: 50px;">
+  <span class="brand-text font-weight-bold text-dark">
+    GC TIMIKA</span>
+</a>
 
   <!-- Sidebar -->
   <div class="sidebar">
@@ -55,12 +57,12 @@
         </li>
 
         <!-- Settings -->
-        <li class="nav-item">
+        <!-- <li class="nav-item">
           <a href="settings.php" class="nav-link text-dark">
             <i class="nav-icon fas fa-tools me-2"></i>
             <p>Settings</p>
           </a>
-        </li>
+        </li> -->
 
         <!-- Logout -->
         <li class="nav-item">

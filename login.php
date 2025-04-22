@@ -42,7 +42,7 @@ if (isset($_POST['login'])) {
 
         <div class="row">
             <div class="col-md-6 offset-md-3">
-                <img src="image/logo.ico" class="logo" alt="Logo">
+                <img src="image/GC.png" class="logo" alt="Logo">
           <form action="" method="post">
             <div class="mb-3">
               <label for="ktp" class="form-label">INPUT YOUR KEY</label>

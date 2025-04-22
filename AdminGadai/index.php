@@ -11,7 +11,7 @@ $totalBarangTebus = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS t
 
 // Query untuk menghitung total keuntungan dari bunga
 $totalKeuntungan = mysqli_fetch_assoc(mysqli_query($conn, "
-    SELECT SUM(pinjaman * (bunga / 100)) AS total 
+    SELECT SUM(bunga) AS total 
     FROM barang_gadai 
     WHERE status = 'ditebus'
 "))['total'] ?? 0;

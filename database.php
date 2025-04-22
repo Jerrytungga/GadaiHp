@@ -1,6 +1,6 @@
 <?php
 
 // menghubungkan ke database
-$conn = mysqli_connect("localhost", "root", "root", "GadaiCepat")  or die("Gagal");
+$conn = mysqli_connect("localhost", "root", "", "GadaiCepat")  or die("Gagal");
 
 ?>
