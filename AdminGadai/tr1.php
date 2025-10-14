@@ -53,11 +53,40 @@ function formatRupiah($number) {
             Data gadai berhasil ditambahkan!
           </div>
         <?php } ?>
-        <div class="mb-3">
-    <button class="btn btn-primary filter-btn" data-filter="">Semua</button>
-    <button class="btn btn-success filter-btn" data-filter="lunas">Lunas</button>
-    <button class="btn btn-warning filter-btn" data-filter="cicilan">Cicilan</button>
-</div>
+    <div class="mb-3 d-flex flex-wrap align-items-center">
+      <button class="btn btn-primary filter-btn mr-2" data-filter="">Semua</button>
+      <button class="btn btn-success filter-btn mr-2" data-filter="lunas">Lunas</button>
+      <button class="btn btn-warning filter-btn mr-2" data-filter="cicilan">Cicilan</button>
+      <form method="get" class="form-inline ml-3">
+        <label for="bulan" class="mr-2">Bulan:</label>
+        <select name="bulan" id="bulan" class="form-control mr-2">
+          <option value="">Semua</option>
+          <option value="01">Januari</option>
+          <option value="02">Februari</option>
+          <option value="03">Maret</option>
+          <option value="04">April</option>
+          <option value="05">Mei</option>
+          <option value="06">Juni</option>
+          <option value="07">Juli</option>
+          <option value="08">Agustus</option>
+          <option value="09">September</option>
+          <option value="10">Oktober</option>
+          <option value="11">November</option>
+          <option value="12">Desember</option>
+        </select>
+        <label for="tahun" class="mr-2">Tahun:</label>
+        <select name="tahun" id="tahun" class="form-control mr-2">
+          <option value="">Semua</option>
+          <?php
+          $currentYear = date('Y');
+          for ($y = $currentYear; $y >= $currentYear - 5; $y--) {
+            echo "<option value='$y'" . (isset($_GET['tahun']) && $_GET['tahun'] == $y ? ' selected' : '') . ">$y</option>";
+          }
+          ?>
+        </select>
+        <button type="submit" class="btn btn-info">Tampilkan</button>
+      </form>
+    </div>
         <div class="table-responsive"> <!-- Tambahkan div ini untuk membuat tabel responsif -->
           <table id="userTable" class="table table-bordered table-striped">
             <thead>
@@ -76,7 +105,28 @@ function formatRupiah($number) {
             <tbody>
               <?php
               $no = 1;
+              // Filter by month and year if selected
+              $bulan = isset($_GET['bulan']) ? $_GET['bulan'] : '';
+              $tahun = isset($_GET['tahun']) ? $_GET['tahun'] : '';
+              $totalTransaksi = 0;
+              $totalBayar = 0;
+              $totalBunga = 0;
               while ($gadai = mysqli_fetch_assoc($query)) {
+                  $showRow = true;
+                  if ($bulan && $tahun) {
+                      $tgl = date('Y-m', strtotime($gadai['tanggal_bayar']));
+                      if ($tgl != "$tahun-$bulan") $showRow = false;
+                  } elseif ($bulan) {
+                      $tgl = date('m', strtotime($gadai['tanggal_bayar']));
+                      if ($tgl != $bulan) $showRow = false;
+                  } elseif ($tahun) {
+                      $tgl = date('Y', strtotime($gadai['tanggal_bayar']));
+                      if ($tgl != $tahun) $showRow = false;
+                  }
+                  if ($showRow) {
+                      $totalTransaksi++;
+                      $totalBayar += $gadai['jumlah_bayar'];
+                      $totalBunga += $gadai['bunga'];
               ?>
                 <tr>
                   <td><?= $no++; ?></td>
@@ -100,10 +150,18 @@ function formatRupiah($number) {
                     <?php } ?>
                   </td>
                 </tr>
-              <?php } ?>
+              <?php }} ?>
             </tbody>
           </table>
-        </div> <!-- Tutup div table-responsive -->
+    </div> <!-- Tutup div table-responsive -->
+    <div class="mt-3">
+      <h5>Ringkasan Laporan Bulanan</h5>
+      <ul>
+        <li>Total Transaksi: <?= $totalTransaksi; ?></li>
+        <li>Total Pembayaran: <?= formatRupiah($totalBayar); ?></li>
+        <li>Total Bunga: <?= formatRupiah($totalBunga); ?></li>
+      </ul>
+    </div>
       </div>
       <!-- /.card-body -->
       <div class="card-footer">

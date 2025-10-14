@@ -1,3 +1,5 @@
+
+
 <!doctype html>
 <html lang="en">
   <head>
@@ -182,9 +184,7 @@
   </head>
   <body>
     <!-- Flash screen -->
-    <div id="flash-screen">
-      <img src="image/logo.ico" alt="Loading...">
-    </div>
+
 
 
      <!-- Modal -->
@@ -202,9 +202,9 @@
             1️⃣ Nasabah wajib berusia minimal 18 tahun dan membawa KTP asli. <br>
             2️⃣ HP yang digadaikan harus dalam kondisi baik dan tidak terkunci akun Google/iCloud. <br>
             3️⃣ Pinjaman maksimal 70% dari harga pasar HP.  <br>
-            4️⃣ Bunga gadai : 20% per bulan, tergantung kondisi HP. <br>
+            4️⃣ Bunga gadai : 30% per bulan, tergantung kondisi HP. <br>
             5️⃣ Masa gadai maksimal 3 bulan (dapat diperpanjang dengan syarat tertentu). <br>
-            6️⃣ Denda keterlambatan Rp 10.000/hari jika pembayaran melewati jatuh tempo. <br>
+            6️⃣ Denda keterlambatan Rp 30.000/hari jika pembayaran melewati jatuh tempo. <br>
             7️⃣ Jika HP tidak ditebus dalam 7 hari setelah jatuh tempo, HP akan dijual oleh penyedia gadai.  <br>
             8️⃣ Nasabah wajib mencadangkan data pribadi sebelum gadai, karena penyedia gadai tidak bertanggung jawab atas kehilangan data. <br>
             9️⃣ Penyedia gadai berhak menolak HP yang dicurigai hasil curian. <br><p></p>
@@ -260,7 +260,7 @@
             <a href="https://wa.me/6285823091908?text=Halo%2C%20saya%20ingin%20bertanya%20tentang%20layanan%20Gadai%20Cepat." target="_blank" class="btn btn-primary btn-lg">HUBUNGI KAMI</a><br>
             <sub>Dengan Sistem <span class="badge bg-danger">COD</span></sub>
           </div>
-
+              
           <div class="col-sm-6 d-flex align-items-stretch">
             <img src="./image/rb_51019.png" class="gambar" alt="Logo">
           </div>
@@ -339,23 +339,24 @@
     </section>
 
     <section id="simulasi">
-      <div class="container">
-        <div class="row text-center m-4">
-          <div class="col-sm-6 flex-column">
-              <h2 class="mt-5">Simulasi Gadai</h2>
-              <p>Masukan Harga barang :</p>
-              <form id="simulasiForm" method="post">
-              <input type="text" name="harga" id="harga" class="form-control col-sm-2" required>
-                <button type="submit" class="btn btn-lg mt-2 btn-info">Simulasi</button>
-                <a href="#" id="resetButton" class="btn btn-danger mt-2 btn-lg">Reset</a>
-              </form>
-            </div>
-            <div class="col-sm-6 flex-column">
-            <h2 class="mt-5">Hasil Simulasi Gadai</h2>
-            <div id="result"></div>
-        </div>
+  <div class="container">
+    <div class="row text-center m-4">
+      <div class="col-sm-6 d-flex flex-column justify-content-center align-items-center">
+        <h2 class="mt-5">Simulasi Gadai</h2>
+        <p>Masukan Harga barang :</p>
+        <form id="simulasiForm" method="post" class="w-100">
+          <input type="text" name="harga" id="harga" class="form-control col-sm-2" required autocomplete="off">
+          <button type="submit" class="btn btn-lg mt-2 btn-info">Simulasi</button>
+          <a href="#" id="resetButton" class="btn btn-danger mt-2 btn-lg">Reset</a>
+        </form>
       </div>
-    </section>
+      <div class="col-sm-6 d-flex flex-column justify-content-center align-items-center">
+        <h2 class="mt-5">Hasil Simulasi Gadai</h2>
+        <div id="result" class="w-100"></div>
+      </div>
+    </div>
+  </div>
+</section>
     
 
 
@@ -365,35 +366,45 @@
           <h2 class="mt-5">ULASAN PENGGUNA</h2>
           <p class="fst-italic">Berikut adalah ulasan dari pengguna layanan kami:</p>
         </div>
+        <?php
+        include 'database.php';
+        $ulasan = [];
+        $sql = "SELECT Nama, Ulasan, rating FROM ulasan ORDER BY id DESC LIMIT 30";
+        if ($result = $conn->query($sql)) {
+          while ($row = $result->fetch_assoc()) {
+            $ulasan[] = $row;
+          }
+        }
+        ?>
         <div id="ulasanCarousel" class="carousel slide" data-bs-ride="carousel">
           <div class="carousel-inner">
-            <div class="carousel-item active">
-              <div class="card mb-3">
-                <div class="card-body">
-                  <h5 class="card-title">John Doe</h5>
-                  <p class="card-text">Layanan sangat cepat dan memuaskan! Prosesnya mudah dan tidak ribet.</p>
-                  <p class="text-muted">⭐⭐⭐⭐⭐</p>
+            <?php if (count($ulasan) > 0): ?>
+              <?php foreach ($ulasan as $i => $u): ?>
+                <div class="carousel-item<?php echo $i === 0 ? ' active' : ''; ?>">
+                  <div class="card mb-3">
+                    <div class="card-body">
+                      <h5 class="card-title"><?php echo htmlspecialchars($u['Nama']); ?></h5>
+                      <p class="card-text"><?php echo htmlspecialchars($u['Ulasan']); ?></p>
+                      <p class="text-muted">
+                        <?php
+                          $stars = intval($u['rating']);
+                          for ($s = 0; $s < $stars; $s++) echo '⭐';
+                        ?>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <div class="carousel-item active">
+                <div class="card mb-3">
+                  <div class="card-body">
+                    <h5 class="card-title">Belum ada ulasan</h5>
+                    <p class="card-text">Jadilah yang pertama memberikan ulasan!</p>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div class="carousel-item">
-              <div class="card mb-3">
-                <div class="card-body">
-                  <h5 class="card-title">Jane Smith</h5>
-                  <p class="card-text">Pelayanan ramah dan profesional. Sangat direkomendasikan!</p>
-                  <p class="text-muted">⭐⭐⭐⭐⭐</p>
-                </div>
-              </div>
-            </div>
-            <div class="carousel-item">
-              <div class="card mb-3">
-                <div class="card-body">
-                  <h5 class="card-title">Michael Johnson</h5>
-                  <p class="card-text">Proses cepat dan transparan. Tidak ada biaya tersembunyi.</p>
-                  <p class="text-muted">⭐⭐⭐⭐</p>
-                </div>
-              </div>
-            </div>
+            <?php endif; ?>
           </div>
           <button class="carousel-control-prev" type="button" data-bs-target="#ulasanCarousel" data-bs-slide="prev">
             <span class="carousel-control-prev-icon" aria-hidden="true"></span>
@@ -413,7 +424,7 @@
         <div class="row mb-5">
           <div class="col-sm-12 flex-column">
             <h2 class="mt-5">KONTAK KAMI</h2>
-            <p class="">Telepon : 085823091908 <br> Alamat : Jalan Budi Utomo Ujung, Gang Cempaka Putih <br> Mimika Papua</p>
+            <p class="">Telepon : 085823091908 <br> Alamat : Jl Irigasi, Perumahan Residence 5 <br> Mimika Papua<br><b>NIB : 1110250029885</b><br><span class="text-muted">Usaha ini sedang diawasi oleh instansi terkait untuk memastikan keamanan dan legalitas.</span></p>
             <a href="https://wa.me/6285823091908?text=Halo%2C%20saya%20ingin%20bertanya%20tentang%20layanan%20Gadai%20Cepat." class="btn btn-primary btn-lg" target="_blank">HUBUNGI KAMI</a>
 
           </div>

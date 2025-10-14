@@ -1,58 +1,125 @@
 <?php
 include 'database.php'; // Pastikan file koneksi database benar
-$id_gadai = $_GET['id_gadai'];
+
+// Validasi parameter id_gadai
+if (!isset($_GET['id_gadai']) || empty($_GET['id_gadai'])) {
+    echo "<script>
+        alert('ID gadai tidak valid.');
+        window.location.href = 'index.php';
+    </script>";
+    exit();
+}
+
+$id_gadai = mysqli_real_escape_string($conn, $_GET['id_gadai']);
 
 if (isset($_POST['byrcicilan'])) {
-    $pelanggan = $_POST['ktp'];
-    $payment = $_POST['amount']; // Hapus format Rupiah
-    $metode = $_POST['method'];
+    // Sanitasi input
+    $pelanggan = mysqli_real_escape_string($conn, trim($_POST['ktp']));
+    $payment_input = $_POST['amount'];
+    $metode = mysqli_real_escape_string($conn, $_POST['method']);
     $bukti = $_FILES['receipt'];
 
-    // Set the target directory for file uploads
-    $base_dir = "payment/";
-    $target_dir = $base_dir . $pelanggan . "/"; // Buat folder berdasarkan KTP
-
-    // Periksa apakah folder sudah ada, jika tidak buat folder
-    if (!is_dir($target_dir)) {
-        mkdir($target_dir, 0755, true); // Buat folder dengan izin 0755
-    }
-
-    // Nama file bukti berdasarkan nominal pembayaran
-    $file_extension = pathinfo($bukti['name'], PATHINFO_EXTENSION); // Dapatkan ekstensi file
-    $new_file_name = $payment . '.' . $file_extension; // Nama file baru berupa nominal pembayaran
-    $target_file = $target_dir . $new_file_name;
-
-    // Periksa jumlah pengiriman sebelumnya
-    $checkAttempts = mysqli_query($conn, "SELECT COUNT(*) AS total FROM transaksi WHERE pelanggan_nik = '$pelanggan' AND barang_id = '$id_gadai'");
-    $attempts = mysqli_fetch_assoc($checkAttempts)['total'];
-
-    if ($attempts >= 3) {
-        echo "<script>
-            alert('Anda hanya dapat mengirim data maksimal 3 kali.');
-            window.location.href = 'index.php';
-        </script>";
-        exit(); // Pastikan tidak ada kode lain yang dieksekusi
+    // Validasi input tidak kosong
+    if (empty($pelanggan) || empty($payment_input) || empty($metode)) {
+        echo "<script>alert('Semua field harus diisi.');</script>";
     } else {
-        // Check if pelanggan_nik exists in pelanggan table
-        $checkPelanggan = mysqli_query($conn, "SELECT nik FROM pelanggan WHERE nik = '$pelanggan'");
-        if (mysqli_num_rows($checkPelanggan) > 0) {
-            $query = mysqli_query($conn, "INSERT INTO `transaksi`(`pelanggan_nik`, `barang_id`, `jumlah_bayar`, `keterangan`, `metode_pembayaran`, `bukti`) VALUES ('$pelanggan', '$id_gadai', '$payment', 'cicilan', '$metode', '$new_file_name')");
-            if ($query) {
-                // Move the uploaded file to the target directory
-                if (move_uploaded_file($bukti["tmp_name"], $target_file)) {
-                    echo "<script>
-                        alert('Bukti pembayaran berhasil diunggah.');
-                        window.location.href = 'index.php';
-                    </script>";
-                    exit(); // Pastikan tidak ada kode lain yang dieksekusi
-                } else {
-                    echo "<script>alert('Terjadi kesalahan saat mengunggah bukti pembayaran.');</script>";
-                }
-            } else {
-                echo "<script>alert('Gagal mengirim data pembayaran.');</script>";
-            }
+        // Bersihkan format Rupiah untuk mendapatkan angka murni
+        $payment = preg_replace('/[^0-9]/', '', $payment_input);
+        
+        // Validasi nominal pembayaran
+        if ($payment <= 0) {
+            echo "<script>alert('Jumlah pembayaran tidak valid.');</script>";
         } else {
-            echo "<script>alert('NIK tidak ditemukan. Silakan periksa kembali.');</script>";
+            // Validasi file upload
+            $allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+            $max_file_size = 5 * 1024 * 1024; // 5MB
+            
+            if ($bukti['error'] !== UPLOAD_ERR_OK) {
+                echo "<script>alert('Terjadi kesalahan saat mengupload file.');</script>";
+            } elseif ($bukti['size'] > $max_file_size) {
+                echo "<script>alert('Ukuran file terlalu besar. Maksimal 5MB.');</script>";
+            } elseif (!in_array($bukti['type'], $allowed_types)) {
+                echo "<script>alert('Format file tidak didukung. Gunakan JPG, PNG, atau GIF.');</script>";
+            } else {
+                // Set the target directory for file uploads
+                $base_dir = "payment/";
+                $target_dir = $base_dir . $pelanggan . "/";
+
+                // Periksa apakah folder sudah ada, jika tidak buat folder
+                if (!is_dir($target_dir)) {
+                    if (!mkdir($target_dir, 0755, true)) {
+                        echo "<script>alert('Gagal membuat direktori untuk menyimpan file.');</script>";
+                        exit();
+                    }
+                }
+
+                // Periksa jumlah pengiriman sebelumnya
+                $checkAttempts = mysqli_query($conn, "SELECT COUNT(*) AS total FROM transaksi WHERE pelanggan_nik = '$pelanggan' AND barang_id = '$id_gadai'");
+                if (!$checkAttempts) {
+                    echo "<script>alert('Gagal memeriksa data transaksi.');</script>";
+                } else {
+                    $attempts = mysqli_fetch_assoc($checkAttempts)['total'];
+
+                    if ($attempts >= 3) {
+                        echo "<script>
+                            alert('Anda hanya dapat mengirim data maksimal 3 kali.');
+                            window.location.href = 'index.php';
+                        </script>";
+                        exit();
+                    } else {
+                        // Check if pelanggan_nik exists in pelanggan table
+                        $checkPelanggan = mysqli_query($conn, "SELECT nik FROM pelanggan WHERE nik = '$pelanggan'");
+                        if (!$checkPelanggan) {
+                            echo "<script>alert('Gagal memeriksa data pelanggan.');</script>";
+                        } elseif (mysqli_num_rows($checkPelanggan) == 0) {
+                            echo "<script>alert('NIK tidak ditemukan. Silakan periksa kembali.');</script>";
+                        } else {
+                            // Buat nama file unik untuk menghindari duplikasi
+                            $file_extension = strtolower(pathinfo($bukti['name'], PATHINFO_EXTENSION));
+                            $timestamp = date('YmdHis');
+                            $new_file_name = $payment . '_' . $timestamp . '.' . $file_extension;
+                            $target_file = $target_dir . $new_file_name;
+
+                            // Mulai transaksi database
+                            mysqli_begin_transaction($conn);
+                            
+                            try {
+                                // Insert data ke database
+                                $query = mysqli_query($conn, "INSERT INTO `transaksi`(`pelanggan_nik`, `barang_id`, `jumlah_bayar`, `keterangan`, `metode_pembayaran`, `bukti`) VALUES ('$pelanggan', '$id_gadai', '$payment', 'cicilan', '$metode', '$new_file_name')");
+                                
+                                if (!$query) {
+                                    throw new Exception('Gagal menyimpan data pembayaran.');
+                                }
+
+                                // Move uploaded file
+                                if (!move_uploaded_file($bukti["tmp_name"], $target_file)) {
+                                    throw new Exception('Gagal menyimpan file bukti pembayaran.');
+                                }
+
+                                // Commit transaksi
+                                mysqli_commit($conn);
+                                
+                                echo "<script>
+                                    alert('Bukti pembayaran berhasil diunggah.');
+                                    window.location.href = 'index.php';
+                                </script>";
+                                exit();
+                                
+                            } catch (Exception $e) {
+                                // Rollback transaksi
+                                mysqli_rollback($conn);
+                                
+                                // Hapus file jika sudah terupload tapi database gagal
+                                if (file_exists($target_file)) {
+                                    unlink($target_file);
+                                }
+                                
+                                echo "<script>alert('" . $e->getMessage() . "');</script>";
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -135,6 +202,36 @@ if (isset($_POST['byrcicilan'])) {
             margin-top: 10px;
             line-height: 1.5;
         }
+        .error {
+            color: #dc3545;
+            font-size: 12px;
+            margin-top: 5px;
+            display: none;
+        }
+        .file-info {
+            font-size: 11px;
+            color: #666;
+            margin-top: 5px;
+            line-height: 1.3;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 10px;
+        }
+        .progress-bar {
+            width: 100%;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            margin-top: 10px;
+            display: none;
+        }
+        .progress {
+            background-color: #28a745;
+            height: 4px;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
         @media (max-width: 768px) {
             .container {
                 padding: 20px;
@@ -163,19 +260,91 @@ if (isset($_POST['byrcicilan'])) {
     </style>
     <script>
         function formatRupiah(input) {
-            let value = input.value.replace(/[^,\d]/g, ""); // Hanya angka dan koma
-            let split = value.split(",");
-            let sisa = split[0].length % 3;
-            let rupiah = split[0].substr(0, sisa);
-            let ribuan = split[0].substr(sisa).match(/\d{3}/gi);
-
-            if (ribuan) {
-                let separator = sisa ? "." : "";
-                rupiah += separator + ribuan.join(".");
+            let value = input.value.replace(/[^0-9]/g, ""); // Hanya angka
+            if (value === "") {
+                input.value = "";
+                return;
             }
-
-            rupiah = split[1] !== undefined ? rupiah + "," + split[1] : rupiah;
+            
+            let number = parseInt(value);
+            let rupiah = number.toLocaleString('id-ID');
             input.value = "Rp " + rupiah;
+        }
+
+        function validateForm() {
+            let isValid = true;
+            
+            // Validasi KTP
+            const ktp = document.getElementById('ktp');
+            const ktpError = document.getElementById('ktp-error');
+            if (ktp.value.trim().length < 16) {
+                ktpError.textContent = 'NIK harus 16 digit';
+                ktpError.style.display = 'block';
+                isValid = false;
+            } else {
+                ktpError.style.display = 'none';
+            }
+            
+            // Validasi jumlah pembayaran
+            const amount = document.getElementById('amount');
+            const amountError = document.getElementById('amount-error');
+            const cleanAmount = amount.value.replace(/[^0-9]/g, '');
+            if (cleanAmount === '' || parseInt(cleanAmount) <= 0) {
+                amountError.textContent = 'Jumlah pembayaran harus lebih dari 0';
+                amountError.style.display = 'block';
+                isValid = false;
+            } else {
+                amountError.style.display = 'none';
+            }
+            
+            // Validasi file
+            const receipt = document.getElementById('receipt');
+            const fileError = document.getElementById('file-error');
+            if (receipt.files.length > 0) {
+                const file = receipt.files[0];
+                const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+                const maxSize = 5 * 1024 * 1024; // 5MB
+                
+                if (!allowedTypes.includes(file.type)) {
+                    fileError.textContent = 'Format file tidak didukung. Gunakan JPG, PNG, atau GIF';
+                    fileError.style.display = 'block';
+                    isValid = false;
+                } else if (file.size > maxSize) {
+                    fileError.textContent = 'Ukuran file terlalu besar. Maksimal 5MB';
+                    fileError.style.display = 'block';
+                    isValid = false;
+                } else {
+                    fileError.style.display = 'none';
+                }
+            }
+            
+            return isValid;
+        }
+
+        function showLoading() {
+            document.getElementById('submit-btn').disabled = true;
+            document.getElementById('submit-btn').textContent = 'Sedang mengirim...';
+            document.querySelector('.loading').style.display = 'block';
+        }
+
+        function previewFile() {
+            const file = document.getElementById('receipt').files[0];
+            const preview = document.getElementById('file-preview');
+            
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.innerHTML = `<img src="${e.target.result}" style="max-width: 100px; max-height: 100px; border-radius: 5px;">`;
+                };
+                reader.readAsDataURL(file);
+            } else {
+                preview.innerHTML = '';
+            }
+        }
+
+        // Format input KTP hanya angka
+        function formatKTP(input) {
+            input.value = input.value.replace(/[^0-9]/g, '').substring(0, 16);
         }
     </script>
 </head>
@@ -185,22 +354,39 @@ if (isset($_POST['byrcicilan'])) {
         <img src="image/logo.ico" alt="Logo" class="logo">
         
         <h2>Form Bukti Pembayaran</h2>
-        <form action="#" method="post" enctype="multipart/form-data">
-            <label for="nik">Masukan Nomor KTP</label>
-            <input type="text" id="ktp" name="ktp" placeholder="KTP yang terdaftar pada saat gadai" required>
+        <form action="#" method="post" enctype="multipart/form-data" onsubmit="return validateForm() && showLoading()">
+            <label for="ktp">Masukan Nomor KTP</label>
+            <input type="text" id="ktp" name="ktp" placeholder="16 digit NIK yang terdaftar saat gadai" maxlength="16" oninput="formatKTP(this)" required>
+            <div id="ktp-error" class="error"></div>
             
             <label for="amount">Jumlah Pembayaran</label>
             <input type="text" id="amount" name="amount" placeholder="Masukkan jumlah pembayaran" oninput="formatRupiah(this)" required>
+            <div id="amount-error" class="error"></div>
             
             <label for="payment-method">Metode Pembayaran</label>
             <select id="payment-method" name="method" required>
-                <option value="Transfer bank">Transfer Bank</option>
+                <option value="">Pilih metode pembayaran</option>
+                <option value="Transfer Bank">Transfer Bank</option>
+                <option value="E-Wallet">E-Wallet</option>
+                <option value="Tunai">Tunai</option>
             </select>
             
             <label for="receipt">Unggah Bukti Pembayaran</label>
-            <input type="file" id="receipt" name="receipt" accept="image/*" required>
+            <input type="file" id="receipt" name="receipt" accept="image/jpeg,image/jpg,image/png,image/gif" onchange="previewFile()" required>
+            <div class="file-info">
+                Format: JPG, PNG, GIF | Maksimal: 5MB
+            </div>
+            <div id="file-error" class="error"></div>
+            <div id="file-preview" style="margin-top: 10px;"></div>
             
-            <button type="submit" name="byrcicilan">Kirim</button>
+            <button type="submit" id="submit-btn" name="byrcicilan">Kirim</button>
+            
+            <div class="loading">
+                <p>Sedang memproses...</p>
+                <div class="progress-bar">
+                    <div class="progress" style="width: 0%"></div>
+                </div>
+            </div>
             
             <div class="info">
                 <p>Silakan upload bukti pembayaran yang jelas dan dapat dibaca.</p>
