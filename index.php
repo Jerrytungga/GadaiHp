@@ -10,7 +10,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
 
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&family=Raleway:wght@700;800;900&display=swap" rel="stylesheet">
     
     <!-- jQuery -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
@@ -36,10 +36,65 @@
         visibility: hidden;
       }
       .logo {
-  width: 85px;
+  width: 95px;
   height: auto;
-  margin: 1px 0;
-  padding: 0; 
+  margin: 0;
+  padding: 12px;
+  background: linear-gradient(135deg, #ffffff, #e3f2fd, #ffffff);
+  background-size: 200% 200%;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  box-shadow: 
+    0 0 20px rgba(0, 86, 179, 0.15),
+    0 4px 15px rgba(0, 123, 255, 0.2),
+    inset 0 0 15px rgba(255, 255, 255, 0.8);
+  transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  animation: logoGlow 3s ease-in-out infinite;
+  position: relative;
+}
+
+.logo::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
+  background: linear-gradient(45deg, #0056b3, #007bff, #00bfff, #007bff, #0056b3);
+  background-size: 400% 400%;
+  border-radius: 50%;
+  z-index: -1;
+  animation: gradientRotate 4s ease infinite;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+@keyframes logoGlow {
+  0%, 100% {
+    box-shadow: 
+      0 0 20px rgba(0, 86, 179, 0.15),
+      0 4px 15px rgba(0, 123, 255, 0.2),
+      inset 0 0 15px rgba(255, 255, 255, 0.8);
+  }
+  50% {
+    box-shadow: 
+      0 0 35px rgba(0, 86, 179, 0.3),
+      0 6px 25px rgba(0, 123, 255, 0.35),
+      inset 0 0 20px rgba(255, 255, 255, 1);
+  }
+}
+
+@keyframes gradientRotate {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
       .ulasan .card {
   background-color: #e3f2fd; /* Biru muda */
@@ -88,53 +143,1045 @@
 }
 
 #kontakkami {
-  background-color: #e3f2fd; /* Biru muda */
-  color: #003f7f; /* Biru gelap */
+  background: linear-gradient(180deg, #ffffff 0%, #f0f8ff 100%);
+  color: #003f7f;
+  padding: 70px 0;
 }
 
-#kontakkami h2 {
-  color: #0056b3; /* Biru gelap */
+.contact-title {
+  font-family: 'Raleway', sans-serif;
+  color: #0056b3;
+  font-weight: 800;
+  font-size: 2.8rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 20px;
+}
+
+.contact-desc {
+  font-family: 'Poppins', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 400;
+  line-height: 1.8;
+  color: #555;
+}
+
+.contact-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 40px 30px;
+  text-align: center;
+  box-shadow: 0 8px 30px rgba(0, 86, 179, 0.15);
+  transition: all 0.4s ease;
+  height: 100%;
+  border: 2px solid transparent;
+}
+
+.contact-card:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 15px 40px rgba(0, 86, 179, 0.25);
+  border-color: #007bff;
+}
+
+.contact-icon {
+  font-size: 3.5rem;
+  margin-bottom: 20px;
+  display: inline-block;
+  animation: bounce 2s infinite;
+}
+
+.contact-card-title {
+  font-family: 'Raleway', sans-serif;
+  color: #0056b3;
+  font-weight: 700;
+  font-size: 1.4rem;
+  margin-bottom: 15px;
+  letter-spacing: 0.5px;
+}
+
+.contact-card-text {
+  font-family: 'Poppins', sans-serif;
+  color: #666;
+  font-size: 1.05rem;
+  line-height: 1.7;
+  margin-bottom: 20px;
+  min-height: 50px;
+}
+
+.contact-link {
+  display: inline-block;
+  font-family: 'Raleway', sans-serif;
+  color: #007bff;
+  font-weight: 600;
+  font-size: 1rem;
+  text-decoration: none;
+  padding: 8px 20px;
+  border: 2px solid #007bff;
+  border-radius: 25px;
+  transition: all 0.3s ease;
+}
+
+.contact-link:hover {
+  background: #007bff;
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+}
+
+.contact-info-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 35px 40px;
+  box-shadow: 0 8px 30px rgba(0, 86, 179, 0.12);
+  border: 2px solid #e3f2fd;
+  transition: all 0.4s ease;
+}
+
+.contact-info-card:hover {
+  box-shadow: 0 12px 40px rgba(0, 86, 179, 0.2);
+  border-color: #007bff;
+}
+
+.nib-badge {
+  font-size: 4rem;
+  margin-bottom: 10px;
+}
+
+.nib-title {
+  font-family: 'Raleway', sans-serif;
+  color: #0056b3;
+  font-weight: 700;
+  font-size: 1.3rem;
+  margin-bottom: 10px;
+  letter-spacing: 0.5px;
+}
+
+.nib-number {
+  font-family: 'Poppins', sans-serif;
+  color: #003f7f;
+  font-size: 1.15rem;
+  margin-bottom: 10px;
+}
+
+.nib-number strong {
+  color: #0056b3;
+  font-weight: 700;
+}
+
+.nib-text {
+  font-family: 'Poppins', sans-serif;
+  color: #666;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.contact-cta {
+  font-family: 'Raleway', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  box-shadow: 0 5px 20px rgba(0, 123, 255, 0.4);
+  transition: all 0.3s ease;
+}
+
+.contact-cta:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(0, 123, 255, 0.5);
+}
+
+@media (max-width: 768px) {
+  .contact-card {
+    margin-bottom: 20px;
+  }
+  
+  .contact-card-text {
+    min-height: auto;
+  }
 }
 
 #tentangkami {
-  background-color: #f0f8ff; /* Biru sangat muda */
-  color: #003f7f; /* Biru gelap */
+  background: linear-gradient(180deg, #f0f8ff 0%, #ffffff 100%);
+  color: #003f7f;
+  padding: 70px 0;
 }
 
-#tentangkami h2 {
-  color: #0056b3; /* Biru gelap */
+.about-title {
+  font-family: 'Raleway', sans-serif;
+  color: #0056b3;
+  font-weight: 800;
+  font-size: 2.8rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 20px;
 }
+
+.about-card {
+  background: #ffffff;
+  border-radius: 25px;
+  padding: 50px 45px;
+  box-shadow: 0 10px 40px rgba(0, 86, 179, 0.15);
+  position: relative;
+  border: 2px solid #e3f2fd;
+  transition: all 0.4s ease;
+}
+
+.about-card:hover {
+  box-shadow: 0 15px 50px rgba(0, 86, 179, 0.25);
+  border-color: #007bff;
+}
+
+.about-badge {
+  font-size: 3rem;
+  margin-bottom: 20px;
+}
+
+.about-subtitle {
+  font-family: 'Raleway', sans-serif;
+  color: #0056b3;
+  font-weight: 700;
+  font-size: 1.8rem;
+  letter-spacing: 1px;
+}
+
+.about-text {
+  font-family: 'Poppins', sans-serif;
+  color: #555;
+  font-size: 1.1rem;
+  line-height: 1.9;
+  text-align: justify;
+  font-weight: 400;
+}
+
+.about-text strong {
+  color: #0056b3;
+  font-weight: 600;
+}
+
+.about-features {
+  margin-top: 40px;
+  padding-top: 40px;
+  border-top: 2px solid #e3f2fd;
+}
+
+.feature-icon {
+  font-size: 3rem;
+  margin-bottom: 15px;
+}
+
+.feature-title {
+  font-family: 'Raleway', sans-serif;
+  color: #0056b3;
+  font-weight: 700;
+  font-size: 1.15rem;
+  margin-bottom: 10px;
+  letter-spacing: 0.5px;
+}
+
+.feature-text {
+  font-family: 'Poppins', sans-serif;
+  color: #666;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Simulasi Section Styles */
+#simulasi {
+  background: linear-gradient(180deg, #ffffff 0%, #f0f8ff 100%);
+  padding: 70px 0;
+}
+
+.simulasi-title {
+  font-family: 'Raleway', sans-serif;
+  color: #0056b3;
+  font-weight: 800;
+  font-size: 2.8rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 20px;
+}
+
+.simulasi-desc {
+  font-family: 'Poppins', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 400;
+  line-height: 1.8;
+  color: #555;
+}
+
+.simulasi-card {
+  background: #ffffff;
+  border-radius: 25px;
+  padding: 45px 40px;
+  box-shadow: 0 10px 40px rgba(0, 86, 179, 0.15);
+  height: 100%;
+  border: 2px solid #e3f2fd;
+  transition: all 0.4s ease;
+}
+
+.simulasi-card:hover {
+  box-shadow: 0 15px 50px rgba(0, 86, 179, 0.25);
+  border-color: #007bff;
+}
+
+.simulasi-icon {
+  font-size: 3.5rem;
+  margin-bottom: 20px;
+}
+
+.simulasi-card-title {
+  font-family: 'Raleway', sans-serif;
+  color: #0056b3;
+  font-weight: 700;
+  font-size: 1.6rem;
+  letter-spacing: 1px;
+}
+
+.simulasi-label {
+  font-family: 'Poppins', sans-serif;
+  color: #0056b3;
+  font-weight: 600;
+  font-size: 1.1rem;
+  margin-bottom: 10px;
+}
+
+.simulasi-input {
+  border: 2px solid #e3f2fd;
+  border-radius: 15px;
+  padding: 15px 20px;
+  font-size: 1.1rem;
+  font-family: 'Poppins', sans-serif;
+  transition: all 0.3s ease;
+  background: #f8f9fa;
+}
+
+.simulasi-input:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 0.25rem rgba(0, 123, 255, 0.15);
+  background: #ffffff;
+  outline: none;
+}
+
+.simulasi-btn-primary {
+  background: linear-gradient(135deg, #0056b3, #007bff);
+  border: none;
+  border-radius: 50px;
+  color: #ffffff;
+  font-family: 'Raleway', sans-serif;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 15px 30px;
+  box-shadow: 0 5px 20px rgba(0, 123, 255, 0.4);
+  transition: all 0.3s ease;
+}
+
+.simulasi-btn-primary:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(0, 123, 255, 0.5);
+  background: linear-gradient(135deg, #004494, #0056b3);
+}
+
+.simulasi-btn-reset {
+  background: #000000;
+  border: 2px solid #000000;
+  border-radius: 50px;
+  color: #000000;
+  font-family: 'Raleway', sans-serif;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 15px 30px;
+  transition: all 0.3s ease;
+}
+
+.simulasi-btn-reset:hover {
+  background: #c42b2b;
+  color: #ffffff;
+  transform: translateY(-3px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+}
+
+.result-card {
+  background: linear-gradient(135deg, #f0f8ff 0%, #ffffff 100%);
+}
+
+.result-container {
+  min-height: 200px;
+  font-family: 'Poppins', sans-serif;
+}
+
+.result-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  padding: 20px;
+  text-align: center;
+}
+
+.result-placeholder p {
+  font-size: 1.05rem;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.simulasi-note {
+  font-family: 'Poppins', sans-serif;
+  font-size: 1rem;
+  color: #666;
+  background: #fff3cd;
+  padding: 15px 25px;
+  border-radius: 15px;
+  border-left: 5px solid #ffc107;
+  text-align: left;
+  display: inline-block;
+}
+
+.simulasi-note strong {
+  color: #0056b3;
+}
+
 #layanan {
-  background-color: #f0f8ff; /* Biru sangat muda */
-  color: #003f7f; /* Biru gelap */
+  background: linear-gradient(180deg, #f0f8ff 0%, #ffffff 100%);
+  color: #003f7f;
+  padding: 70px 0;
 }
 
-#layanan h2 {
-  color: #0056b3; /* Biru gelap */
+#layanan .section-title {
+  font-family: 'Raleway', sans-serif;
+  color: #0056b3;
+  font-weight: 800;
+  font-size: 2.8rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 20px;
 }
+
+#layanan .lead {
+  font-family: 'Poppins', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 500;
+  line-height: 1.8;
+  color: #003f7f;
+}
+
+#layanan .text-muted {
+  font-family: 'Poppins', sans-serif;
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: #666;
+  margin-top: 10px;
+}
+
+.title-underline {
+  width: 80px;
+  height: 4px;
+  background: linear-gradient(90deg, #0056b3, #007bff, #0056b3);
+  border-radius: 2px;
+}
+
+.service-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 45px 35px;
+  box-shadow: 0 5px 25px rgba(0, 86, 179, 0.12);
+  transition: all 0.4s ease;
+  height: 100%;
+  border: 2px solid transparent;
+}
+
+.service-card:hover {
+  transform: translateY(-12px);
+  box-shadow: 0 12px 35px rgba(0, 86, 179, 0.25);
+  border-color: #007bff;
+}
+
+.service-icon {
+  font-size: 4.5rem;
+  margin-bottom: 25px;
+  display: inline-block;
+  animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.service-title {
+  font-family: 'Raleway', sans-serif;
+  color: #0056b3;
+  font-weight: 700;
+  font-size: 1.4rem;
+  margin-bottom: 18px;
+  letter-spacing: 0.5px;
+}
+
+.service-text {
+  font-family: 'Poppins', sans-serif;
+  color: #555;
+  font-size: 1.02rem;
+  line-height: 1.75;
+  margin: 0;
+  font-weight: 400;
+}
+
+/* Process Gadai Section Styles */
+#prosesgadai {
+  background: linear-gradient(180deg, #ffffff 0%, #f0f8ff 100%);
+  padding: 70px 0;
+}
+
+.process-title {
+  font-family: 'Raleway', sans-serif;
+  color: #0056b3;
+  font-weight: 800;
+  font-size: 2.8rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 20px;
+}
+
+.process-desc {
+  font-family: 'Poppins', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 400;
+  line-height: 1.8;
+  color: #555;
+}
+
+.process-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 40px 25px;
+  box-shadow: 0 8px 30px rgba(0, 86, 179, 0.15);
+  transition: all 0.4s ease;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  border: 2px solid transparent;
+}
+
+.process-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 5px;
+  background: linear-gradient(90deg, #0056b3, #007bff);
+  transform: scaleX(0);
+  transition: transform 0.4s ease;
+}
+
+.process-card:hover::before {
+  transform: scaleX(1);
+}
+
+.process-card:hover {
+  transform: translateY(-15px);
+  box-shadow: 0 15px 40px rgba(0, 86, 179, 0.25);
+  border-color: #007bff;
+}
+
+.process-icon {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  margin-bottom: 20px;
+  transition: transform 0.4s ease;
+}
+
+.process-card:hover .process-icon {
+  transform: scale(1.1) rotate(5deg);
+}
+
+.process-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #0056b3, #007bff);
+  color: #ffffff;
+  font-family: 'Raleway', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 800;
+  width: 50px;
+  height: 50px;
+  line-height: 50px;
+  border-radius: 50%;
+  margin-bottom: 15px;
+  box-shadow: 0 4px 15px rgba(0, 86, 179, 0.3);
+}
+
+.process-card-title {
+  font-family: 'Raleway', sans-serif;
+  color: #0056b3;
+  font-weight: 700;
+  font-size: 1.35rem;
+  margin-bottom: 15px;
+  letter-spacing: 0.5px;
+}
+
+.process-card-text {
+  font-family: 'Poppins', sans-serif;
+  color: #666;
+  font-size: 1rem;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.process-cta {
+  font-family: 'Raleway', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  box-shadow: 0 5px 20px rgba(0, 123, 255, 0.4);
+  transition: all 0.3s ease;
+}
+
+.process-cta:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(0, 123, 255, 0.5);
+}
+
 #ulasan {
-  background-color: #f0f8ff; /* Biru sangat muda */
-  color: #003f7f; /* Biru gelap */
+  background: linear-gradient(180deg, #f0f8ff 0%, #ffffff 100%);
+  padding: 70px 0;
 }
 
-#ulasan h2 {
-  color: #0056b3; /* Biru gelap */
+.review-title {
+  font-family: 'Raleway', sans-serif;
+  color: #0056b3;
+  font-weight: 800;
+  font-size: 2.8rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 20px;
+}
+
+.review-desc {
+  font-family: 'Poppins', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 400;
+  line-height: 1.8;
+  color: #555;
+}
+
+.review-card {
+  background: #ffffff;
+  border-radius: 25px;
+  padding: 50px 45px;
+  box-shadow: 0 10px 40px rgba(0, 86, 179, 0.15);
+  position: relative;
+  border: 2px solid #e3f2fd;
+  transition: all 0.4s ease;
+  min-height: 350px;
+}
+
+.review-card:hover {
+  box-shadow: 0 15px 50px rgba(0, 86, 179, 0.25);
+  border-color: #007bff;
+}
+
+.review-quote-icon {
+  position: absolute;
+  top: 30px;
+  left: 40px;
+  font-size: 5rem;
+  color: #e3f2fd;
+  font-family: Georgia, serif;
+  line-height: 1;
+  opacity: 0.5;
+}
+
+.review-body {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+}
+
+.review-text {
+  font-family: 'Poppins', sans-serif;
+  font-size: 1.15rem;
+  line-height: 1.9;
+  color: #555;
+  font-style: italic;
+  margin-bottom: 25px;
+  margin-top: 20px;
+}
+
+.review-rating {
+  font-size: 1.5rem;
+  margin-bottom: 25px;
+}
+
+.review-author {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 30px;
+}
+
+.author-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0056b3, #007bff);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Raleway', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 15px;
+  box-shadow: 0 4px 15px rgba(0, 86, 179, 0.3);
+}
+
+.author-name {
+  font-family: 'Raleway', sans-serif;
+  color: #0056b3;
+  font-weight: 700;
+  font-size: 1.3rem;
+  margin-bottom: 5px;
+}
+
+.author-label {
+  font-family: 'Poppins', sans-serif;
+  color: #999;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.empty-reviews-icon {
+  font-size: 4rem;
+}
+
+.empty-reviews-title {
+  font-family: 'Raleway', sans-serif;
+  color: #0056b3;
+  font-weight: 700;
+  font-size: 1.5rem;
+  margin-bottom: 10px;
+}
+
+.empty-reviews-text {
+  font-family: 'Poppins', sans-serif;
+  color: #666;
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.custom-carousel-control {
+  width: 50px;
+  height: 50px;
+  background: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 4px 15px rgba(0, 86, 179, 0.2);
+  opacity: 1;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 2px solid #e3f2fd;
+  transition: all 0.3s ease;
+}
+
+.custom-carousel-control:hover {
+  background: #0056b3;
+  border-color: #0056b3;
+  box-shadow: 0 6px 20px rgba(0, 86, 179, 0.4);
+}
+
+.custom-carousel-control.carousel-control-prev {
+  left: -25px;
+}
+
+.custom-carousel-control.carousel-control-next {
+  right: -25px;
+}
+
+.custom-control-icon {
+  font-size: 2.5rem;
+  color: #0056b3;
+  font-weight: bold;
+  line-height: 1;
+  transition: color 0.3s ease;
+}
+
+.custom-carousel-control:hover .custom-control-icon {
+  color: #ffffff;
+}
+
+.custom-indicators {
+  position: relative;
+  margin-top: 30px;
+  bottom: auto;
+}
+
+.custom-indicators button {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #e3f2fd;
+  border: 2px solid #0056b3;
+  opacity: 1;
+  transition: all 0.3s ease;
+}
+
+.custom-indicators button.active {
+  background-color: #0056b3;
+  transform: scale(1.2);
+}
+
+@media (max-width: 768px) {
+  .custom-carousel-control {
+    display: none;
+  }
+  
+  .review-card {
+    padding: 40px 30px;
+    min-height: auto;
+  }
+  
+  .review-quote-icon {
+    font-size: 3.5rem;
+    top: 20px;
+    left: 25px;
+  }
+  
+  .review-text {
+    font-size: 1.05rem;
+  }
 }
 
 .navbar {
-  background-color: #f0f8ff; /* Biru gelap */
+  background: linear-gradient(135deg, #ffffff 0%, #f0f8ff 100%);
+  box-shadow: 0 4px 20px rgba(0, 86, 179, 0.1);
+  padding: 15px 0;
+  transition: all 0.4s ease;
+  position: sticky;
+  top: 0;
+  z-index: 1030;
+  border-bottom: 3px solid #e3f2fd;
+}
+
+.navbar.scrolled {
+  box-shadow: 0 6px 30px rgba(0, 86, 179, 0.2);
+  padding: 8px 0;
+  background: linear-gradient(135deg, #ffffff 0%, #e3f2fd 100%);
+}
+
+.navbar.scrolled .logo {
+  width: 75px;
+  padding: 8px;
+  box-shadow: 
+    0 0 15px rgba(0, 86, 179, 0.2),
+    0 3px 10px rgba(0, 123, 255, 0.15),
+    inset 0 0 10px rgba(255, 255, 255, 0.7);
+}
+
+.navbar-brand {
+  transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.navbar-brand::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 0;
+  height: 0;
+  background: radial-gradient(circle, rgba(0, 123, 255, 0.1) 0%, transparent 70%);
+  border-radius: 50%;
+  transition: all 0.4s ease;
+  z-index: -1;
+}
+
+.navbar-brand:hover::after {
+  width: 140px;
+  height: 140px;
+}
+
+.navbar-brand:hover {
+  transform: scale(1.15) rotate(-5deg);
+}
+
+.navbar-brand:hover .logo {
+  transform: rotate(5deg) scale(1.1);
+  animation: logoPulse 0.6s ease;
+  box-shadow: 
+    0 0 40px rgba(0, 86, 179, 0.4),
+    0 8px 30px rgba(0, 123, 255, 0.45),
+    inset 0 0 25px rgba(255, 255, 255, 1);
+}
+
+.navbar-brand:hover .logo::before {
+  opacity: 1;
+}
+
+.navbar-brand:active .logo {
+  transform: scale(0.95);
+}
+
+@keyframes logoPulse {
+  0%, 100% { transform: rotate(5deg) scale(1.1); }
+  50% { transform: rotate(5deg) scale(1.15); }
 }
 
 .navbar .nav-link {
-  color: #ffffff; /* Putih */
+  color: #003f7f;
+  font-family: 'Raleway', sans-serif;
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: 0.5px;
+  padding: 10px 20px;
+  margin: 0 5px;
+  border-radius: 30px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.navbar .nav-link::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(0, 123, 255, 0.1), transparent);
+  transition: left 0.6s ease;
+}
+
+.navbar .nav-link:hover::before {
+  left: 100%;
+}
+
+.navbar .nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  width: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #0056b3, #007bff);
+  transform: translateX(-50%);
+  transition: width 0.3s ease;
+  border-radius: 2px;
 }
 
 .navbar .nav-link:hover {
-  color: #007bff; /* Biru terang */
+  color: #007bff;
+  background: rgba(0, 123, 255, 0.08);
+  transform: translateY(-3px);
+  box-shadow: 0 4px 15px rgba(0, 86, 179, 0.15);
+}
+
+.navbar .nav-link:hover::after {
+  width: 60%;
+}
+
+.navbar .nav-link:active {
+  transform: translateY(-1px);
 }
 
 .navbar-text {
-  color: #ffffff; /* Putih */
+  color: #003f7f;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  font-size: 1.05rem;
+  padding: 8px 20px;
+  background: linear-gradient(135deg, #e3f2fd 0%, #ffffff 100%);
+  border-radius: 30px;
+  border: 2px solid #0056b3;
+  box-shadow: 0 3px 15px rgba(0, 86, 179, 0.1);
+  transition: all 0.3s ease;
+}
+
+.navbar-text:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 20px rgba(0, 86, 179, 0.2);
+  border-color: #007bff;
+}
+
+.navbar-text b {
+  font-family: 'Raleway', sans-serif;
+  font-weight: 800;
+  color: #0056b3;
+  letter-spacing: 1px;
+  background: linear-gradient(135deg, #0056b3, #007bff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.navbar-toggler {
+  border: 2px solid #0056b3;
+  padding: 10px 14px;
+  border-radius: 10px;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 10px rgba(0, 86, 179, 0.1);
+}
+
+.navbar-toggler:hover {
+  background: rgba(0, 86, 179, 0.05);
+  transform: rotate(90deg);
+  box-shadow: 0 4px 15px rgba(0, 86, 179, 0.2);
+}
+
+.navbar-toggler:focus {
+  box-shadow: 0 0 0 0.25rem rgba(0, 86, 179, 0.25);
+  outline: none;
+}
+
+.navbar-toggler-icon {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='%230056b3' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2.5' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+  width: 28px;
+  height: 28px;
+}
+
+.navbar .nav-link.active {
+  color: #007bff !important;
+  background: rgba(0, 123, 255, 0.12) !important;
+  transform: translateY(-3px);
+  box-shadow: 0 4px 15px rgba(0, 86, 179, 0.2);
+}
+
+.navbar .nav-link.active::after {
+  width: 60% !important;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+@media (max-width: 991px) {
+  .navbar {
+    padding: 12px 0;
+  }
+  
+  .navbar .nav-link {
+    margin: 8px 0;
+    text-align: center;
+  }
+  
+  .navbar-text {
+    text-align: center;
+    margin-top: 15px;
+    display: block;
+  }
+  
+  .navbar-collapse {
+    margin-top: 15px;
+  }
+}
+
+@media (max-width: 768px) {
+  .navbar-text b {
+    font-size: 0.9rem;
+  }
 }
 
 #flash-screen {
@@ -146,18 +1193,194 @@
 }
 
 .modal-content {
-  background-color: #e3f2fd; /* Biru muda */
-  color: #003f7f; /* Biru gelap */
+  background: #ffffff;
+  border-radius: 25px;
+  border: none;
+  box-shadow: 0 15px 60px rgba(0, 86, 179, 0.25);
+  overflow: hidden;
 }
 
 .modal-header {
-  background-color: #0056b3; /* Biru gelap */
-  color: #ffffff; /* Putih */
+  background: linear-gradient(135deg, #0056b3 0%, #007bff 100%);
+  color: #ffffff;
+  padding: 30px 35px;
+  border: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.modal-header::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+  animation: modalShimmer 3s ease-in-out infinite;
+}
+
+@keyframes modalShimmer {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-30px, -30px); }
+}
+
+.modal-title {
+  font-family: 'Raleway', sans-serif;
+  font-weight: 800;
+  font-size: 1.8rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  position: relative;
+  z-index: 1;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .modal-body {
-  background-color: #ffffff; /* Putih */
-  color: #003f7f; /* Biru gelap */
+  background: #ffffff;
+  color: #003f7f;
+  padding: 35px 40px;
+  font-family: 'Poppins', sans-serif;
+}
+
+.modal-body hr {
+  border: none;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #0056b3, transparent);
+  margin: 25px 0;
+  border-radius: 2px;
+}
+
+.modal-body h2 {
+  font-family: 'Raleway', sans-serif;
+  color: #0056b3;
+  font-weight: 800;
+  font-size: 1.6rem;
+  margin-bottom: 25px;
+  letter-spacing: 1px;
+  position: relative;
+  display: inline-block;
+}
+
+.modal-body h2::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 3px;
+  background: linear-gradient(90deg, #0056b3, #007bff);
+  border-radius: 2px;
+}
+
+.modal-welcome-text {
+  font-size: 1.1rem;
+  line-height: 1.8;
+  color: #555;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.modal-body ol {
+  counter-reset: item;
+  list-style: none;
+  padding-left: 0;
+}
+
+.modal-body ol li {
+  counter-increment: item;
+  margin-bottom: 18px;
+  padding-left: 60px;
+  position: relative;
+  font-size: 1.02rem;
+  line-height: 1.7;
+  color: #444;
+  transition: all 0.3s ease;
+}
+
+.modal-body ol li::before {
+  content: counter(item);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #0056b3, #007bff);
+  color: #ffffff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-family: 'Raleway', sans-serif;
+  font-size: 1.1rem;
+  box-shadow: 0 4px 12px rgba(0, 86, 179, 0.3);
+  transition: all 0.3s ease;
+}
+
+.modal-body ol li:hover {
+  color: #0056b3;
+  transform: translateX(5px);
+}
+
+.modal-body ol li:hover::before {
+  transform: scale(1.1) rotate(5deg);
+  box-shadow: 0 6px 16px rgba(0, 86, 179, 0.4);
+}
+
+.btn-close {
+  background-color: rgba(255, 255, 255, 0.3);
+  opacity: 1;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.btn-close:hover {
+  background-color: rgba(255, 255, 255, 0.5);
+  transform: rotate(90deg) scale(1.1);
+}
+
+.btn-close:focus {
+  box-shadow: 0 0 0 0.25rem rgba(255, 255, 255, 0.3);
+}
+
+.modal.fade .modal-dialog {
+  transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.modal.show .modal-dialog {
+  animation: modalBounce 0.5s ease-out;
+}
+
+@keyframes modalBounce {
+  0% { transform: scale(0.8); opacity: 0; }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@media (max-width: 768px) {
+  .modal-body {
+    padding: 25px 20px;
+  }
+  
+  .modal-body ol li {
+    padding-left: 50px;
+    font-size: 0.95rem;
+  }
+  
+  .modal-body ol li::before {
+    width: 35px;
+    height: 35px;
+    font-size: 1rem;
+  }
 }
 #ulasan {
   background-color:rgb(255, 255, 255); /* Biru sangat muda */
@@ -180,70 +1403,164 @@
   margin: 0 auto; /* Pusatkan kartu */
   max-width: 600px; /* Batasi lebar kartu */
 }
+
+/* Hero Section Styles */
+.hero-section {
+  background: linear-gradient(135deg, #e3f2fd 0%, #ffffff 100%);
+  padding: 80px 0;
+  margin-bottom: 0;
+}
+
+.hero-content {
+  padding: 40px;
+}
+
+.headtext {
+  font-family: 'Raleway', sans-serif;
+  font-size: 3.8rem;
+  font-weight: 900;
+  background: linear-gradient(135deg, #0056b3 0%, #007bff 50%, #0056b3 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 25px;
+  line-height: 1.2;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-shadow: 2px 2px 4px rgba(0, 86, 179, 0.1);
+  animation: fadeInUp 1s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hero-description {
+  font-size: 1.3rem;
+  color: #003f7f;
+  margin-bottom: 30px;
+  font-weight: 500;
+}
+
+.hero-image {
+  max-width: 100%;
+  height: auto;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+
+.hero-btn {
+  padding: 15px 40px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  border-radius: 50px;
+  box-shadow: 0 4px 15px rgba(0, 86, 179, 0.3);
+  transition: all 0.3s ease;
+}
+
+.hero-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(0, 86, 179, 0.4);
+}
+
+.badge-cod {
+  font-size: 0.9rem;
+  padding: 8px 15px;
+  margin-top: 15px;
+  display: inline-block;
+}
+
+@media (max-width: 768px) {
+  .headtext {
+    font-size: 2.2rem;
+    letter-spacing: -0.5px;
+  }
+  .hero-description {
+    font-size: 1.1rem;
+  }
+  .hero-section {
+    padding: 50px 0;
+  }
+}
   </style>
   </head>
   <body>
     <!-- Flash screen -->
-
-
+    <div id="flash-screen">
+      <img src="image/logo_baru.png" alt="Loading..." width="150">
+    </div>
 
      <!-- Modal -->
      <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-      <div class="modal-dialog">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title" id="exampleModalLabel">Welcome to Gadai Cepat Timika Papua</h5>
+            <h5 class="modal-title" id="exampleModalLabel">🏛️ Welcome to Gadai Cepat Timika Papua</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
-            Selamat datang di layanan Gadai Cepat Timika Papua. Kami siap membantu Anda dengan proses gadai yang cepat dan mudah.
+            <p class="modal-welcome-text">
+              Selamat datang di layanan <strong>Gadai Cepat Timika Papua</strong>. Kami siap membantu Anda dengan proses gadai yang cepat, mudah, dan terpercaya.
+            </p>
             <hr>
-            <h2 class="text-center">SYARAT & KETENTUAN</h2>
-            1️⃣ Nasabah wajib berusia minimal 18 tahun dan membawa KTP asli. <br>
-            2️⃣ HP yang digadaikan harus dalam kondisi baik dan tidak terkunci akun Google/iCloud. <br>
-            3️⃣ Pinjaman maksimal 70% dari harga pasar HP.  <br>
-            4️⃣ Bunga gadai : 30% per bulan, tergantung kondisi HP. <br>
-            5️⃣ Masa gadai maksimal 3 bulan (dapat diperpanjang dengan syarat tertentu). <br>
-            6️⃣ Denda keterlambatan Rp 30.000/hari jika pembayaran melewati jatuh tempo. <br>
-            7️⃣ Jika HP tidak ditebus dalam 7 hari setelah jatuh tempo, HP akan dijual oleh penyedia gadai.  <br>
-            8️⃣ Nasabah wajib mencadangkan data pribadi sebelum gadai, karena penyedia gadai tidak bertanggung jawab atas kehilangan data. <br>
-            9️⃣ Penyedia gadai berhak menolak HP yang dicurigai hasil curian. <br><p></p>
+            <h2 class="text-center">📋 SYARAT & KETENTUAN</h2>
+            <ol class="text-start">
+              <li>Nasabah wajib berusia minimal 18 tahun dan membawa KTP asli.</li>
+              <li>HP yang digadaikan harus dalam kondisi baik dan tidak terkunci akun Google/iCloud.</li>
+              <li>Pinjaman maksimal 70% dari harga pasar HP.</li>
+              <li>Bunga gadai 30% per bulan, tergantung kondisi HP.</li>
+              <li>Masa gadai maksimal 3 bulan (dapat diperpanjang dengan syarat tertentu).</li>
+              <li>Denda keterlambatan Rp 30.000/hari jika pembayaran melewati jatuh tempo.</li>
+              <li>Jika HP tidak ditebus dalam 7 hari setelah jatuh tempo, HP akan dijual oleh penyedia gadai.</li>
+              <li>Nasabah wajib mencadangkan data pribadi sebelum gadai, karena penyedia gadai tidak bertanggung jawab atas kehilangan data.</li>
+              <li>Penyedia gadai berhak menolak HP yang dicurigai hasil curian.</li>
+            </ol>
           </div>
-        
         </div>
       </div>
     </div>
 
-    <nav class="navbar navbar-expand-lg navbar-light bg">
+    <nav class="navbar navbar-expand-lg navbar-light">
         <div class="container">
-          <a class="navbar-brand" href="index.php"></a>
-            <img src="image/GC.png" class="logo" alt="Logo">
+          <a class="navbar-brand" href="index.php">
+            <img src="image/logo_baru.png" class="logo" alt="Gadai Cepat Logo">
           </a>
           <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
           </button>
           <div class="collapse navbar-collapse" id="navbarSupportedContent">
-            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+            <ul class="navbar-nav mx-auto mb-2 mb-lg-0">
               <li class="nav-item">
-                <a class="nav-link" href="#layanan">Layanan</a>
+                <a class="nav-link" href="#layanan">📱 Layanan</a>
               </li>
               <li class="nav-item">
-                <a class="nav-link" href="#prosesgadai">Proses Gadai</a>
+                <a class="nav-link" href="#prosesgadai">⚡ Proses Gadai</a>
               </li>
               <li class="nav-item">
-                <a class="nav-link" href="#tentangkami">Tentang Kami</a>
+                <a class="nav-link" href="#tentangkami">🏛️ Tentang Kami</a>
               </li>
               <li class="nav-item">
-                <a class="nav-link" href="#kontakkami">Kontak Kami</a>
+                <a class="nav-link" href="#kontakkami">📞 Kontak</a>
               </li>
               <li class="nav-item">
-                <a class="nav-link" href="#simulasi">Simulasi</a>
+                <a class="nav-link" href="#simulasi">📊 Simulasi</a>
               </li>
             </ul>
             <div class="d-flex">
               <span class="navbar-text">
-                <b>GADAI CEPAT TIMIKA PAPUA</b> | 
-                <a href="login.php" rel="noopener noreferrer">Login</a>
+                <b>GADAI CEPAT TIMIKA</b>
+                <!-- <a href="login.php" rel="noopener noreferrer">Login</a> -->
               </span>
             </div>
           </div>
@@ -251,22 +1568,26 @@
       </nav>
       
 
-    <div class="container">
-      <section>
-        <div class="row m-4 mt-5">
-          <div class="col-sm-6 flex-column">
-            <h2 class="headtext">Selamat Datang di Gadai Cepat, Timika Papua</h2>
-            <p class="">Cair dalam 5 Menit.</p>
-            <a href="https://wa.me/6285823091908?text=Halo%2C%20saya%20ingin%20bertanya%20tentang%20layanan%20Gadai%20Cepat." target="_blank" class="btn btn-primary btn-lg">HUBUNGI KAMI</a><br>
-            <sub>Dengan Sistem <span class="badge bg-danger">COD</span></sub>
+    <section class="hero-section">
+      <div class="container-fluid px-4">
+        <div class="row align-items-center g-5">
+          <div class="col-lg-6 col-md-12 text-center text-lg-start">
+            <div class="hero-content">
+              <h1 class="headtext">GADAI CEPAT TIMIKA PAPUA</h1>
+              <p class="hero-description">Proses Cepat, Dana Cair dalam 5 Menit!</p>
+              <a href="https://wa.me/6285823091908?text=Halo%2C%20saya%20ingin%20bertanya%20tentang%20layanan%20Gadai%20Cepat." target="_blank" class="btn btn-primary btn-lg hero-btn mb-3">💬 HUBUNGI KAMI SEKARANG</a>
+              <br>
+              <span class="badge bg-danger badge-cod">✓ Sistem Cash on Delivery (COD)</span>
+              <span class="badge bg-success badge-cod ms-2">✓ Proses Aman & Terpercaya</span>
+            </div>
           </div>
               
-          <div class="col-sm-6 d-flex align-items-stretch">
-            <img src="./image/rb_51019.png" class="gambar" alt="Logo">
+          <div class="col-lg-6 col-md-12 text-center">
+            <img src="./image/rb_51019.png" class="hero-image" alt="Gadai Cepat Timika Papua">
           </div>
         </div>
-      </section>
-    </div>
+      </div>
+    </section>
 
 
   
@@ -274,98 +1595,219 @@
 
 
     <section class="layanan" id="layanan">
-      <div class="container">
-        <div class="row text-center m-4">
-          <h2 class="mt-5">LAYANAN</h2>
-          <p class="fst-italic">Gadai ponsel Anda dengan proses cepat dan mudah, dari berbagai merek dan model terbaru. <br> Dapatkan pinjaman sesuai dengan nilai ponsel Anda!</p>
-          <p class="fst-italic">Saat ini kami hanya menerima berbagai merek ponsel anda, Kami memberikan <br> nominal yang sesuai dengan harga pasaran ponsel anda.</p>
+      <div class="container py-5">
+        <div class="row justify-content-center text-center mb-5">
+          <div class="col-lg-8">
+            <h2 class="section-title mt-4 mb-3">LAYANAN KAMI</h2>
+            <div class="title-underline mx-auto mb-4"></div>
+            <p class="lead mb-3 text-center">Gadai HP & Laptop Anda dengan proses cepat dan mudah, dari berbagai merek dan model terbaru.</p>
+            <p class="text-muted text-center">Saat ini kami menerima berbagai merek HP dan Laptop. Kami memberikan pinjaman yang sesuai dengan harga pasaran perangkat Anda.</p>
+          </div>
+        </div>
+
+        <div class="row g-4 justify-content-center">
+          <div class="col-lg-3 col-md-6">
+            <div class="service-card text-center">
+              <div class="service-icon">📱</div>
+              <h4 class="service-title">Gadai HP</h4>
+              <p class="service-text">Kami menerima berbagai merek HP seperti iPhone, Samsung, Xiaomi, Oppo, Vivo, Realme, dan merek populer lainnya.</p>
+            </div>
+          </div>
+
+          <div class="col-lg-3 col-md-6">
+            <div class="service-card text-center">
+              <div class="service-icon">💻</div>
+              <h4 class="service-title">Gadai Laptop</h4>
+              <p class="service-text">Terima laptop berbagai merek seperti MacBook, Asus, Lenovo, HP, Dell, Acer, dan merek ternama lainnya.</p>
+            </div>
+          </div>
+
+          <div class="col-lg-3 col-md-6">
+            <div class="service-card text-center">
+              <div class="service-icon">💰</div>
+              <h4 class="service-title">Pinjaman Maksimal</h4>
+              <p class="service-text">Dapatkan pinjaman hingga 70% dari harga pasar perangkat Anda dengan proses yang transparan dan cepat.</p>
+            </div>
+          </div>
+
+          <div class="col-lg-3 col-md-6">
+            <div class="service-card text-center">
+              <div class="service-icon">⚡</div>
+              <h4 class="service-title">Proses Instan</h4>
+              <p class="service-text">Dana cair dalam 5 menit! Proses verifikasi cepat dan pelayanan profesional untuk kebutuhan mendesak Anda.</p>
+            </div>
+          </div>
         </div>
       </div>
     </section>
 
     <section id="prosesgadai">
-      <div class="container">
-        <div class="row text-center m-4">
-          <h2 class="mt-5 mb-4">CARA GADAI MUDAH & INSTAN</h2>
-          <p class="des">Gadai Cepat mengerti bahwa kemudahan dan kecepatan mencairkan dana adalah hal terpenting <br>bagi pelanggan; karena itu Gadai Cepat siap membantu Anda dengan proses yang simpel dan <br>pelayanan yang ramah.</p>
-
-          <div class="col-sm-4 d-flex align-items-stretch">
-            <div class="card">
-              <img src="./image/rb_43377.png" class="icon" alt="...">
-              <div class="card-body">
-                <h1 class="badge rounded-pill bg-primary">01</h1>
-                <h5 class="card-title">Buat Janji Ketemuan</h5>
-                <p class="card-text">Buat janjian ketemuan yang disepakati oleh kedua pihak.</p>
-              </div>
-            </div>
+      <div class="container py-5">
+        <div class="row justify-content-center text-center mb-5">
+          <div class="col-lg-8">
+            <h2 class="process-title mt-4 mb-3">CARA GADAI MUDAH & INSTAN</h2>
+            <div class="title-underline mx-auto mb-4"></div>
+            <p class="process-desc">Gadai Cepat memahami bahwa kemudahan dan kecepatan mencairkan dana adalah hal terpenting bagi pelanggan. Oleh karena itu, Gadai Cepat siap membantu Anda dengan proses yang sederhana dan pelayanan yang ramah.</p>
           </div>
-
-          <div class="col-sm-4 d-flex align-items-stretch">
-            <div class="card">
-              <img src="./image/Audit-pana.png" class="icon" alt="...">
-              <div class="card-body">
-                <h1 class="badge rounded-pill bg-primary">02</h5>
-                <h5 class="card-title">Pengecekan Barang & Identitas</h5>
-                <p class="card-text">Periksa dan catat kondisi barang, kelengkapan, serta harga barang. Pastikan identitas dan spesifikasi barang sesuai dengan dokumen yang tertera.</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-sm-4 d-flex align-items-stretch">
-            <div class="card">
-              <img src="./image/verifikasi.png" class="icon" alt="...">
-              <div class="card-body">
-                <h1 class="badge rounded-pill bg-primary">03</h1>
-                <h5 class="card-title">Verifikasi Data</h5>
-                <p class="card-text">Barang Anda akan diverifikasi, dan kami akan segera memproses pinjaman Anda.</p>
-              </div>
-            </div>
-          </div>
-
         </div>
-        <center>
-          <a href="https://wa.me/6285823091908?text=Halo%2C%20saya%20ingin%20bertanya%20tentang%20layanan%20Gadai%20Cepat." target="_blank" class="btn thubungikami btn-success rounded-pill btn-lg">HUBUNGI KAMI</a>
-        </center>
+
+        <div class="row g-4 justify-content-center mb-5">
+          <div class="col-lg-3 col-md-6">
+            <div class="process-card text-center">
+              <img src="./image/rb_43377.png" class="process-icon" alt="Hubungi Kami">
+              <div class="process-badge">01</div>
+              <h5 class="process-card-title">Hubungi Kami</h5>
+              <p class="process-card-text">Hubungi kami melalui WhatsApp atau telepon untuk membuat jadwal pertemuan yang sesuai dengan waktu Anda.</p>
+            </div>
+          </div>
+
+          <div class="col-lg-3 col-md-6">
+            <div class="process-card text-center">
+              <img src="./image/Audit-pana.png" class="process-icon" alt="Pengecekan Barang">
+              <div class="process-badge">02</div>
+              <h5 class="process-card-title">Pengecekan Barang</h5>
+              <p class="process-card-text">Tim kami akan memeriksa kondisi perangkat, kelengkapan, dan mengestimasi nilai gadai berdasarkan harga pasar terkini.</p>
+            </div>
+          </div>
+
+          <div class="col-lg-3 col-md-6">
+            <div class="process-card text-center">
+              <img src="./image/verifikasi.png" class="process-icon" alt="Verifikasi Identitas">
+              <div class="process-badge">03</div>
+              <h5 class="process-card-title">Verifikasi Identitas</h5>
+              <p class="process-card-text">Kami akan memverifikasi identitas Anda (KTP asli) dan memastikan barang bukan hasil tindak pidana.</p>
+            </div>
+          </div>
+
+          <div class="col-lg-3 col-md-6">
+            <div class="process-card text-center">
+              <img src="./image/rb_51019.png" class="process-icon" alt="Pencairan Dana">
+              <div class="process-badge">04</div>
+              <h5 class="process-card-title">Pencairan Dana</h5>
+              <p class="process-card-text">Dana pinjaman akan langsung cair dalam 5 menit setelah proses verifikasi selesai. Mudah dan cepat!</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="text-center">
+          <a href="https://wa.me/6285823091908?text=Halo%2C%20saya%20ingin%20bertanya%20tentang%20layanan%20Gadai%20Cepat." target="_blank" class="btn btn-success rounded-pill btn-lg px-5 py-3 process-cta">
+            <i class="fab fa-whatsapp"></i> HUBUNGI KAMI SEKARANG
+          </a>
+        </div>
       </div>
     </section>
 
     <section class="tentangkami" id="tentangkami">
-      <div class="container">
-        <div class="row text-center m-4">
-          <h2 class="mt-5">TENTANG KAMI</h2>
-          <p class="fst-italic">Gadai Cepat adalah sebuah usaha yang baru merintis untuk memudahkan <br> anda dalam memenuhi kebutuhan keuangan anda yang mendesak. <br><br> Kami akan menjaga barang anda dengan sangat aman.</p>
+      <div class="container py-5">
+        <div class="row justify-content-center text-center mb-5">
+          <div class="col-lg-8">
+            <h2 class="about-title mt-4 mb-3">TENTANG KAMI</h2>
+            <div class="title-underline mx-auto mb-4"></div>
+          </div>
+        </div>
+
+        <div class="row justify-content-center">
+          <div class="col-lg-10">
+            <div class="about-card">
+              <div class="about-badge">📍</div>
+              <h4 class="about-subtitle mb-4">Gadai Cepat Timika Papua</h4>
+              <p class="about-text mb-4">
+                Gadai Cepat adalah usaha yang hadir sejak <strong>tahun 2025</strong> untuk memudahkan Anda dalam memenuhi kebutuhan keuangan yang mendesak. Dengan pengalaman dan komitmen tinggi, kami memberikan layanan gadai HP dan Laptop yang cepat, aman, dan terpercaya.
+              </p>
+              <p class="about-text mb-4">
+                Kami memahami bahwa setiap pelanggan memiliki kebutuhan mendesak yang berbeda. Oleh karena itu, kami menyediakan proses yang sederhana dengan pencairan dana hanya dalam 5 menit. Kepercayaan Anda adalah prioritas utama kami.
+              </p>
+              <div class="about-features">
+                <div class="row g-4">
+                  <div class="col-md-4 text-center">
+                    <div class="feature-icon">🔒</div>
+                    <h6 class="feature-title">Aman & Terpercaya</h6>
+                    <p class="feature-text">Barang Anda dijaga dengan sistem keamanan maksimal</p>
+                  </div>
+                  <div class="col-md-4 text-center">
+                    <div class="feature-icon">⚡</div>
+                    <h6 class="feature-title">Proses Cepat</h6>
+                    <p class="feature-text">Dana cair dalam 5 menit, tanpa ribet</p>
+                  </div>
+                  <div class="col-md-4 text-center">
+                    <div class="feature-icon">🤝</div>
+                    <h6 class="feature-title">Profesional</h6>
+                    <p class="feature-text">Pelayanan ramah dan bertanggung jawab</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
 
     <section id="simulasi">
-  <div class="container">
-    <div class="row text-center m-4">
-      <div class="col-sm-6 d-flex flex-column justify-content-center align-items-center">
-        <h2 class="mt-5">Simulasi Gadai</h2>
-        <p>Masukan Harga barang :</p>
-        <form id="simulasiForm" method="post" class="w-100">
-          <input type="text" name="harga" id="harga" class="form-control col-sm-2" required autocomplete="off">
-          <button type="submit" class="btn btn-lg mt-2 btn-info">Simulasi</button>
-          <a href="#" id="resetButton" class="btn btn-danger mt-2 btn-lg">Reset</a>
-        </form>
+      <div class="container py-5">
+        <div class="row justify-content-center text-center mb-5">
+          <div class="col-lg-8">
+            <h2 class="simulasi-title mt-4 mb-3">SIMULASI GADAI</h2>
+            <div class="title-underline mx-auto mb-4"></div>
+            <p class="simulasi-desc">Hitung estimasi pinjaman yang bisa Anda dapatkan dari perangkat Anda dengan simulasi cepat dan mudah.</p>
+          </div>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-lg-6">
+            <div class="simulasi-card">
+              <div class="simulasi-icon">📊</div>
+              <h4 class="simulasi-card-title mb-4">Masukkan Harga Perangkat</h4>
+              <form id="simulasiForm" method="post">
+                <div class="mb-4">
+                  <label for="harga" class="form-label simulasi-label">💰 Harga Barang (Rp)</label>
+                  <input type="text" name="harga" id="harga" class="form-control simulasi-input" placeholder="Contoh: Rp 5.000.000" required autocomplete="off">
+                  <small class="form-text text-muted">Masukkan harga pasar perangkat Anda saat ini</small>
+                </div>
+                <div class="d-grid gap-2">
+                  <button type="submit" class="btn btn-lg simulasi-btn-primary">
+                    🔍 HITUNG SIMULASI
+                  </button>
+                  <a href="#" id="resetButton" class="btn btn-lg simulasi-btn-reset">
+                    🔄 RESET
+                  </a>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="simulasi-card result-card">
+              <div class="simulasi-icon">💵</div>
+              <h4 class="simulasi-card-title mb-4">Hasil Simulasi</h4>
+              <div id="result" class="result-container">
+                <div class="result-placeholder">
+                  <p class="text-muted">Hasil simulasi akan ditampilkan di sini setelah Anda memasukkan harga barang dan menekan tombol "Hitung Simulasi".</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row mt-4">
+          <div class="col-12 text-center">
+            <p class="simulasi-note">💡 <strong>Catatan:</strong> Hasil simulasi ini adalah estimasi. Nilai pinjaman final akan ditentukan setelah pengecekan kondisi perangkat.</p>
+          </div>
+        </div>
       </div>
-      <div class="col-sm-6 d-flex flex-column justify-content-center align-items-center">
-        <h2 class="mt-5">Hasil Simulasi Gadai</h2>
-        <div id="result" class="w-100"></div>
-      </div>
-    </div>
-  </div>
-</section>
+    </section>
     
 
 
     <section id="ulasan" class="ulasan">
-      <div class="container">
-        <div class="row text-center m-4">
-          <h2 class="mt-5">ULASAN PENGGUNA</h2>
-          <p class="fst-italic">Berikut adalah ulasan dari pengguna layanan kami:</p>
+      <div class="container py-5">
+        <div class="row justify-content-center text-center mb-5">
+          <div class="col-lg-8">
+            <h2 class="review-title mt-4 mb-3">ULASAN PENGGUNA</h2>
+            <div class="title-underline mx-auto mb-4"></div>
+            <p class="review-desc">Kepuasan pelanggan adalah prioritas utama kami. Berikut adalah testimoni dari mereka yang telah menggunakan layanan Gadai Cepat.</p>
+          </div>
         </div>
+
         <?php
         include 'database.php';
         $ulasan = [];
@@ -376,57 +1818,130 @@
           }
         }
         ?>
-        <div id="ulasanCarousel" class="carousel slide" data-bs-ride="carousel">
-          <div class="carousel-inner">
-            <?php if (count($ulasan) > 0): ?>
-              <?php foreach ($ulasan as $i => $u): ?>
-                <div class="carousel-item<?php echo $i === 0 ? ' active' : ''; ?>">
-                  <div class="card mb-3">
-                    <div class="card-body">
-                      <h5 class="card-title"><?php echo htmlspecialchars($u['Nama']); ?></h5>
-                      <p class="card-text"><?php echo htmlspecialchars($u['Ulasan']); ?></p>
-                      <p class="text-muted">
-                        <?php
-                          $stars = intval($u['rating']);
-                          for ($s = 0; $s < $stars; $s++) echo '⭐';
-                        ?>
-                      </p>
+
+        <div class="row justify-content-center">
+          <div class="col-lg-10">
+            <div id="ulasanCarousel" class="carousel slide" data-bs-ride="carousel">
+              <div class="carousel-inner">
+                <?php if (count($ulasan) > 0): ?>
+                  <?php foreach ($ulasan as $i => $u): ?>
+                    <div class="carousel-item<?php echo $i === 0 ? ' active' : ''; ?>">
+                      <div class="review-card">
+                        <div class="review-quote-icon">“</div>
+                        <div class="review-body">
+                          <p class="review-text"><?php echo htmlspecialchars($u['Ulasan']); ?></p>
+                          <div class="review-rating mb-3">
+                            <?php
+                              $stars = intval($u['rating']);
+                              for ($s = 0; $s < $stars; $s++) echo '⭐';
+                            ?>
+                          </div>
+                          <div class="review-author">
+                            <div class="author-avatar"><?php echo strtoupper(substr($u['Nama'], 0, 1)); ?></div>
+                            <h5 class="author-name"><?php echo htmlspecialchars($u['Nama']); ?></h5>
+                            <p class="author-label">Pelanggan Gadai Cepat</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  <?php endforeach; ?>
+                <?php else: ?>
+                  <div class="carousel-item active">
+                    <div class="review-card">
+                      <div class="review-body text-center py-5">
+                        <div class="empty-reviews-icon mb-3">💬</div>
+                        <h5 class="empty-reviews-title">Belum Ada Ulasan</h5>
+                        <p class="empty-reviews-text">Jadilah yang pertama memberikan ulasan untuk layanan kami!</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              <?php endforeach; ?>
-            <?php else: ?>
-              <div class="carousel-item active">
-                <div class="card mb-3">
-                  <div class="card-body">
-                    <h5 class="card-title">Belum ada ulasan</h5>
-                    <p class="card-text">Jadilah yang pertama memberikan ulasan!</p>
-                  </div>
-                </div>
+                <?php endif; ?>
               </div>
-            <?php endif; ?>
+              
+              <?php if (count($ulasan) > 1): ?>
+              <button class="carousel-control-prev custom-carousel-control" type="button" data-bs-target="#ulasanCarousel" data-bs-slide="prev">
+                <span class="custom-control-icon">‹</span>
+                <span class="visually-hidden">Previous</span>
+              </button>
+              <button class="carousel-control-next custom-carousel-control" type="button" data-bs-target="#ulasanCarousel" data-bs-slide="next">
+                <span class="custom-control-icon">›</span>
+                <span class="visually-hidden">Next</span>
+              </button>
+              
+              <div class="carousel-indicators custom-indicators">
+                <?php for ($i = 0; $i < count($ulasan); $i++): ?>
+                  <button type="button" data-bs-target="#ulasanCarousel" data-bs-slide-to="<?php echo $i; ?>" <?php echo $i === 0 ? 'class="active" aria-current="true"' : ''; ?> aria-label="Slide <?php echo $i + 1; ?>"></button>
+                <?php endfor; ?>
+              </div>
+              <?php endif; ?>
+            </div>
           </div>
-          <button class="carousel-control-prev" type="button" data-bs-target="#ulasanCarousel" data-bs-slide="prev">
-            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-            <span class="visually-hidden">Previous</span>
-          </button>
-          <button class="carousel-control-next" type="button" data-bs-target="#ulasanCarousel" data-bs-slide="next">
-            <span class="carousel-control-next-icon" aria-hidden="true"></span>
-            <span class="visually-hidden">Next</span>
-          </button>
         </div>
       </div>
     </section>
 
 
     <section id="kontakkami" class="kontakkami">
-      <div class="container">
-        <div class="row mb-5">
-          <div class="col-sm-12 flex-column">
-            <h2 class="mt-5">KONTAK KAMI</h2>
-            <p class="">Telepon : 085823091908 <br> Alamat : Jl Irigasi, Perumahan Residence 5 <br> Mimika Papua<br><b>NIB : 1110250029885</b><br><span class="text-muted">Usaha ini sedang diawasi oleh instansi terkait untuk memastikan keamanan dan legalitas.</span></p>
-            <a href="https://wa.me/6285823091908?text=Halo%2C%20saya%20ingin%20bertanya%20tentang%20layanan%20Gadai%20Cepat." class="btn btn-primary btn-lg" target="_blank">HUBUNGI KAMI</a>
+      <div class="container py-5">
+        <div class="row justify-content-center text-center mb-5">
+          <div class="col-lg-8">
+            <h2 class="contact-title mt-4 mb-3">KONTAK KAMI</h2>
+            <div class="title-underline mx-auto mb-4"></div>
+            <p class="contact-desc">Hubungi kami untuk informasi lebih lanjut atau konsultasi gratis mengenai layanan gadai HP dan Laptop.</p>
+          </div>
+        </div>
 
+        <div class="row justify-content-center g-4 mb-5">
+          <div class="col-lg-4 col-md-6">
+            <div class="contact-card">
+              <div class="contact-icon">📞</div>
+              <h5 class="contact-card-title">Telepon</h5>
+              <p class="contact-card-text">085823091908</p>
+              <a href="tel:085823091908" class="contact-link">Hubungi Sekarang</a>
+            </div>
+          </div>
+
+          <div class="col-lg-4 col-md-6">
+            <div class="contact-card">
+              <div class="contact-icon">📍</div>
+              <h5 class="contact-card-title">Alamat</h5>
+              <p class="contact-card-text">Jl. Irigasi, Perumahan Residence 5<br>Mimika, Papua</p>
+              <a href="https://maps.google.com/?q=Jl.+Irigasi+Residence+5+Mimika+Papua" target="_blank" class="contact-link">Lihat Maps</a>
+            </div>
+          </div>
+
+          <div class="col-lg-4 col-md-6">
+            <div class="contact-card">
+              <div class="contact-icon">💬</div>
+              <h5 class="contact-card-title">WhatsApp</h5>
+              <p class="contact-card-text">Chat langsung dengan tim kami</p>
+              <a href="https://wa.me/6285823091908?text=Halo%2C%20saya%20ingin%20bertanya%20tentang%20layanan%20Gadai%20Cepat." target="_blank" class="contact-link">Chat WhatsApp</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="row justify-content-center">
+          <div class="col-lg-8">
+            <div class="contact-info-card">
+              <div class="row align-items-center">
+                <div class="col-md-3 text-center mb-3 mb-md-0">
+                  <div class="nib-badge">🏛️</div>
+                </div>
+                <div class="col-md-9">
+                  <h5 class="nib-title">Usaha Terdaftar & Legal</h5>
+                  <p class="nib-number">NIB: <strong>1110250029885</strong></p>
+                  <p class="nib-text">Usaha ini terdaftar dan beroperasi sesuai dengan ketentuan hukum yang berlaku di Indonesia.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row mt-5">
+          <div class="col-12 text-center">
+            <a href="https://wa.me/6285823091908?text=Halo%2C%20saya%20ingin%20bertanya%20tentang%20layanan%20Gadai%20Cepat." target="_blank" class="btn btn-success btn-lg contact-cta rounded-pill px-5 py-3">
+              💬 HUBUNGI KAMI SEKARANG
+            </a>
           </div>
         </div>
       </div>
@@ -498,13 +2013,54 @@
         $('#flash-screen').addClass('hidden');
         $('#exampleModal').modal('show'); // Menampilkan modal secara otomatis
       });
+
+      // Navbar scroll effect - menambahkan class 'scrolled' saat scroll
+      $(window).on('scroll', function() {
+        if ($(window).scrollTop() > 50) {
+          $('.navbar').addClass('scrolled');
+        } else {
+          $('.navbar').removeClass('scrolled');
+        }
+      });
+
+      // Smooth scroll untuk navigation links
+      $('.navbar .nav-link').on('click', function(e) {
+        if (this.hash !== '') {
+          e.preventDefault();
+          var hash = this.hash;
+          $('html, body').animate({
+            scrollTop: $(hash).offset().top - 100
+          }, 800, function() {
+            // Tambahkan highlight animasi setelah scroll
+            $(hash).css('animation', 'pulse 0.5s ease-in-out');
+            setTimeout(function() {
+              $(hash).css('animation', '');
+            }, 500);
+          });
+        }
+      });
+
+      // Highlight active nav link saat scroll
+      $(window).on('scroll', function() {
+        var scrollPos = $(window).scrollTop() + 150;
+        $('.navbar .nav-link').each(function() {
+          var currLink = $(this);
+          var refElement = $(currLink.attr("href"));
+          if (refElement.length && refElement.position().top <= scrollPos && refElement.position().top + refElement.height() > scrollPos) {
+            $('.navbar .nav-link').removeClass('active');
+            currLink.addClass('active');
+          } else {
+            currLink.removeClass('active');
+          }
+        });
+      });
     </script>
 
    
 
     <!-- Include Bootstrap JS and Popper JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+    
 
   </body>
 </html>
