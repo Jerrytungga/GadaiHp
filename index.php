@@ -5,7 +5,11 @@
   <head>
     <!-- Required meta tags -->
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes">
+    <meta name="theme-color" content="#0056b3">
+    <meta name="description" content="Gadai Cepat Timika Papua - Gadai HP & Laptop dengan proses cepat, dana cair dalam 5 menit. Aman, terpercaya, dan profesional.">
+    <meta name="keywords" content="gadai hp, gadai laptop, gadai cepat, timika, papua, pinjaman cepat">
+    
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
 
@@ -1493,6 +1497,588 @@
     padding: 50px 0;
   }
 }
+
+/* WhatsApp Floating Button */
+.whatsapp-float {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  z-index: 1000;
+  transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(0.8) translateY(20px);
+}
+
+.whatsapp-float.show {
+  opacity: 1;
+  visibility: visible;
+  transform: scale(1) translateY(0);
+}
+
+.whatsapp-button {
+  width: 65px;
+  height: 65px;
+  background: linear-gradient(135deg, #25D366, #128C7E);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 30px rgba(37, 211, 102, 0.4);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  text-decoration: none;
+  animation: floatPulse 2s ease-in-out infinite;
+}
+
+.whatsapp-button::before {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: rgba(37, 211, 102, 0.3);
+  border-radius: 50%;
+  animation: ripple 1.5s ease-out infinite;
+}
+
+@keyframes floatPulse {
+  0%, 100% {
+    transform: translateY(0);
+    box-shadow: 0 8px 30px rgba(37, 211, 102, 0.4);
+  }
+  50% {
+    transform: translateY(-8px);
+    box-shadow: 0 12px 40px rgba(37, 211, 102, 0.5);
+  }
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+.whatsapp-button:hover {
+  transform: scale(1.1) rotate(5deg);
+  box-shadow: 0 12px 40px rgba(37, 211, 102, 0.6);
+}
+
+.whatsapp-button:active {
+  transform: scale(0.95);
+}
+
+.whatsapp-icon {
+  font-size: 2.2rem;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+  position: relative;
+  z-index: 1;
+}
+
+.whatsapp-tooltip {
+  position: absolute;
+  right: 75px;
+  top: 50%;
+  transform: translateY(-50%) translateX(10px);
+  background: #ffffff;
+  color: #128C7E;
+  padding: 12px 20px;
+  border-radius: 25px;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  pointer-events: none;
+  border: 2px solid #25D366;
+}
+
+.whatsapp-tooltip::after {
+  content: '';
+  position: absolute;
+  right: -8px;
+  top: 50%;
+  transform: translateY(-50%) rotate(45deg);
+  width: 16px;
+  height: 16px;
+  background: #ffffff;
+  border-right: 2px solid #25D366;
+  border-bottom: 2px solid #25D366;
+}
+
+.whatsapp-float:hover .whatsapp-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(-50%) translateX(0);
+}
+
+.whatsapp-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #ff4444;
+  color: #ffffff;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-family: 'Raleway', sans-serif;
+  box-shadow: 0 2px 8px rgba(255, 68, 68, 0.5);
+  animation: badgePulse 1s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+@media (max-width: 768px) {
+  .whatsapp-float {
+    bottom: 20px;
+    right: 20px;
+  }
+  
+  .whatsapp-button {
+    width: 55px;
+    height: 55px;
+  }
+  
+  .whatsapp-icon {
+    font-size: 1.8rem;
+  }
+  
+  .whatsapp-tooltip {
+    display: none;
+  }
+}
+
+/* ========================================
+   MOBILE RESPONSIVE OPTIMIZATION
+   ======================================== */
+
+@media (max-width: 576px) {
+  /* Global Mobile Adjustments */
+  body {
+    font-size: 14px;
+  }
+  
+  .container {
+    padding-left: 15px;
+    padding-right: 15px;
+  }
+  
+  /* Navbar Mobile */
+  .navbar {
+    padding: 10px 0 !important;
+  }
+  
+  .navbar-brand .logo {
+    width: 70px !important;
+    padding: 8px !important;
+  }
+  
+  .navbar-collapse {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e3f2fd 100%);
+    padding: 20px;
+    border-radius: 15px;
+    margin-top: 15px;
+    box-shadow: 0 4px 15px rgba(0, 86, 179, 0.1);
+  }
+  
+  .navbar .nav-link {
+    padding: 12px 15px !important;
+    margin: 5px 0 !important;
+    font-size: 1rem !important;
+  }
+  
+  .navbar-text {
+    font-size: 0.85rem !important;
+    padding: 12px 15px !important;
+  }
+  
+  .navbar-text b {
+    font-size: 0.9rem !important;
+    display: block;
+    margin-bottom: 5px;
+  }
+  
+  /* Hero Section Mobile */
+  .hero-section {
+    padding: 40px 0 !important;
+  }
+  
+  .hero-content {
+    padding: 20px !important;
+  }
+  
+  .headtext {
+    font-size: 1.8rem !important;
+    letter-spacing: 0 !important;
+    margin-bottom: 15px !important;
+  }
+  
+  .hero-description {
+    font-size: 1rem !important;
+    margin-bottom: 20px !important;
+  }
+  
+  .hero-btn {
+    font-size: 0.95rem !important;
+    padding: 12px 25px !important;
+    width: 100%;
+  }
+  
+  .badge-cod {
+    font-size: 0.75rem !important;
+    padding: 6px 10px !important;
+    display: block !important;
+    margin: 8px auto !important;
+    width: fit-content;
+  }
+  
+  .hero-image {
+    max-width: 280px !important;
+    margin: 30px auto 0 !important;
+  }
+  
+  /* Section Titles Mobile */
+  .section-title,
+  .process-title,
+  .about-title,
+  .simulasi-title,
+  .review-title,
+  .contact-title {
+    font-size: 1.8rem !important;
+    letter-spacing: 1px !important;
+  }
+  
+  .title-underline {
+    width: 60px !important;
+    height: 3px !important;
+  }
+  
+  .process-desc,
+  .simulasi-desc,
+  .review-desc,
+  .contact-desc {
+    font-size: 0.95rem !important;
+  }
+  
+  /* Service Cards Mobile */
+  .service-card {
+    padding: 30px 20px !important;
+    margin-bottom: 15px;
+  }
+  
+  .service-icon {
+    font-size: 3.5rem !important;
+  }
+  
+  .service-title {
+    font-size: 1.2rem !important;
+  }
+  
+  .service-text {
+    font-size: 0.9rem !important;
+  }
+  
+  /* Process Cards Mobile */
+  .process-card {
+    padding: 30px 20px !important;
+    margin-bottom: 15px;
+  }
+  
+  .process-icon {
+    width: 100px !important;
+    height: 100px !important;
+  }
+  
+  .process-badge {
+    width: 40px !important;
+    height: 40px !important;
+    line-height: 40px !important;
+    font-size: 1.2rem !important;
+  }
+  
+  .process-card-title {
+    font-size: 1.15rem !important;
+  }
+  
+  .process-card-text {
+    font-size: 0.9rem !important;
+  }
+  
+  .process-cta {
+    font-size: 0.95rem !important;
+    padding: 12px 25px !important;
+    width: 100%;
+  }
+  
+  /* About Section Mobile */
+  .about-card {
+    padding: 30px 25px !important;
+  }
+  
+  .about-subtitle {
+    font-size: 1.4rem !important;
+  }
+  
+  .about-text {
+    font-size: 0.95rem !important;
+    text-align: left !important;
+  }
+  
+  .feature-icon {
+    font-size: 2.5rem !important;
+  }
+  
+  .feature-title {
+    font-size: 1rem !important;
+  }
+  
+  .feature-text {
+    font-size: 0.85rem !important;
+  }
+  
+  /* Simulasi Section Mobile */
+  .simulasi-card {
+    padding: 30px 25px !important;
+    margin-bottom: 20px;
+  }
+  
+  .simulasi-icon {
+    font-size: 3rem !important;
+  }
+  
+  .simulasi-card-title {
+    font-size: 1.3rem !important;
+  }
+  
+  .simulasi-label {
+    font-size: 0.95rem !important;
+  }
+  
+  .simulasi-input {
+    padding: 12px 15px !important;
+    font-size: 1rem !important;
+  }
+  
+  .simulasi-btn-primary,
+  .simulasi-btn-reset {
+    padding: 12px 20px !important;
+    font-size: 0.95rem !important;
+  }
+  
+  .simulasi-note {
+    font-size: 0.85rem !important;
+    padding: 12px 15px !important;
+  }
+  
+  /* Review Section Mobile */
+  .review-card {
+    padding: 30px 20px !important;
+    min-height: auto !important;
+  }
+  
+  .review-quote-icon {
+    font-size: 3rem !important;
+    top: 15px !important;
+    left: 20px !important;
+  }
+  
+  .review-text {
+    font-size: 0.95rem !important;
+  }
+  
+  .author-avatar {
+    width: 50px !important;
+    height: 50px !important;
+    font-size: 1.3rem !important;
+  }
+  
+  .author-name {
+    font-size: 1.1rem !important;
+  }
+  
+  /* Contact Section Mobile */
+  .contact-card {
+    padding: 30px 20px !important;
+    margin-bottom: 20px;
+  }
+  
+  .contact-icon {
+    font-size: 3rem !important;
+  }
+  
+  .contact-card-title {
+    font-size: 1.2rem !important;
+  }
+  
+  .contact-card-text {
+    font-size: 0.95rem !important;
+    min-height: auto !important;
+  }
+  
+  .contact-info-card {
+    padding: 25px 20px !important;
+  }
+  
+  .nib-badge {
+    font-size: 3rem !important;
+  }
+  
+  .nib-title {
+    font-size: 1.1rem !important;
+  }
+  
+  .nib-number {
+    font-size: 1rem !important;
+  }
+  
+  .contact-cta {
+    font-size: 0.95rem !important;
+    padding: 12px 25px !important;
+    width: 100%;
+  }
+  
+  /* Modal Mobile */
+  .modal-dialog {
+    margin: 10px !important;
+  }
+  
+  .modal-title {
+    font-size: 1.3rem !important;
+  }
+  
+  .modal-body {
+    padding: 25px 20px !important;
+  }
+  
+  .modal-body h2 {
+    font-size: 1.3rem !important;
+  }
+  
+  .modal-welcome-text {
+    font-size: 0.95rem !important;
+  }
+  
+  /* Flash Screen Mobile */
+  #flash-screen img {
+    width: 100px !important;
+  }
+  
+  /* Spacing Adjustments */
+  section {
+    padding: 50px 0 !important;
+  }
+  
+  #layanan,
+  #prosesgadai,
+  #tentangkami,
+  #simulasi,
+  #ulasan,
+  #kontakkami {
+    padding: 50px 0 !important;
+  }
+  
+  .py-5 {
+    padding-top: 2rem !important;
+    padding-bottom: 2rem !important;
+  }
+  
+  /* Button Adjustments */
+  .btn-lg {
+    padding: 12px 25px !important;
+    font-size: 0.95rem !important;
+  }
+}
+
+/* Extra Small Devices (320px - 480px) */
+@media (max-width: 480px) {
+  .headtext {
+    font-size: 1.5rem !important;
+  }
+  
+  .section-title,
+  .process-title,
+  .about-title,
+  .simulasi-title,
+  .review-title,
+  .contact-title {
+    font-size: 1.5rem !important;
+  }
+  
+  .navbar-brand .logo {
+    width: 60px !important;
+    padding: 6px !important;
+  }
+  
+  .whatsapp-button {
+    width: 50px !important;
+    height: 50px !important;
+  }
+  
+  .whatsapp-icon {
+    font-size: 1.5rem !important;
+  }
+  
+  .whatsapp-float {
+    bottom: 15px !important;
+    right: 15px !important;
+  }
+}
+
+/* Landscape Mobile Optimization */
+@media (max-width: 896px) and (orientation: landscape) {
+  .hero-section {
+    padding: 30px 0 !important;
+  }
+  
+  .headtext {
+    font-size: 1.6rem !important;
+  }
+  
+  .navbar {
+    padding: 8px 0 !important;
+  }
+  
+  .modal-dialog {
+    max-width: 90% !important;
+  }
+}
+
+/* Tablet Portrait (768px - 991px) */
+@media (min-width: 769px) and (max-width: 991px) {
+  .headtext {
+    font-size: 2.5rem !important;
+  }
+  
+  .section-title,
+  .process-title,
+  .about-title,
+  .simulasi-title,
+  .review-title,
+  .contact-title {
+    font-size: 2.2rem !important;
+  }
+  
+  .service-card,
+  .process-card {
+    margin-bottom: 20px;
+  }
+}
   </style>
   </head>
   <body>
@@ -2054,7 +2640,33 @@
           }
         });
       });
+
+      // WhatsApp Floating Button - Show/Hide on scroll
+      $(window).on('scroll', function() {
+        if ($(window).scrollTop() > 300) {
+          $('#whatsappFloat').addClass('show');
+        } else {
+          $('#whatsappFloat').removeClass('show');
+        }
+      });
+
+      // Optional: Remove badge on click
+      $('.whatsapp-button').on('click', function() {
+        $('.whatsapp-badge').fadeOut();
+      });
     </script>
+
+    <!-- WhatsApp Floating Button -->
+    <div class="whatsapp-float" id="whatsappFloat">
+      <a href="https://wa.me/6285823091908?text=Halo%2C%20saya%20ingin%20bertanya%20tentang%20layanan%20Gadai%20Cepat." 
+         target="_blank" 
+         class="whatsapp-button" 
+         aria-label="Chat WhatsApp">
+        <span class="whatsapp-icon">💬</span>
+        <span class="whatsapp-badge">1</span>
+      </a>
+      <div class="whatsapp-tooltip">💬 Chat dengan Kami!</div>
+    </div>
 
    
 
