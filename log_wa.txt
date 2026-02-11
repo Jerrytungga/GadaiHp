@@ -1,0 +1,38 @@
+[2026-02-11 08:33:48] To: 6285823091908
+Message: 🔔 *PENGAJUAN GADAI BARU*
+
+📋 No. Registrasi: #000003
+👤 Nama: Kidung ID
+📱 Barang: HP iphone 13 pro
+💰 Pengajuan: Rp 210.000
+📞 HP: 6281241935244
+
+⏳ Status: Menunggu Verifikasi
+
+Silakan verifikasi di:
+http://localhost/GadaiHp/admin_verifikasi.php
+Response: {"detail":"success! message in queue","id":[143147123],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":1000,"remaining":999,"used":1}},"requestid":378119739,"status":true,"target":["6285823091908"]}
+
+[2026-02-11 10:39:44] To: 6281241935244
+Message: ✅ *PENGAJUAN DISETUJUI*
+
+Halo Kidung ID,
+
+Pengajuan gadai Anda telah *DISETUJUI*!
+
+📋 No. Registrasi: #000003
+📱 Barang: HP iphone 13 pro
+💰 Pengajuan: Rp 210.000
+✅ *Disetujui: Rp 210.000*
+📅 Jatuh Tempo: 11 March 2026
+
+📝 Catatan Admin:
+iya
+
+
+Silakan datang ke kantor kami untuk proses pencairan dana.
+
+📍 Gadai Cepat Timika Papua
+📞 WA: 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[143166269],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":999,"remaining":998,"used":1}},"requestid":378314849,"status":true,"target":["6281241935244"]}
+

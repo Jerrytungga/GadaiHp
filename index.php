@@ -2103,14 +2103,14 @@
             <h2 class="text-center">📋 SYARAT & KETENTUAN</h2>
             <ol class="text-start">
               <li>Nasabah wajib berusia minimal 18 tahun dan membawa KTP asli.</li>
-              <li>HP yang digadaikan harus dalam kondisi baik dan tidak terkunci akun Google/iCloud.</li>
-              <li>Pinjaman maksimal 70% dari harga pasar HP.</li>
-              <li>Bunga gadai 30% per bulan, tergantung kondisi HP.</li>
+              <li>HP/Laptop yang digadaikan harus dalam kondisi baik, menyala normal, dan tidak terkunci akun (Google/iCloud/BitLocker).</li>
+              <li>Pinjaman maksimal 70% dari harga pasar HP/Laptop.</li>
+              <li>Bunga gadai 30% per bulan, tergantung kondisi dan jenis barang.</li>
               <li>Masa gadai maksimal 3 bulan (dapat diperpanjang dengan syarat tertentu).</li>
               <li>Denda keterlambatan Rp 30.000/hari jika pembayaran melewati jatuh tempo.</li>
-              <li>Jika HP tidak ditebus dalam 7 hari setelah jatuh tempo, HP akan dijual oleh penyedia gadai.</li>
+              <li>Jika barang tidak ditebus dalam 7 hari setelah jatuh tempo, barang akan dijual oleh penyedia gadai.</li>
               <li>Nasabah wajib mencadangkan data pribadi sebelum gadai, karena penyedia gadai tidak bertanggung jawab atas kehilangan data.</li>
-              <li>Penyedia gadai berhak menolak HP yang dicurigai hasil curian.</li>
+              <li>Penyedia gadai berhak menolak HP/Laptop yang dicurigai hasil curian atau bermasalah hukum.</li>
             </ol>
           </div>
         </div>
