@@ -1,8 +1,129 @@
 <?php
 require_once 'database.php';
+require_once 'whatsapp_helper.php';
 
 $result = null;
 $error = null;
+$message = null;
+$message_type = 'info';
+$daily_denda = 30000;
+$denda_max_days = 7;
+$max_denda_total = $daily_denda * $denda_max_days;
+
+function calculateTotalTebus($row, $denda_total) {
+    $pokok = !empty($row['jumlah_disetujui']) ? (float)$row['jumlah_disetujui'] : (float)$row['jumlah_pinjaman'];
+    $bunga = (float)$row['bunga'];
+    $lama = (int)$row['lama_gadai'];
+    $bunga_total = $pokok * ($bunga / 100) * $lama;
+    $total_tebus = $pokok + $bunga_total + (float)$denda_total;
+
+    return [$pokok, $bunga_total, $total_tebus];
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type'], $_POST['no_registrasi'])) {
+    $no_registrasi = $_POST['no_registrasi'];
+    $action_type = $_POST['action_type'];
+
+    try {
+        $data_sql = "SELECT * FROM data_gadai WHERE id = ?";
+        $data_stmt = $db->prepare($data_sql);
+        $data_stmt->execute([$no_registrasi]);
+        $data = $data_stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$data) {
+            $error = "Nomor registrasi tidak ditemukan!";
+        } else {
+            $allowed_status = ['Disetujui', 'Diperpanjang'];
+            if (!in_array($data['status'], $allowed_status, true)) {
+                $error = "Tindakan tidak dapat diproses untuk status saat ini.";
+            } else {
+                $today = new DateTime(date('Y-m-d'));
+                $due_date = new DateTime($data['tanggal_jatuh_tempo']);
+                $aksi_at = !empty($data['aksi_jatuh_tempo_at']) ? new DateTime($data['aksi_jatuh_tempo_at']) : null;
+                $aksi_pending = !$aksi_at || ($aksi_at < $due_date);
+
+                if ($today < $due_date) {
+                    $error = "Tindakan hanya bisa dilakukan saat jatuh tempo.";
+                } elseif (!$aksi_pending) {
+                    $error = "Tindakan jatuh tempo sudah diproses sebelumnya.";
+                } else {
+                    $days_overdue = 0;
+                    if ($today > $due_date) {
+                        $days_overdue = (int)$due_date->diff($today)->format('%a');
+                    }
+
+                    $days_overdue_capped = min($days_overdue, $denda_max_days);
+                    $denda_total = $days_overdue_capped > 0 ? $daily_denda * $days_overdue_capped : 0;
+
+                    if ($days_overdue > $denda_max_days) {
+                        list($pokok_calc, $bunga_total_calc, $total_tebus_calc) = calculateTotalTebus($data, $max_denda_total);
+                        $update_sql = "UPDATE data_gadai SET status = 'Gagal Tebus', gagal_tebus_at = NOW(), denda_terakumulasi = ?, total_tebus = ? WHERE id = ?";
+                        $update_stmt = $db->prepare($update_sql);
+                        $update_stmt->execute([$max_denda_total, $total_tebus_calc, $no_registrasi]);
+                        $error = "Masa respon sudah lewat. Status berubah menjadi Gagal Tebus.";
+                    } else {
+                        if ($denda_total > 0) {
+                            list($pokok_calc, $bunga_total_calc, $total_tebus_calc) = calculateTotalTebus($data, $denda_total);
+                            $update_denda_sql = "UPDATE data_gadai SET denda_terakumulasi = ? WHERE id = ?";
+                            $update_denda_stmt = $db->prepare($update_denda_sql);
+                            $update_denda_stmt->execute([$denda_total, $no_registrasi]);
+
+                            $update_total_sql = "UPDATE data_gadai SET total_tebus = ? WHERE id = ?";
+                            $update_total_stmt = $db->prepare($update_total_sql);
+                            $update_total_stmt->execute([$total_tebus_calc, $no_registrasi]);
+                        }
+            if ($action_type === 'perpanjangan') {
+                $current_due = $data['tanggal_jatuh_tempo'];
+                $new_due = date('Y-m-d', strtotime($current_due . ' +30 days'));
+
+                $update_sql = "UPDATE data_gadai SET 
+                        status = 'Diperpanjang',
+                        tanggal_jatuh_tempo = ?,
+                        perpanjangan_ke = perpanjangan_ke + 1,
+                        perpanjangan_terakhir_at = NOW(),
+                        aksi_jatuh_tempo = 'Perpanjangan',
+                        aksi_jatuh_tempo_at = NOW(),
+                        updated_at = NOW()
+                    WHERE id = ?";
+                $update_stmt = $db->prepare($update_sql);
+                $update_stmt->execute([$new_due, $no_registrasi]);
+
+                try {
+                    $whatsapp->notifyUserExtension($data, $new_due);
+                    $whatsapp->notifyAdminExtension($data, $new_due);
+                } catch(Exception $e) {
+                    error_log("WhatsApp notification failed: " . $e->getMessage());
+                }
+
+                $message = "Perpanjangan berhasil diproses. Jatuh tempo baru: " . date('d F Y', strtotime($new_due)) . ".";
+                $message_type = 'success';
+            } elseif ($action_type === 'pelunasan') {
+                $update_sql = "UPDATE data_gadai SET 
+                        aksi_jatuh_tempo = 'Pelunasan',
+                        aksi_jatuh_tempo_at = NOW(),
+                        updated_at = NOW()
+                    WHERE id = ?";
+                $update_stmt = $db->prepare($update_sql);
+                $update_stmt->execute([$no_registrasi]);
+
+                try {
+                    $whatsapp->notifyUserPelunasan($data);
+                    $whatsapp->notifyAdminPelunasan($data);
+                } catch(Exception $e) {
+                    error_log("WhatsApp notification failed: " . $e->getMessage());
+                }
+
+                $message = "Permintaan pelunasan telah kami terima. Tim kami akan menghubungi Anda.";
+                $message_type = 'success';
+            }
+                    }
+                }
+            }
+        }
+    } catch(PDOException $e) {
+        $error = "Error: " . $e->getMessage();
+    }
+}
 
 if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
     $no_registrasi = $_GET['no_registrasi'] ?? $_POST['no_registrasi'];
@@ -15,6 +136,45 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
         
         if (!$result) {
             $error = "Nomor registrasi tidak ditemukan!";
+        } else {
+            $status_check = ['Disetujui', 'Diperpanjang'];
+            if (in_array($result['status'], $status_check, true) && !empty($result['tanggal_jatuh_tempo'])) {
+                $today = new DateTime(date('Y-m-d'));
+                $due_date = new DateTime($result['tanggal_jatuh_tempo']);
+                $aksi_at = !empty($result['aksi_jatuh_tempo_at']) ? new DateTime($result['aksi_jatuh_tempo_at']) : null;
+                $aksi_pending = !$aksi_at || ($aksi_at < $due_date);
+
+                if ($today > $due_date && $aksi_pending) {
+                    $days_overdue = (int)$due_date->diff($today)->format('%a');
+                    $days_overdue_capped = min($days_overdue, $denda_max_days);
+                    $denda_total = $days_overdue_capped > 0 ? $daily_denda * $days_overdue_capped : 0;
+                    if ($days_overdue > $denda_max_days) {
+                        list($pokok_calc, $bunga_total_calc, $total_tebus_calc) = calculateTotalTebus($result, $max_denda_total);
+                        $update_sql = "UPDATE data_gadai SET status = 'Gagal Tebus', gagal_tebus_at = NOW(), denda_terakumulasi = ?, total_tebus = ? WHERE id = ?";
+                        $update_stmt = $db->prepare($update_sql);
+                        $update_stmt->execute([$max_denda_total, $total_tebus_calc, $no_registrasi]);
+
+                        $sql = "SELECT * FROM data_gadai WHERE id = ?";
+                        $stmt = $db->prepare($sql);
+                        $stmt->execute([$no_registrasi]);
+                        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+                    } elseif ($denda_total > 0) {
+                        list($pokok_calc, $bunga_total_calc, $total_tebus_calc) = calculateTotalTebus($result, $denda_total);
+                        $update_denda_sql = "UPDATE data_gadai SET denda_terakumulasi = ?, total_tebus = ? WHERE id = ?";
+                        $update_denda_stmt = $db->prepare($update_denda_sql);
+                        $update_denda_stmt->execute([$denda_total, $total_tebus_calc, $no_registrasi]);
+                    }
+                }
+
+                if ((float)$result['total_tebus'] <= 0) {
+                    $denda_existing = !empty($result['denda_terakumulasi']) ? (float)$result['denda_terakumulasi'] : 0;
+                    list($pokok_calc, $bunga_total_calc, $total_tebus_calc) = calculateTotalTebus($result, $denda_existing);
+                    $update_total_sql = "UPDATE data_gadai SET total_tebus = ? WHERE id = ?";
+                    $update_total_stmt = $db->prepare($update_total_sql);
+                    $update_total_stmt->execute([$total_tebus_calc, $no_registrasi]);
+                    $result['total_tebus'] = $total_tebus_calc;
+                }
+            }
         }
     } catch(PDOException $e) {
         $error = "Error: " . $e->getMessage();
@@ -245,6 +405,12 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                     <strong>❌ Error!</strong> <?php echo $error; ?>
                 </div>
             <?php endif; ?>
+
+            <?php if ($message): ?>
+                <div class="alert alert-<?php echo $message_type; ?> alert-box">
+                    <?php echo $message; ?>
+                </div>
+            <?php endif; ?>
             
             <?php if ($result): ?>
                 <?php
@@ -269,6 +435,13 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                         $status_text = 'DISETUJUI';
                         $status_message = 'Selamat! Pengajuan Anda telah disetujui. Silakan datang ke kantor kami untuk melanjutkan proses pencairan dana.';
                         break;
+                    case 'Diperpanjang':
+                        $status_class = 'status-approved';
+                        $badge_class = 'badge-approved';
+                        $status_icon = '🔁';
+                        $status_text = 'DIPERPANJANG';
+                        $status_message = 'Perpanjangan gadai Anda aktif. Mohon perhatikan tanggal jatuh tempo terbaru.';
+                        break;
                     case 'Ditolak':
                         $status_class = 'status-rejected';
                         $badge_class = 'badge-rejected';
@@ -276,7 +449,59 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                         $status_text = 'DITOLAK';
                         $status_message = 'Maaf, pengajuan Anda ditolak. Anda dapat mengajukan kembali setelah memenuhi persyaratan.';
                         break;
+                    case 'Ditebus':
+                        $status_class = 'status-approved';
+                        $badge_class = 'badge-approved';
+                        $status_icon = '💰';
+                        $status_text = 'DITEBUS';
+                        $status_message = 'Pelunasan telah diproses. Terima kasih.';
+                        break;
+                    case 'Dijual':
+                        $status_class = 'status-rejected';
+                        $badge_class = 'badge-rejected';
+                        $status_icon = '📦';
+                        $status_text = 'DIJUAL';
+                        $status_message = 'Barang telah masuk proses penjualan.';
+                        break;
+                    case 'Gagal Tebus':
+                        $status_class = 'status-rejected';
+                        $badge_class = 'badge-rejected';
+                        $status_icon = '⚠️';
+                        $status_text = 'GAGAL TEBUS';
+                        $status_message = 'Tidak ada respon setelah masa denda berakhir. Proses gagal tebus dijalankan.';
+                        break;
+                    default:
+                        $status_class = 'status-pending';
+                        $badge_class = 'badge-pending';
+                        $status_icon = 'ℹ️';
+                        $status_text = 'STATUS TIDAK DIKENAL';
+                        $status_message = 'Status pengajuan belum tersedia.';
+                        break;
                 }
+
+                $today = new DateTime(date('Y-m-d'));
+                $days_overdue = 0;
+                $denda_total = 0;
+                $aksi_pending = false;
+
+                if (!empty($result['tanggal_jatuh_tempo']) && in_array($result['status'], ['Disetujui', 'Diperpanjang'], true)) {
+                    $due_date = new DateTime($result['tanggal_jatuh_tempo']);
+                    $aksi_at = !empty($result['aksi_jatuh_tempo_at']) ? new DateTime($result['aksi_jatuh_tempo_at']) : null;
+                    $aksi_pending = !$aksi_at || ($aksi_at < $due_date);
+
+                    if ($today > $due_date && $aksi_pending) {
+                        $days_overdue = (int)$due_date->diff($today)->format('%a');
+                        $days_overdue_capped = min($days_overdue, $denda_max_days);
+                        if ($days_overdue_capped > 0) {
+                            $denda_total = $daily_denda * $days_overdue_capped;
+                        }
+                    }
+                }
+
+                $denda_stored = !empty($result['denda_terakumulasi']) ? (float)$result['denda_terakumulasi'] : 0;
+                $denda_display = $denda_total > 0 ? max($denda_total, $denda_stored) : $denda_stored;
+                list($pokok_display, $bunga_total_display, $total_tebus_calc_display) = calculateTotalTebus($result, $denda_display);
+                $total_tebus_display = !empty($result['total_tebus']) ? (float)$result['total_tebus'] : $total_tebus_calc_display;
                 ?>
                 
                 <div class="status-card <?php echo $status_class; ?>">
@@ -353,12 +578,28 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                             <span class="info-label">Durasi:</span>
                             <span class="info-value"><?php echo $result['lama_gadai']; ?> bulan</span>
                         </div>
-                        <?php if ($result['status'] == 'Disetujui'): ?>
+                        <?php if (in_array($result['status'], ['Disetujui', 'Diperpanjang'], true)): ?>
                             <div class="info-row">
                                 <span class="info-label">Tanggal Jatuh Tempo:</span>
                                 <span class="info-value text-danger"><strong><?php echo date('d F Y', strtotime($result['tanggal_jatuh_tempo'])); ?></strong></span>
                             </div>
                         <?php endif; ?>
+                        <?php if (!empty($result['perpanjangan_ke'])): ?>
+                            <div class="info-row">
+                                <span class="info-label">Jumlah Perpanjangan:</span>
+                                <span class="info-value"><?php echo (int)$result['perpanjangan_ke']; ?> kali</span>
+                            </div>
+                        <?php endif; ?>
+                        <?php if (!empty($result['denda_terakumulasi']) && $result['denda_terakumulasi'] > 0): ?>
+                            <div class="info-row">
+                                <span class="info-label">Denda Terkini:</span>
+                                <span class="info-value">Rp <?php echo number_format($result['denda_terakumulasi'], 0, ',', '.'); ?></span>
+                            </div>
+                        <?php endif; ?>
+                        <div class="info-row" style="background: linear-gradient(135deg, #e3f2fd, #f0f8ff); padding: 12px; border-radius: 10px; margin-top: 10px;">
+                            <span class="info-label" style="font-weight: 700;">Total Tebus:</span>
+                            <span class="info-value" style="font-weight: 800; color: #0056b3;">Rp <?php echo number_format($total_tebus_display, 0, ',', '.'); ?></span>
+                        </div>
                     </div>
                     
                     <?php if ($result['keterangan_admin'] && $result['status'] == 'Disetujui'): ?>
@@ -382,6 +623,37 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                                 </div>
                             <?php endif; ?>
                         </div>
+                    <?php endif; ?>
+
+                    <?php if ($days_overdue > 0 && $days_overdue <= 7 && $aksi_pending): ?>
+                        <div class="alert alert-warning alert-box">
+                            <strong>⚠️ Denda Harian Aktif</strong><br>
+                            Terlambat <?php echo $days_overdue; ?> hari. Denda berjalan: Rp 30.000 x <?php echo $days_overdue; ?> = <strong>Rp <?php echo number_format($denda_total, 0, ',', '.'); ?></strong>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if (!empty($result['aksi_jatuh_tempo']) && !empty($result['aksi_jatuh_tempo_at'])): ?>
+                        <div class="alert alert-info alert-box">
+                            <strong>ℹ️ Aksi Terakhir:</strong>
+                            <?php echo $result['aksi_jatuh_tempo']; ?> pada <?php echo date('d F Y, H:i', strtotime($result['aksi_jatuh_tempo_at'])); ?>.
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if (!empty($result['tanggal_jatuh_tempo']) && in_array($result['status'], ['Disetujui', 'Diperpanjang'], true) && $aksi_pending): ?>
+                        <?php if ($today >= new DateTime($result['tanggal_jatuh_tempo'])): ?>
+                            <div class="info-section">
+                                <h5>🧾 Pilih Tindakan Jatuh Tempo</h5>
+                                <form method="POST" class="d-grid gap-2">
+                                    <input type="hidden" name="no_registrasi" value="<?php echo $result['id']; ?>">
+                                    <button type="submit" name="action_type" value="perpanjangan" class="btn btn-primary" style="border-radius: 50px; padding: 12px 30px; font-weight: 600;">
+                                        🔁 Perpanjangan Gadai
+                                    </button>
+                                    <button type="submit" name="action_type" value="pelunasan" class="btn btn-success" style="border-radius: 50px; padding: 12px 30px; font-weight: 600;">
+                                        💰 Pelunasan Gadai
+                                    </button>
+                                </form>
+                            </div>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </div>
                 

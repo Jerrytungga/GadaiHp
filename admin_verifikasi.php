@@ -84,11 +84,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                     status = 'Disetujui', 
                     jumlah_disetujui = ?, 
                     keterangan_admin = ?,
+                    total_tebus = (? * (1 + (bunga / 100) * lama_gadai)) + denda_terakumulasi,
                     verified_at = NOW(), 
                     verified_by = 'Admin' 
                     WHERE id = ?";
             $stmt = $db->prepare($sql);
-            $stmt->execute([$jumlah_disetujui, $keterangan_admin, $id]);
+                $stmt->execute([$jumlah_disetujui, $keterangan_admin, $jumlah_disetujui, $id]);
             
             // Ambil data lengkap untuk notifikasi
             $data_sql = "SELECT * FROM data_gadai WHERE id = ?";
@@ -625,6 +626,14 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                     <div class="alert alert-info">Belum ada pengajuan yang disetujui.</div>
                 <?php else: ?>
                     <?php foreach ($approved_data as $row): ?>
+                        <?php
+                        $pokok_admin = !empty($row['jumlah_disetujui']) ? (float)$row['jumlah_disetujui'] : (float)$row['jumlah_pinjaman'];
+                        $bunga_admin = (float)$row['bunga'];
+                        $lama_admin = (int)$row['lama_gadai'];
+                        $bunga_total_admin = $pokok_admin * ($bunga_admin / 100) * $lama_admin;
+                        $denda_admin = !empty($row['denda_terakumulasi']) ? (float)$row['denda_terakumulasi'] : 0;
+                        $total_tebus_admin = !empty($row['total_tebus']) ? (float)$row['total_tebus'] : ($pokok_admin + $bunga_total_admin + $denda_admin);
+                        ?>
                         <div class="data-card approved">
                             <div class="d-flex justify-content-between align-items-start mb-3">
                                 <div>
@@ -651,6 +660,12 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                     <?php endif; ?>
                                     <br>
                                     <small>Jatuh tempo: <?php echo date('d M Y', strtotime($row['tanggal_jatuh_tempo'])); ?></small>
+                                    <?php if (!empty($row['denda_terakumulasi']) && $row['denda_terakumulasi'] > 0): ?>
+                                        <br>
+                                        <small class="text-danger">Denda: Rp <?php echo number_format($row['denda_terakumulasi'], 0, ',', '.'); ?></small>
+                                    <?php endif; ?>
+                                    <br>
+                                    <small><strong>Total Tebus: Rp <?php echo number_format($total_tebus_admin, 0, ',', '.'); ?></strong></small>
                                 </div>
                                 <div class="col-md-3">
                                     <small>No. HP: <?php echo $row['no_hp']; ?></small>

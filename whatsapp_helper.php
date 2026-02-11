@@ -261,6 +261,115 @@ class WhatsAppHelper {
         
         return $this->sendMessage($data['no_hp'], $message);
     }
+
+    /**
+     * Template pesan untuk perpanjangan gadai (ke User)
+     */
+    public function notifyUserExtension($data, $new_due_date) {
+        $message = "🔁 *PERPANJANGAN GADAI BERHASIL*\n\n";
+        $message .= "Halo {$data['nama_nasabah']},\n\n";
+        $message .= "Permintaan perpanjangan gadai Anda telah kami terima.\n\n";
+        $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
+        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk']} {$data['tipe']}\n";
+        $message .= "📅 Jatuh Tempo Baru: " . date('d F Y', strtotime($new_due_date)) . "\n\n";
+        $message .= "Kami akan menghubungi Anda bila ada informasi tambahan.\n\n";
+        $message .= "📞 WA: 0858-2309-1908";
+
+        return $this->sendMessage($data['no_hp'], $message);
+    }
+
+    /**
+     * Template pesan untuk perpanjangan gadai (ke Admin)
+     */
+    public function notifyAdminExtension($data, $new_due_date) {
+        $message = "🔁 *PERPANJANGAN GADAI*\n\n";
+        $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
+        $message .= "👤 Nama: {$data['nama_nasabah']}\n";
+        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk']} {$data['tipe']}\n";
+        $message .= "📅 Jatuh Tempo Baru: " . date('d F Y', strtotime($new_due_date)) . "\n\n";
+        $message .= "Buka detail di:\n";
+        $message .= $this->getBaseUrl() . "/GadaiHp/admin_verifikasi.php";
+
+        return $this->sendMessage($this->sender_number, $message);
+    }
+
+    /**
+     * Template pesan untuk pelunasan gadai (ke User)
+     */
+    public function notifyUserPelunasan($data) {
+        $message = "💰 *PELUNASAN GADAI*\n\n";
+        $message .= "Halo {$data['nama_nasabah']},\n\n";
+        $message .= "Permintaan pelunasan gadai Anda telah kami terima.\n\n";
+        $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
+        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk']} {$data['tipe']}\n\n";
+        $message .= "Tim kami akan menghubungi Anda untuk proses selanjutnya.\n\n";
+        $message .= "📞 WA: 0858-2309-1908";
+
+        return $this->sendMessage($data['no_hp'], $message);
+    }
+
+    /**
+     * Template pesan untuk pelunasan gadai (ke Admin)
+     */
+    public function notifyAdminPelunasan($data) {
+        $message = "💰 *PENGAJUAN PELUNASAN*\n\n";
+        $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
+        $message .= "👤 Nama: {$data['nama_nasabah']}\n";
+        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk']} {$data['tipe']}\n\n";
+        $message .= "Buka detail di:\n";
+        $message .= $this->getBaseUrl() . "/GadaiHp/admin_verifikasi.php";
+
+        return $this->sendMessage($this->sender_number, $message);
+    }
+
+    /**
+     * Template pesan reminder 3 hari sebelum jatuh tempo (ke User)
+     */
+    public function notifyUserDueSoon($data) {
+        $message = "⏰ *REMINDER JATUH TEMPO*\n\n";
+        $message .= "Halo {$data['nama_nasabah']},\n\n";
+        $message .= "Jatuh tempo gadai Anda tinggal *3 hari lagi*.\n\n";
+        $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
+        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk']} {$data['tipe']}\n";
+        $message .= "📅 Jatuh Tempo: " . date('d F Y', strtotime($data['tanggal_jatuh_tempo'])) . "\n\n";
+        $message .= "Silakan siapkan pelunasan atau hubungi kami untuk perpanjangan.\n\n";
+        $message .= "Cek status di:\n";
+        $message .= $this->getBaseUrl() . "/GadaiHp/cek_status.php?no_registrasi=" . $data['id'] . "\n\n";
+        $message .= "📞 WA: 0858-2309-1908";
+
+        return $this->sendMessage($data['no_hp'], $message);
+    }
+
+    /**
+     * Template pesan reminder terlambat (H+1 sampai H+7)
+     */
+    public function notifyUserOverdue($data, $days_overdue) {
+        $pokok = !empty($data['jumlah_disetujui']) ? (float)$data['jumlah_disetujui'] : (float)$data['jumlah_pinjaman'];
+        $bunga = (float)$data['bunga'];
+        $lama = (int)$data['lama_gadai'];
+        $bunga_total = $pokok * ($bunga / 100) * $lama;
+        $denda_harian = 30000;
+        $denda_total = $denda_harian * $days_overdue;
+        $total_tebus = $pokok + $bunga_total + $denda_total;
+
+        $message = "⚠️ *REMINDER TERLAMBAT*\n\n";
+        $message .= "Halo {$data['nama_nasabah']},\n\n";
+        $message .= "Gadai Anda sudah lewat jatuh tempo *{$days_overdue} hari*.\n\n";
+        $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
+        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk']} {$data['tipe']}\n";
+        $message .= "📅 Jatuh Tempo: " . date('d F Y', strtotime($data['tanggal_jatuh_tempo'])) . "\n\n";
+        $message .= "Rincian Tebus:\n";
+        $message .= "- Pokok: Rp " . number_format($pokok, 0, ',', '.') . "\n";
+        $message .= "- Bunga: Rp " . number_format($bunga_total, 0, ',', '.') . " ({$bunga}% x {$lama} bln)\n";
+        $message .= "- Denda Harian: Rp " . number_format($denda_harian, 0, ',', '.') . " x {$days_overdue} hari = Rp " . number_format($denda_total, 0, ',', '.') . "\n";
+        $message .= "*Total Tebus: Rp " . number_format($total_tebus, 0, ',', '.') . "*\n\n";
+        $message .= "Segera lakukan pelunasan atau ajukan perpanjangan.\n\n";
+        $message .= "Cek status di:\n";
+        $message .= $this->getBaseUrl() . "/GadaiHp/cek_status.php?no_registrasi=" . $data['id'] . "\n\n";
+        $message .= "📞 WA: 0858-2309-1908";
+
+        return $this->sendMessage($data['no_hp'], $message);
+    }
 }
 
 // Inisialisasi helper
