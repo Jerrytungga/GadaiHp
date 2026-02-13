@@ -19,6 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $tipe = $_POST['tipe'];
         $kondisi = $_POST['kondisi'];
         $imei_serial = $_POST['imei_serial'];
+        $kelengkapan_hp = $_POST['kelengkapan_hp'] ?? '';
         $harga_pasar = $_POST['harga_pasar'];
         $jumlah_pinjaman = $_POST['jumlah_pinjaman'];
         $bunga = $_POST['bunga'];
@@ -50,16 +51,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Insert ke database
         $sql = "INSERT INTO data_gadai (
             nama_nasabah, no_ktp, no_hp, alamat, jenis_barang, merk, tipe, 
-            kondisi, imei_serial, harga_pasar, jumlah_pinjaman, bunga, 
+            kondisi, imei_serial, kelengkapan_hp, harga_pasar, jumlah_pinjaman, bunga, 
             lama_gadai, tanggal_gadai, tanggal_jatuh_tempo, foto_barang, foto_ktp, status
         ) VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending'
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending'
         )";
         
         $stmt = $db->prepare($sql);
         $stmt->execute([
             $nama_nasabah, $no_ktp, $no_hp, $alamat, $jenis_barang, $merk, $tipe,
-            $kondisi, $imei_serial, $harga_pasar, $jumlah_pinjaman, $bunga,
+            $kondisi, $imei_serial, $kelengkapan_hp, $harga_pasar, $jumlah_pinjaman, $bunga,
             $lama_gadai, $tanggal_gadai, $tanggal_jatuh_tempo, $foto_barang, $foto_ktp
         ]);
         
@@ -402,6 +403,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <input type="file" name="foto_barang" accept="image/*" required>
                         </div>
                     </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Keterangan Kelengkapan HP</label>
+                    <textarea class="form-control" name="kelengkapan_hp" rows="2" placeholder="Contoh: box, charger, headset, kabel data"></textarea>
+                    <div class="form-text">Isi jika ada kelengkapan tambahan untuk HP.</div>
                 </div>
                 
                 <!-- Data Pinjaman -->

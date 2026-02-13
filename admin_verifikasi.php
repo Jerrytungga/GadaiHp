@@ -128,11 +128,233 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
             
             $message = "Pengajuan ditolak. Notifikasi telah dikirim ke nasabah.";
             $message_type = "danger";
+        } elseif ($action == 'acc_pelunasan') {
+            $no_registrasi = $_POST['id'];
+
+            $check_bukti_sql = "SELECT COUNT(*) FROM transaksi WHERE barang_id = ? AND pelanggan_nik = (SELECT no_ktp FROM data_gadai WHERE id = ?)";
+            $check_bukti_stmt = $db->prepare($check_bukti_sql);
+            $check_bukti_stmt->execute([$no_registrasi, $no_registrasi]);
+            $bukti_count = (int)$check_bukti_stmt->fetchColumn();
+
+            if ($bukti_count <= 0) {
+                $message = "ACC pelunasan ditolak: bukti pembayaran belum diunggah.";
+                $message_type = "danger";
+            } else {
+                $update_sql = "UPDATE data_gadai SET status = 'Ditebus', aksi_jatuh_tempo_at = NOW(), updated_at = NOW() WHERE id = ?";
+                $update_stmt = $db->prepare($update_sql);
+                $update_stmt->execute([$no_registrasi]);
+
+                $data_sql = "SELECT * FROM data_gadai WHERE id = ?";
+                $data_stmt = $db->prepare($data_sql);
+                $data_stmt->execute([$no_registrasi]);
+                $data = $data_stmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($data) {
+                    try {
+                        $whatsapp->notifyUserPelunasanVerified($data);
+                    } catch(Exception $e) {
+                        error_log("WhatsApp notification failed: " . $e->getMessage());
+                    }
+                }
+
+                $message = "Pelunasan berhasil di-ACC. Status berubah menjadi Ditebus.";
+                $message_type = "success";
+            }
         }
     } catch(PDOException $e) {
         $message = "Error: " . $e->getMessage();
         $message_type = "danger";
     }
+}
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['upload_csv'])) {
+    $upload_errors = [];
+    $upload_success = 0;
+    $upload_failed = 0;
+
+    if (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
+        $upload_errors[] = 'File CSV gagal diunggah.';
+    } else {
+        $file_tmp = $_FILES['csv_file']['tmp_name'];
+        $file_name = $_FILES['csv_file']['name'];
+        $ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+
+        if ($ext !== 'csv') {
+            $upload_errors[] = 'Format file harus CSV.';
+        } else {
+            $handle = fopen($file_tmp, 'r');
+            if ($handle === false) {
+                $upload_errors[] = 'Gagal membaca file CSV.';
+            } else {
+                $normalize = function ($value) {
+                    $value = strtolower(trim($value));
+                    $value = preg_replace('/\s+/', '_', $value);
+                    return $value;
+                };
+
+                $header = fgetcsv($handle, 0, ',');
+                if (!$header) {
+                    $upload_errors[] = 'Header CSV tidak ditemukan.';
+                } else {
+                    $header = array_map($normalize, $header);
+                    $required_headers = [
+                        'nik',
+                        'nama',
+                        'no_hp',
+                        'jenis_barang',
+                        'merk',
+                        'tipe',
+                        'alamat',
+                        'kondisi',
+                        'imei_serial',
+                        'harga_pasar',
+                        'jumlah_pinjaman',
+                        'bunga',
+                        'lama_gadai',
+                        'tanggal_gadai',
+                        'tanggal_jatuh_tempo'
+                    ];
+
+                    $missing = array_diff($required_headers, $header);
+                    if (!empty($missing)) {
+                        $upload_errors[] = 'Kolom CSV kurang: ' . implode(', ', $missing) . '.';
+                    } else {
+                        $map = array_flip($header);
+                        $allowed_jenis = ['HP', 'Laptop'];
+                        $allowed_kondisi = ['Sangat Baik', 'Baik', 'Cukup'];
+
+                        $insert_sql = "INSERT INTO data_gadai (
+                            nama_nasabah, no_ktp, no_hp, alamat, jenis_barang, merk, tipe,
+                            kondisi, imei_serial, harga_pasar, jumlah_pinjaman, bunga,
+                            lama_gadai, tanggal_gadai, tanggal_jatuh_tempo, foto_barang, foto_ktp, status
+                        ) VALUES (
+                            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 'Pending'
+                        )";
+                        $stmt = $db->prepare($insert_sql);
+
+                        $row_number = 1;
+                        while (($row = fgetcsv($handle, 0, ',')) !== false) {
+                            $row_number++;
+                            if (count(array_filter($row, fn($value) => trim((string)$value) !== '')) === 0) {
+                                continue;
+                            }
+
+                            $nik = trim($row[$map['nik']] ?? '');
+                            $nama = trim($row[$map['nama']] ?? '');
+                            $no_hp = trim($row[$map['no_hp']] ?? '');
+                            $jenis = trim($row[$map['jenis_barang']] ?? '');
+                            $merk = trim($row[$map['merk']] ?? '');
+                            $tipe = trim($row[$map['tipe']] ?? '');
+                            $alamat = trim($row[$map['alamat']] ?? '');
+                            $kondisi = trim($row[$map['kondisi']] ?? '');
+                            $imei = trim($row[$map['imei_serial']] ?? '');
+                            $harga_pasar_raw = trim($row[$map['harga_pasar']] ?? '');
+                            $jumlah_pinjaman_raw = trim($row[$map['jumlah_pinjaman']] ?? '');
+                            $bunga_raw = trim($row[$map['bunga']] ?? '');
+                            $lama_raw = trim($row[$map['lama_gadai']] ?? '');
+                            $tanggal_gadai = trim($row[$map['tanggal_gadai']] ?? '');
+                            $tanggal_jatuh_tempo = trim($row[$map['tanggal_jatuh_tempo']] ?? '');
+
+                            $jenis = strtoupper($jenis);
+                            if ($jenis === 'SMARTPHONE') {
+                                $jenis = 'HP';
+                            }
+
+                            if ($kondisi === '') {
+                                $kondisi = 'Baik';
+                            }
+
+                            $harga_pasar = (float)str_replace(',', '.', preg_replace('/[^0-9,\.]/', '', $harga_pasar_raw));
+                            $jumlah_pinjaman = (float)str_replace(',', '.', preg_replace('/[^0-9,\.]/', '', $jumlah_pinjaman_raw));
+                            $bunga = (float)str_replace(',', '.', preg_replace('/[^0-9,\.]/', '', $bunga_raw));
+                            $lama_gadai = (int)preg_replace('/[^0-9]/', '', $lama_raw);
+
+                            $row_errors = [];
+                            if ($nik === '' || $nama === '' || $no_hp === '') {
+                                $row_errors[] = 'NIK, nama, dan no_hp wajib diisi.';
+                            }
+                            if (!in_array($jenis, $allowed_jenis, true)) {
+                                $row_errors[] = 'Jenis barang harus HP atau Laptop.';
+                            }
+                            if (!in_array($kondisi, $allowed_kondisi, true)) {
+                                $row_errors[] = 'Kondisi harus: Sangat Baik, Baik, atau Cukup.';
+                            }
+                            if ($harga_pasar <= 0 || $jumlah_pinjaman <= 0 || $bunga <= 0 || $lama_gadai <= 0) {
+                                $row_errors[] = 'Harga pasar, jumlah pinjaman, bunga, dan lama gadainya harus > 0.';
+                            }
+
+                            $tgl_gadai_ok = DateTime::createFromFormat('Y-m-d', $tanggal_gadai) !== false;
+                            $tgl_jatuh_ok = DateTime::createFromFormat('Y-m-d', $tanggal_jatuh_tempo) !== false;
+                            if (!$tgl_gadai_ok || !$tgl_jatuh_ok) {
+                                $row_errors[] = 'Tanggal gadai dan jatuh tempo harus format YYYY-MM-DD.';
+                            }
+
+                            if (!empty($row_errors)) {
+                                $upload_failed++;
+                                if (count($upload_errors) < 5) {
+                                    $upload_errors[] = "Baris {$row_number}: " . implode(' ', $row_errors);
+                                }
+                                continue;
+                            }
+
+                            try {
+                                $stmt->execute([
+                                    $nama,
+                                    $nik,
+                                    $no_hp,
+                                    $alamat,
+                                    $jenis,
+                                    $merk,
+                                    $tipe,
+                                    $kondisi,
+                                    $imei,
+                                    $harga_pasar,
+                                    $jumlah_pinjaman,
+                                    $bunga,
+                                    $lama_gadai,
+                                    $tanggal_gadai,
+                                    $tanggal_jatuh_tempo
+                                ]);
+                                $upload_success++;
+                            } catch (PDOException $e) {
+                                $upload_failed++;
+                                if (count($upload_errors) < 5) {
+                                    $upload_errors[] = "Baris {$row_number}: gagal simpan.";
+                                }
+                            }
+                        }
+                    }
+                }
+
+                fclose($handle);
+            }
+        }
+    }
+
+    if ($upload_success > 0) {
+        $message = "Upload selesai: {$upload_success} berhasil, {$upload_failed} gagal.";
+        $message_type = $upload_failed > 0 ? 'warning' : 'success';
+    } elseif (!empty($upload_errors)) {
+        $message = implode(' ', $upload_errors);
+        $message_type = 'danger';
+    }
+}
+
+if (isset($_GET['download_template']) && $_GET['download_template'] === 'excel') {
+    header('Content-Type: application/vnd.ms-excel');
+    header('Content-Disposition: attachment; filename="template_data_gadai.xls"');
+    echo "<table border='1'>";
+    echo "<tr>";
+    echo "<th>nik</th><th>nama</th><th>no_hp</th><th>jenis_barang</th><th>merk</th><th>tipe</th><th>alamat</th><th>kondisi</th><th>imei_serial</th><th>harga_pasar</th><th>jumlah_pinjaman</th><th>bunga</th><th>lama_gadai</th><th>tanggal_gadai</th><th>tanggal_jatuh_tempo</th>";
+    echo "</tr>";
+    echo "<tr>";
+    echo "<td>1234567890123456</td><td>Andi Saputra</td><td>081234567890</td><td>HP</td><td>Samsung</td><td>Galaxy A52</td><td>Jl. Merdeka No 10</td><td>Baik</td><td>IMEI1234567890</td><td>2500000</td><td>1500000</td><td>30</td><td>2</td><td>2026-02-10</td><td>2026-04-10</td>";
+    echo "</tr>";
+    echo "<tr>";
+    echo "<td>3201123456789012</td><td>Siti Lestari</td><td>082345678901</td><td>Laptop</td><td>Asus</td><td>VivoBook 14</td><td>Jl. Kenanga No 5</td><td>Cukup</td><td>SN-ABCD-1234</td><td>5500000</td><td>3500000</td><td>30</td><td>3</td><td>2026-02-01</td><td>2026-05-01</td>";
+    echo "</tr>";
+    echo "</table>";
+    exit;
 }
 
 // Fetch pending submissions
@@ -149,6 +371,28 @@ $approved_data = $approved_stmt->fetchAll(PDO::FETCH_ASSOC);
 $rejected_sql = "SELECT * FROM data_gadai WHERE status = 'Ditolak' ORDER BY verified_at DESC LIMIT 10";
 $rejected_stmt = $db->query($rejected_sql);
 $rejected_data = $rejected_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Fetch all submissions (for list table)
+$all_sql = "SELECT id, nama_nasabah, no_ktp, no_hp, jenis_barang, merk, tipe, status, created_at FROM data_gadai ORDER BY created_at DESC";
+$all_stmt = $db->query($all_sql);
+$all_data = $all_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Fetch pelunasan pending submissions
+$pelunasan_data = [];
+$pelunasan_error = null;
+try {
+    $pelunasan_sql = "SELECT dg.*, 
+        (SELECT COUNT(*) FROM transaksi t WHERE t.barang_id = dg.id AND t.pelanggan_nik = dg.no_ktp) AS bukti_count,
+        (SELECT SUM(t.jumlah_bayar) FROM transaksi t WHERE t.barang_id = dg.id AND t.pelanggan_nik = dg.no_ktp) AS bukti_total,
+        (SELECT t.bukti FROM transaksi t WHERE t.barang_id = dg.id AND t.pelanggan_nik = dg.no_ktp ORDER BY t.id DESC LIMIT 1) AS bukti_latest
+        FROM data_gadai dg
+        WHERE dg.aksi_jatuh_tempo = 'Pelunasan' AND dg.status IN ('Disetujui', 'Diperpanjang')
+        ORDER BY dg.updated_at DESC";
+    $pelunasan_stmt = $db->query($pelunasan_sql);
+    $pelunasan_data = $pelunasan_stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $pelunasan_error = "Data pelunasan belum tersedia (cek tabel transaksi).";
+}
 
 // Statistics
 $stats_sql = "SELECT 
@@ -427,6 +671,16 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="rejected-tab" data-bs-toggle="tab" data-bs-target="#rejected" type="button">
                     ❌ Ditolak (<?php echo count($rejected_data); ?>)
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="pelunasan-tab" data-bs-toggle="tab" data-bs-target="#pelunasan" type="button">
+                    💰 Pelunasan Pending (<?php echo count($pelunasan_data); ?>)
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="list-tab" data-bs-toggle="tab" data-bs-target="#list" type="button">
+                    📋 Daftar Gadai (<?php echo count($all_data); ?>)
                 </button>
             </li>
         </ul>
@@ -717,6 +971,127 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                             <?php endif; ?>
                         </div>
                     <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+
+            <!-- Pelunasan Pending Tab -->
+            <div class="tab-pane fade" id="pelunasan" role="tabpanel">
+                <?php if ($pelunasan_error): ?>
+                    <div class="alert alert-warning"><?php echo $pelunasan_error; ?></div>
+                <?php elseif (empty($pelunasan_data)): ?>
+                    <div class="alert alert-info">Tidak ada pelunasan pending.</div>
+                <?php else: ?>
+                    <?php foreach ($pelunasan_data as $row): ?>
+                        <?php
+                        $bukti_count = (int)($row['bukti_count'] ?? 0);
+                        $bukti_total = !empty($row['bukti_total']) ? (float)$row['bukti_total'] : 0;
+                        $bukti_file = $row['bukti_latest'] ?? null;
+                        $bukti_path = $bukti_file ? 'payment/' . $row['no_ktp'] . '/' . $bukti_file : null;
+                        ?>
+                        <div class="data-card approved">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div>
+                                    <div class="no-transaksi">#<?php echo str_pad($row['id'], 6, '0', STR_PAD_LEFT); ?></div>
+                                    <small class="text-muted">Permintaan: <?php echo date('d M Y H:i', strtotime($row['updated_at'])); ?></small>
+                                </div>
+                                <span class="badge-approved">💰 PELUNASAN</span>
+                            </div>
+
+                            <div class="row mb-2">
+                                <div class="col-md-4">
+                                    <strong><?php echo htmlspecialchars($row['nama_nasabah']); ?></strong><br>
+                                    <small><?php echo $row['jenis_barang']; ?>: <?php echo $row['merk'] . ' ' . $row['tipe']; ?></small>
+                                </div>
+                                <div class="col-md-4">
+                                    <small>No. KTP: <?php echo $row['no_ktp']; ?></small><br>
+                                    <small>No. HP: <?php echo $row['no_hp']; ?></small>
+                                </div>
+                                <div class="col-md-4">
+                                    <small><strong>Total Tebus:</strong> Rp <?php echo number_format($row['total_tebus'], 0, ',', '.'); ?></small><br>
+                                    <small><strong>Bukti:</strong> <?php echo $bukti_count; ?> file (Rp <?php echo number_format($bukti_total, 0, ',', '.'); ?>)</small>
+                                </div>
+                            </div>
+
+                            <?php if ($bukti_path): ?>
+                                <div class="alert alert-info" style="padding: 10px;">
+                                    <strong>🧾 Bukti Terakhir:</strong>
+                                    <a href="<?php echo $bukti_path; ?>" target="_blank">Lihat bukti</a>
+                                </div>
+                            <?php endif; ?>
+
+                            <div class="d-flex gap-2 justify-content-end">
+                                <form method="POST">
+                                    <input type="hidden" name="id" value="<?php echo $row['id']; ?>">
+                                    <input type="hidden" name="action" value="acc_pelunasan">
+                                    <button type="submit" class="btn btn-approve" <?php echo $bukti_count <= 0 ? 'disabled' : ''; ?>>
+                                        ✅ ACC Pelunasan
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+
+            <!-- List Tab -->
+            <div class="tab-pane fade" id="list" role="tabpanel">
+                <div class="alert alert-info" style="border-radius: 15px;">
+                    <strong>📥 Upload CSV:</strong> Gunakan format kolom berikut (header wajib):
+                    <div style="margin-top: 6px; font-family: monospace; font-size: 0.9rem;">
+                        nik,nama,no_hp,jenis_barang,merk,tipe,alamat,kondisi,imei_serial,harga_pasar,jumlah_pinjaman,bunga,lama_gadai,tanggal_gadai,tanggal_jatuh_tempo
+                    </div>
+                    <div style="margin-top: 6px; font-size: 0.9rem;">
+                        Format tanggal: YYYY-MM-DD. Jenis barang: HP/Laptop. Kondisi: Sangat Baik/Baik/Cukup.
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <a href="admin_verifikasi.php?download_template=excel" class="btn btn-outline-primary btn-sm">Download Template Excel</a>
+                    </div>
+                </div>
+
+                <form method="POST" enctype="multipart/form-data" class="mb-3">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-8">
+                            <input type="file" class="form-control" name="csv_file" accept=".csv" required>
+                        </div>
+                        <div class="col-md-4">
+                            <button type="submit" name="upload_csv" class="btn btn-primary w-100">Upload CSV</button>
+                        </div>
+                    </div>
+                </form>
+
+                <?php if (empty($all_data)): ?>
+                    <div class="alert alert-info">Belum ada data gadai.</div>
+                <?php else: ?>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>Registrasi</th>
+                                    <th>Nama</th>
+                                    <th>No. KTP</th>
+                                    <th>No. HP</th>
+                                    <th>Barang</th>
+                                    <th>Status</th>
+                                    <th>Tanggal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($all_data as $index => $row): ?>
+                                    <tr>
+                                        <td><?php echo $index + 1; ?></td>
+                                        <td>#<?php echo str_pad($row['id'], 6, '0', STR_PAD_LEFT); ?></td>
+                                        <td><?php echo htmlspecialchars($row['nama_nasabah']); ?></td>
+                                        <td><?php echo $row['no_ktp']; ?></td>
+                                        <td><?php echo $row['no_hp']; ?></td>
+                                        <td><?php echo $row['jenis_barang'] . ' ' . $row['merk'] . ' ' . $row['tipe']; ?></td>
+                                        <td><?php echo $row['status']; ?></td>
+                                        <td><?php echo date('d M Y', strtotime($row['created_at'])); ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
                 <?php endif; ?>
             </div>
         </div>

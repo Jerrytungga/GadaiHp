@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS `data_gadai` (
   `tipe` varchar(100) NOT NULL,
   `kondisi` enum('Sangat Baik','Baik','Cukup') NOT NULL,
   `imei_serial` varchar(100) NOT NULL,
+  `kelengkapan_hp` text DEFAULT NULL,
   `harga_pasar` decimal(15,2) NOT NULL,
   `jumlah_pinjaman` decimal(15,2) NOT NULL COMMENT 'Nominal yang diajukan user',
   `jumlah_disetujui` decimal(15,2) DEFAULT NULL COMMENT 'Nominal yang disetujui admin',

@@ -9,7 +9,7 @@ try {
     $sql_due = "SELECT * FROM data_gadai
                 WHERE status IN ('Disetujui', 'Diperpanjang')
                   AND tanggal_jatuh_tempo = ?
-                  AND (aksi_jatuh_tempo IS NULL OR aksi_jatuh_tempo_at < tanggal_jatuh_tempo)
+                  AND (aksi_jatuh_tempo IS NULL OR aksi_jatuh_tempo_at < tanggal_jatuh_tempo OR aksi_jatuh_tempo = 'Pelunasan')
                   AND (reminder_3hari_due_date IS NULL OR reminder_3hari_due_date <> tanggal_jatuh_tempo)";
     $stmt_due = $db->prepare($sql_due);
     $stmt_due->execute([$target_date]);
@@ -36,7 +36,7 @@ try {
                     FROM data_gadai
                     WHERE status IN ('Disetujui', 'Diperpanjang')
                       AND tanggal_jatuh_tempo < ?
-                      AND (aksi_jatuh_tempo IS NULL OR aksi_jatuh_tempo_at < tanggal_jatuh_tempo)
+                      AND (aksi_jatuh_tempo IS NULL OR aksi_jatuh_tempo_at < tanggal_jatuh_tempo OR aksi_jatuh_tempo = 'Pelunasan')
                       AND DATEDIFF(?, tanggal_jatuh_tempo) BETWEEN 1 AND 7
                       AND (
                         reminder_telat_due_date IS NULL

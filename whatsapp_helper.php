@@ -296,12 +296,18 @@ class WhatsAppHelper {
     /**
      * Template pesan untuk pelunasan gadai (ke User)
      */
-    public function notifyUserPelunasan($data) {
+    public function notifyUserPelunasan($data, $amount = null, $briva_number = null, $briva_name = null) {
         $message = "💰 *PELUNASAN GADAI*\n\n";
         $message .= "Halo {$data['nama_nasabah']},\n\n";
         $message .= "Permintaan pelunasan gadai Anda telah kami terima.\n\n";
         $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
         $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk']} {$data['tipe']}\n\n";
+        if (!empty($amount) && !empty($briva_number) && !empty($briva_name)) {
+            $message .= "🏦 *Pembayaran BRIVA BRI*\n";
+            $message .= "Nominal: Rp " . number_format($amount, 0, ',', '.') . "\n";
+            $message .= "No. BRIVA: {$briva_number}\n";
+            $message .= "Atas Nama: {$briva_name}\n\n";
+        }
         $message .= "Tim kami akan menghubungi Anda untuk proses selanjutnya.\n\n";
         $message .= "📞 WA: 0858-2309-1908";
 
@@ -320,6 +326,21 @@ class WhatsAppHelper {
         $message .= $this->getBaseUrl() . "/GadaiHp/admin_verifikasi.php";
 
         return $this->sendMessage($this->sender_number, $message);
+    }
+
+    /**
+     * Template pesan pelunasan terverifikasi (ke User)
+     */
+    public function notifyUserPelunasanVerified($data) {
+        $message = "✅ *PEMBAYARAN TERVERIFIKASI*\n\n";
+        $message .= "Halo {$data['nama_nasabah']},\n";
+        $message .= "Pembayaran Anda sudah kami verifikasi. Status gadai: *Ditebus*.\n\n";
+        $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
+        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk']} {$data['tipe']}\n\n";
+        $message .= "Terima kasih.\n";
+        $message .= "📞 WA: 0858-2309-1908";
+
+        return $this->sendMessage($data['no_hp'], $message);
     }
 
     /**

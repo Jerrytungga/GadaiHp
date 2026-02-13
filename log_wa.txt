@@ -245,3 +245,184 @@ http://10.56.50.28/GadaiHp/cek_status.php?no_registrasi=2
 📞 WA: 0858-2309-1908
 Response: {"detail":"success! message in queue","id":[143177686],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":986,"remaining":985,"used":1}},"requestid":378430816,"status":true,"target":["6281241935244"]}
 
+[2026-02-13 15:53:22] To: 6281241935244
+Message: 💰 *PELUNASAN GADAI*
+
+Halo Kidung ID,
+
+Permintaan pelunasan gadai Anda telah kami terima.
+
+📋 No. Registrasi: #000002
+📱 Barang: HP iphone 13 pro
+
+Tim kami akan menghubungi Anda untuk proses selanjutnya.
+
+📞 WA: 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[143192379],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":985,"remaining":984,"used":1}},"requestid":378576153,"status":true,"target":["6281241935244"]}
+
+[2026-02-13 15:53:24] To: 6285823091908
+Message: 💰 *PENGAJUAN PELUNASAN*
+
+📋 No. Registrasi: #000002
+👤 Nama: Kidung ID
+📱 Barang: HP iphone 13 pro
+
+Buka detail di:
+http://10.56.50.28/GadaiHp/admin_verifikasi.php
+Response: {"detail":"success! message in queue","id":[143192383],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":984,"remaining":983,"used":1}},"requestid":378576164,"status":true,"target":["6285823091908"]}
+
+[2026-02-13 16:11:20] To: 6281241935244
+Message: 🔁 *PERPANJANGAN GADAI BERHASIL*
+
+Halo Kidung ID,
+
+Permintaan perpanjangan gadai Anda telah kami terima.
+
+📋 No. Registrasi: #000002
+📱 Barang: HP iphone 13 pro
+📅 Jatuh Tempo Baru: 08 March 2026
+
+Kami akan menghubungi Anda bila ada informasi tambahan.
+
+📞 WA: 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[143193598],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":983,"remaining":982,"used":1}},"requestid":378589603,"status":true,"target":["6281241935244"]}
+
+[2026-02-13 16:11:21] To: 6285823091908
+Message: 🔁 *PERPANJANGAN GADAI*
+
+📋 No. Registrasi: #000002
+👤 Nama: Kidung ID
+📱 Barang: HP iphone 13 pro
+📅 Jatuh Tempo Baru: 08 March 2026
+
+Buka detail di:
+http://10.56.50.28/GadaiHp/admin_verifikasi.php
+Response: {"detail":"success! message in queue","id":[143193601],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":982,"remaining":981,"used":1}},"requestid":378589608,"status":true,"target":["6285823091908"]}
+
+[2026-02-13 16:15:11] To: 6285823091908
+Message: 🔔 *PENGAJUAN GADAI BARU*
+
+📋 No. Registrasi: #000003
+👤 Nama: Kidung ID
+📱 Barang: HP sadsadsad dsdsad
+💰 Pengajuan: Rp 2.450.000
+📞 HP: 081241935244
+
+⏳ Status: Menunggu Verifikasi
+
+Klik link untuk verifikasi:
+http://10.56.50.28/GadaiHp/admin_verifikasi.php
+Response: {"detail":"success! message in queue","id":[143193753],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":981,"remaining":980,"used":1}},"requestid":378592524,"status":true,"target":["6285823091908"]}
+
+[2026-02-13 16:15:41] To: 6281241935244
+Message: ✅ *PENGAJUAN DISETUJUI*
+
+Halo Kidung ID,
+
+Pengajuan gadai Anda telah *DISETUJUI*!
+
+📋 No. Registrasi: #000003
+📱 Barang: HP sadsadsad dsdsad
+💰 Pengajuan: Rp 2.450.000
+✅ *Disetujui: Rp 2.450.000*
+📅 Jatuh Tempo: 13 March 2026
+
+Silakan datang ke kantor kami untuk proses pencairan dana.
+
+📍 Gadai Cepat Timika Papua
+📞 WA: 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[143193768],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":980,"remaining":979,"used":1}},"requestid":378592600,"status":true,"target":["6281241935244"]}
+
+[2026-02-13 16:18:42] To: 6281241935244
+Message: 💰 *PELUNASAN GADAI*
+
+Halo Kidung ID,
+
+Permintaan pelunasan gadai Anda telah kami terima.
+
+📋 No. Registrasi: #000003
+📱 Barang: HP sadsadsad dsdsad
+
+🏦 *Pembayaran BRIVA BRI*
+Nominal: Rp 3.335.000
+No. BRIVA: 305101007702502
+Atas Nama: Jerri Christian Gedeon Tungga
+
+Tim kami akan menghubungi Anda untuk proses selanjutnya.
+
+📞 WA: 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[143193907],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":979,"remaining":978,"used":1}},"requestid":378594414,"status":true,"target":["6281241935244"]}
+
+[2026-02-13 16:18:43] To: 6285823091908
+Message: 💰 *PENGAJUAN PELUNASAN*
+
+📋 No. Registrasi: #000003
+👤 Nama: Kidung ID
+📱 Barang: HP sadsadsad dsdsad
+
+Buka detail di:
+http://10.56.50.28/GadaiHp/admin_verifikasi.php
+Response: {"detail":"success! message in queue","id":[143193908],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":978,"remaining":977,"used":1}},"requestid":378594415,"status":true,"target":["6285823091908"]}
+
+[2026-02-13 16:22:36] To: 6281241935244
+Message: 💰 *PELUNASAN GADAI*
+
+Halo Kidung ID,
+
+Permintaan pelunasan gadai Anda telah kami terima.
+
+📋 No. Registrasi: #000003
+📱 Barang: HP sadsadsad dsdsad
+
+🏦 *Pembayaran BRIVA BRI*
+Nominal: Rp 3.335.000
+No. BRIVA: 305101007702502
+Atas Nama: Jerri Christian Gedeon Tungga
+
+Tim kami akan menghubungi Anda untuk proses selanjutnya.
+
+📞 WA: 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[143194105],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":977,"remaining":976,"used":1}},"requestid":378597354,"status":true,"target":["6281241935244"]}
+
+[2026-02-13 16:22:37] To: 6285823091908
+Message: 💰 *PENGAJUAN PELUNASAN*
+
+📋 No. Registrasi: #000003
+👤 Nama: Kidung ID
+📱 Barang: HP sadsadsad dsdsad
+
+Buka detail di:
+http://10.56.50.28/GadaiHp/admin_verifikasi.php
+Response: {"detail":"success! message in queue","id":[143194106],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":976,"remaining":975,"used":1}},"requestid":378597358,"status":true,"target":["6285823091908"]}
+
+[2026-02-13 16:32:23] To: 6281241935244
+Message: 💰 *PELUNASAN GADAI*
+
+Halo Kidung ID,
+
+Permintaan pelunasan gadai Anda telah kami terima.
+
+📋 No. Registrasi: #000003
+📱 Barang: HP sadsadsad dsdsad
+
+🏦 *Pembayaran BRIVA BRI*
+Nominal: Rp 3.335.000
+No. BRIVA: 305101007702502
+Atas Nama: Jerri Christian Gedeon Tungga
+
+Tim kami akan menghubungi Anda untuk proses selanjutnya.
+
+📞 WA: 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[143194408],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":975,"remaining":974,"used":1}},"requestid":378604050,"status":true,"target":["6281241935244"]}
+
+[2026-02-13 16:32:23] To: 6285823091908
+Message: 💰 *PENGAJUAN PELUNASAN*
+
+📋 No. Registrasi: #000003
+👤 Nama: Kidung ID
+📱 Barang: HP sadsadsad dsdsad
+
+Buka detail di:
+http://10.56.50.28/GadaiHp/admin_verifikasi.php
+Response: {"detail":"success! message in queue","id":[143194410],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":974,"remaining":973,"used":1}},"requestid":378604055,"status":true,"target":["6285823091908"]}
+

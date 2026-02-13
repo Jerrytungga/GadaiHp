@@ -9,6 +9,118 @@ $message_type = 'info';
 $daily_denda = 30000;
 $denda_max_days = 7;
 $max_denda_total = $daily_denda * $denda_max_days;
+$show_payment = false;
+$payment_amount = null;
+$last_action_type = null;
+$briva_number = '305101007702502';
+$briva_name = 'Jerri Christian Gedeon Tungga';
+
+if (isset($_GET['upload']) && $_GET['upload'] === 'success') {
+    $message = 'Bukti pembayaran berhasil diunggah. Menunggu konfirmasi admin.';
+    $message_type = 'success';
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['byrcicilan'])) {
+    $upload_errors = [];
+    $no_registrasi = $_POST['no_registrasi'] ?? '';
+    $pelanggan = mysqli_real_escape_string($conn, trim($_POST['ktp'] ?? ''));
+    $payment_input = trim($_POST['amount'] ?? '');
+    $metode = mysqli_real_escape_string($conn, $_POST['method'] ?? '');
+    $bukti = $_FILES['receipt'] ?? null;
+
+    if ($no_registrasi === '' || $pelanggan === '' || $payment_input === '' || $metode === '') {
+        $upload_errors[] = 'Semua field harus diisi.';
+    }
+
+    $payment = preg_replace('/[^0-9]/', '', $payment_input);
+    if ($payment === '' || (int)$payment <= 0) {
+        $upload_errors[] = 'Jumlah pembayaran tidak valid.';
+    }
+
+    $allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+    $max_file_size = 5 * 1024 * 1024;
+    if (!$bukti || $bukti['error'] !== UPLOAD_ERR_OK) {
+        $upload_errors[] = 'Terjadi kesalahan saat mengupload file.';
+    } elseif ($bukti['size'] > $max_file_size) {
+        $upload_errors[] = 'Ukuran file terlalu besar. Maksimal 5MB.';
+    } elseif (!in_array($bukti['type'], $allowed_types, true)) {
+        $upload_errors[] = 'Format file tidak didukung. Gunakan JPG, PNG, atau GIF.';
+    }
+
+    if (empty($upload_errors)) {
+        $checkGadai = mysqli_query($conn, "SELECT no_ktp FROM data_gadai WHERE id = '" . mysqli_real_escape_string($conn, $no_registrasi) . "' LIMIT 1");
+        if (!$checkGadai) {
+            $upload_errors[] = 'Gagal memeriksa data gadai.';
+        } elseif (mysqli_num_rows($checkGadai) === 0) {
+            $upload_errors[] = 'ID gadai tidak ditemukan.';
+        } else {
+            $rowGadai = mysqli_fetch_assoc($checkGadai);
+            if ($rowGadai['no_ktp'] !== $pelanggan) {
+                $upload_errors[] = 'NIK tidak sesuai dengan data gadai.';
+            }
+        }
+    }
+
+    if (empty($upload_errors)) {
+        $checkAttempts = mysqli_query($conn, "SELECT COUNT(*) AS total FROM transaksi WHERE pelanggan_nik = '$pelanggan' AND barang_id = '$no_registrasi'");
+        if (!$checkAttempts) {
+            $upload_errors[] = 'Gagal memeriksa data transaksi.';
+        } else {
+            $attempts = (int)mysqli_fetch_assoc($checkAttempts)['total'];
+            if ($attempts >= 3) {
+                $upload_errors[] = 'Anda hanya dapat mengirim data maksimal 3 kali.';
+            }
+        }
+    }
+
+    if (empty($upload_errors)) {
+        $base_dir = 'payment/';
+        $target_dir = $base_dir . $pelanggan . '/';
+        if (!is_dir($target_dir)) {
+            if (!mkdir($target_dir, 0755, true)) {
+                $upload_errors[] = 'Gagal membuat direktori untuk menyimpan file.';
+            }
+        }
+    }
+
+    if (empty($upload_errors)) {
+        $file_extension = strtolower(pathinfo($bukti['name'], PATHINFO_EXTENSION));
+        $timestamp = date('YmdHis');
+        $new_file_name = $payment . '_' . $timestamp . '.' . $file_extension;
+        $target_file = $target_dir . $new_file_name;
+
+        mysqli_begin_transaction($conn);
+        try {
+            $query = mysqli_query(
+                $conn,
+                "INSERT INTO `transaksi`(`pelanggan_nik`, `barang_id`, `jumlah_bayar`, `keterangan`, `metode_pembayaran`, `bukti`) VALUES ('$pelanggan', '$no_registrasi', '$payment', 'cicilan', '$metode', '$new_file_name')"
+            );
+
+            if (!$query) {
+                throw new Exception('Gagal menyimpan data pembayaran.');
+            }
+
+            if (!move_uploaded_file($bukti['tmp_name'], $target_file)) {
+                throw new Exception('Gagal menyimpan file bukti pembayaran.');
+            }
+
+            mysqli_commit($conn);
+            $message = 'Bukti pembayaran berhasil diunggah. Menunggu konfirmasi admin.';
+            $message_type = 'success';
+        } catch (Exception $e) {
+            mysqli_rollback($conn);
+            if (isset($target_file) && file_exists($target_file)) {
+                unlink($target_file);
+            }
+            $upload_errors[] = $e->getMessage();
+        }
+    }
+
+    if (!empty($upload_errors)) {
+        $message = implode(' ', $upload_errors);
+        $message_type = 'danger';
+    }
+}
 
 function calculateTotalTebus($row, $denda_total) {
     $pokok = !empty($row['jumlah_disetujui']) ? (float)$row['jumlah_disetujui'] : (float)$row['jumlah_pinjaman'];
@@ -20,9 +132,10 @@ function calculateTotalTebus($row, $denda_total) {
     return [$pokok, $bunga_total, $total_tebus];
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type'], $_POST['no_registrasi'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type'], $_POST['no_registrasi']) && !isset($_POST['byrcicilan'])) {
     $no_registrasi = $_POST['no_registrasi'];
     $action_type = $_POST['action_type'];
+    $last_action_type = $action_type;
 
     try {
         $data_sql = "SELECT * FROM data_gadai WHERE id = ?";
@@ -41,8 +154,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type'], $_POST
                 $due_date = new DateTime($data['tanggal_jatuh_tempo']);
                 $aksi_at = !empty($data['aksi_jatuh_tempo_at']) ? new DateTime($data['aksi_jatuh_tempo_at']) : null;
                 $aksi_pending = !$aksi_at || ($aksi_at < $due_date);
+                $pelunasan_pending = ($data['aksi_jatuh_tempo'] === 'Pelunasan' && $data['status'] !== 'Ditebus');
+                if ($pelunasan_pending) {
+                    $aksi_pending = true;
+                }
 
-                if ($today < $due_date) {
+                if ($pelunasan_pending) {
+                    $error = "Pelunasan sedang menunggu pembayaran dan ACC admin. Gadai tetap berjalan.";
+                } elseif ($today < $due_date) {
                     $error = "Tindakan hanya bisa dilakukan saat jatuh tempo.";
                 } elseif (!$aksi_pending) {
                     $error = "Tindakan jatuh tempo sudah diproses sebelumnya.";
@@ -100,20 +219,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type'], $_POST
             } elseif ($action_type === 'pelunasan') {
                 $update_sql = "UPDATE data_gadai SET 
                         aksi_jatuh_tempo = 'Pelunasan',
-                        aksi_jatuh_tempo_at = NOW(),
+                        aksi_jatuh_tempo_at = NULL,
                         updated_at = NOW()
                     WHERE id = ?";
                 $update_stmt = $db->prepare($update_sql);
                 $update_stmt->execute([$no_registrasi]);
 
+                $denda_existing = !empty($data['denda_terakumulasi']) ? (float)$data['denda_terakumulasi'] : 0;
+                $denda_for_payment = $denda_total > 0 ? max($denda_total, $denda_existing) : $denda_existing;
+                list($_pokok, $_bunga_total, $payment_amount_calc) = calculateTotalTebus($data, $denda_for_payment);
+                $payment_amount = !empty($data['total_tebus']) ? (float)$data['total_tebus'] : $payment_amount_calc;
+                $show_payment = true;
+
                 try {
-                    $whatsapp->notifyUserPelunasan($data);
+                    $whatsapp->notifyUserPelunasan($data, $payment_amount, $briva_number, $briva_name);
                     $whatsapp->notifyAdminPelunasan($data);
                 } catch(Exception $e) {
                     error_log("WhatsApp notification failed: " . $e->getMessage());
                 }
 
-                $message = "Permintaan pelunasan telah kami terima. Tim kami akan menghubungi Anda.";
+                $message = "Permintaan pelunasan telah kami terima. Silakan lakukan pembayaran via BRIVA BRI.";
                 $message_type = 'success';
             }
                     }
@@ -143,6 +268,9 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                 $due_date = new DateTime($result['tanggal_jatuh_tempo']);
                 $aksi_at = !empty($result['aksi_jatuh_tempo_at']) ? new DateTime($result['aksi_jatuh_tempo_at']) : null;
                 $aksi_pending = !$aksi_at || ($aksi_at < $due_date);
+                if ($result['aksi_jatuh_tempo'] === 'Pelunasan' && $result['status'] !== 'Ditebus') {
+                    $aksi_pending = true;
+                }
 
                 if ($today > $due_date && $aksi_pending) {
                     $days_overdue = (int)$due_date->diff($today)->format('%a');
@@ -502,6 +630,8 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                 $denda_display = $denda_total > 0 ? max($denda_total, $denda_stored) : $denda_stored;
                 list($pokok_display, $bunga_total_display, $total_tebus_calc_display) = calculateTotalTebus($result, $denda_display);
                 $total_tebus_display = !empty($result['total_tebus']) ? (float)$result['total_tebus'] : $total_tebus_calc_display;
+                $payment_amount_display = $payment_amount !== null ? $payment_amount : $total_tebus_display;
+                $pelunasan_pending = ($result['aksi_jatuh_tempo'] === 'Pelunasan' && $result['status'] !== 'Ditebus');
                 ?>
                 
                 <div class="status-card <?php echo $status_class; ?>">
@@ -601,6 +731,23 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                             <span class="info-value" style="font-weight: 800; color: #0056b3;">Rp <?php echo number_format($total_tebus_display, 0, ',', '.'); ?></span>
                         </div>
                     </div>
+
+                    <?php if ($show_payment && $last_action_type === 'pelunasan'): ?>
+                        <div class="info-section">
+                            <h5>🏦 Pembayaran BRIVA BRI</h5>
+                            <div class="alert alert-success alert-box">
+                                Instruksi pembayaran ditampilkan di pop up agar Anda tetap di halaman ini.
+                            </div>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#paymentModal" style="border-radius: 50px; padding: 12px 30px; font-weight: 600;">
+                                📌 Lihat Instruksi Pembayaran
+                                </button>
+                                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadBuktiModal" style="border-radius: 50px; padding: 12px 30px; font-weight: 600;">
+                                    📤 Upload Bukti Pembayaran
+                                </button>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                     
                     <?php if ($result['keterangan_admin'] && $result['status'] == 'Disetujui'): ?>
                         <div class="alert alert-info" style="border-radius: 15px; padding: 15px; margin-top: 20px;">
@@ -639,7 +786,19 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                         </div>
                     <?php endif; ?>
 
-                    <?php if (!empty($result['tanggal_jatuh_tempo']) && in_array($result['status'], ['Disetujui', 'Diperpanjang'], true) && $aksi_pending): ?>
+                    <?php if ($pelunasan_pending): ?>
+                        <div class="alert alert-warning alert-box">
+                            <strong>⏳ Pelunasan Menunggu</strong><br>
+                            Pembayaran belum masuk atau belum di-ACC admin. Gadai tetap berjalan hingga pembayaran dikonfirmasi.
+                        </div>
+                        <div class="info-section">
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadBuktiModal" style="border-radius: 50px; padding: 12px 30px; font-weight: 600;">
+                                📤 Upload Bukti Pembayaran
+                            </button>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if (!empty($result['tanggal_jatuh_tempo']) && in_array($result['status'], ['Disetujui', 'Diperpanjang'], true) && $aksi_pending && !$pelunasan_pending): ?>
                         <?php if ($today >= new DateTime($result['tanggal_jatuh_tempo'])): ?>
                             <div class="info-section">
                                 <h5>🧾 Pilih Tindakan Jatuh Tempo</h5>
@@ -667,5 +826,131 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+    <?php if ($result && ($show_payment || $pelunasan_pending)): ?>
+        <div class="modal fade" id="uploadBuktiModal" tabindex="-1" aria-labelledby="uploadBuktiModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content" style="border-radius: 20px;">
+                    <div class="modal-header" style="border-bottom: 1px solid #e3f2fd;">
+                        <h5 class="modal-title" id="uploadBuktiModalLabel">📤 Upload Bukti Pembayaran</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form method="POST" action="cek_status.php" enctype="multipart/form-data">
+                        <div class="modal-body">
+                            <input type="hidden" name="no_registrasi" value="<?php echo $result['id']; ?>">
+                            <div class="mb-3">
+                                <label class="form-label">NIK/KTP</label>
+                                <input type="text" class="form-control" name="ktp" value="<?php echo htmlspecialchars($result['no_ktp']); ?>" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Nominal Pembayaran</label>
+                                <input type="text" class="form-control" id="uploadAmount" name="amount" value="<?php echo number_format($payment_amount_display, 0, ',', '.'); ?>" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Metode Pembayaran</label>
+                                <select class="form-select" name="method" required>
+                                    <option value="" disabled selected>Pilih metode</option>
+                                    <option value="BRIVA">BRIVA</option>
+                                    <option value="Transfer">Transfer</option>
+                                    <option value="ATM">ATM</option>
+                                    <option value="Teller">Teller</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Bukti Pembayaran</label>
+                                <input type="file" class="form-control" id="uploadReceipt" name="receipt" accept="image/jpeg,image/jpg,image/png,image/gif" required>
+                                <div class="mt-2" id="uploadPreview"></div>
+                            </div>
+                            <div class="form-text">Pastikan foto bukti pembayaran jelas dan dapat dibaca.</div>
+                        </div>
+                        <div class="modal-footer" style="border-top: 1px solid #e3f2fd;">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius: 50px;">Batal</button>
+                            <button type="submit" class="btn btn-primary" name="byrcicilan" style="border-radius: 50px;">Kirim Bukti</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+    <?php if ($show_payment && $last_action_type === 'pelunasan'): ?>
+        <div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content" style="border-radius: 20px;">
+                    <div class="modal-header" style="border-bottom: 1px solid #e3f2fd;">
+                        <h5 class="modal-title" id="paymentModalLabel">🏦 Pembayaran BRIVA BRI</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="info-row">
+                            <span class="info-label">Nominal Pembayaran:</span>
+                            <span class="info-value"><strong>Rp <?php echo number_format($payment_amount_display, 0, ',', '.'); ?></strong></span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">No. BRIVA:</span>
+                            <span class="info-value"><strong><?php echo $briva_number; ?></strong></span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Atas Nama:</span>
+                            <span class="info-value"><strong><?php echo $briva_name; ?></strong></span>
+                        </div>
+                        <div class="mt-3">
+                            <strong>Cara bayar:</strong>
+                            <div>1) Buka BRImo/ATM BRI</div>
+                            <div>2) Pilih BRIVA</div>
+                            <div>3) Masukkan nomor BRIVA di atas</div>
+                            <div>4) Pastikan nominal sesuai, lalu konfirmasi</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer" style="border-top: 1px solid #e3f2fd;">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius: 50px;">Tutup</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                const modalEl = document.getElementById('paymentModal');
+                if (modalEl) {
+                    const paymentModal = new bootstrap.Modal(modalEl, {
+                        backdrop: 'static',
+                        keyboard: false
+                    });
+                    paymentModal.show();
+                }
+            });
+        </script>
+    <?php endif; ?>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const amountInput = document.getElementById('uploadAmount');
+            if (amountInput) {
+                amountInput.addEventListener('input', () => {
+                    const raw = amountInput.value.replace(/[^0-9]/g, '');
+                    if (raw === '') {
+                        amountInput.value = '';
+                        return;
+                    }
+                    const formatted = new Intl.NumberFormat('id-ID').format(parseInt(raw, 10));
+                    amountInput.value = formatted;
+                });
+            }
+
+            const receiptInput = document.getElementById('uploadReceipt');
+            const preview = document.getElementById('uploadPreview');
+            if (receiptInput && preview) {
+                receiptInput.addEventListener('change', () => {
+                    const file = receiptInput.files && receiptInput.files[0];
+                    if (!file) {
+                        preview.innerHTML = '';
+                        return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        preview.innerHTML = '<img src="' + event.target.result + '" alt="Preview" style="max-width: 120px; max-height: 120px; border-radius: 8px;">';
+                    };
+                    reader.readAsDataURL(file);
+                });
+            }
+        });
+    </script>
 </body>
 </html>
