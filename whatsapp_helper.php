@@ -201,42 +201,89 @@ class WhatsAppHelper {
         
         return $this->sendMessage($this->sender_number, $message);
     }
+
+    /**
+     * Template pesan ke user setelah pengajuan diterima (menunggu verifikasi)
+     */
+    public function notifyUserSubmissionReceived($data) {
+        $message = "🔔 *PENGAJUAN GADAI DITERIMA (MENUNGGU VERIFIKASI)*\n\n";
+        $message .= "Halo " . ($data['nama_nasabah'] ?? '-') . ",\n\n";
+        $message .= "Terima kasih telah mengajukan gadai. Pengajuan Anda telah kami terima dan akan segera diverifikasi oleh admin.\n\n";
+        $message .= "📋 *No. Registrasi:* #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
+
+        // Barang details
+        $item = trim((($data['merk'] ?? '') . ' ' . ($data['tipe'] ?? '')));
+        $message .= "📱 *Barang:* " . ($data['jenis_barang'] ?? '-') . (!empty($item) ? " - {$item}" : "") . "\n";
+        if (!empty($data['imei_serial'])) {
+            $message .= "🔢 IMEI/Serial: " . $data['imei_serial'] . "\n";
+        }
+        if (!empty($data['kelengkapan_hp'])) {
+            $message .= "📦 Kelengkapan: " . $data['kelengkapan_hp'] . "\n";
+        }
+        if (!empty($data['kondisi'])) {
+            $message .= "🛠️ Kondisi: " . $data['kondisi'] . "\n";
+        }
+        $message .= "\n";
+
+        if (!empty($data['jumlah_pinjaman'])) {
+            $message .= "💰 *Jumlah Pengajuan:* Rp " . number_format($data['jumlah_pinjaman'], 0, ',', '.') . "\n";
+        }
+        if (!empty($data['tanggal_jatuh_tempo'])) {
+            $message .= "📅 *Jatuh Tempo (estimasi):* " . date('d F Y', strtotime($data['tanggal_jatuh_tempo'])) . "\n";
+        }
+
+        $message .= "\nKami akan menghubungi Anda melalui WhatsApp setelah verifikasi selesai.\n";
+        $message .= "Jika ada pertanyaan, hubungi: 0858-2309-1908\n\n";
+        $message .= "Hormat kami,\nGadai Cepat Timika Papua";
+
+        return $this->sendMessage($data['no_hp'], $message);
+    }
     
     /**
      * Template pesan untuk pengajuan disetujui (ke User)
      */
     public function notifyUserApproved($data) {
-        $message = "✅ *PENGAJUAN DISETUJUI*\n\n";
-        $message .= "Halo {$data['nama_nasabah']},\n\n";
-        $message .= "Pengajuan gadai Anda telah *DISETUJUI*!\n\n";
-        $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
-        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk']} {$data['tipe']}\n";
-        
-        if ($data['jumlah_disetujui']) {
-            $message .= "💰 Pengajuan: Rp " . number_format($data['jumlah_pinjaman'], 0, ',', '.') . "\n";
-            $message .= "✅ *Disetujui: Rp " . number_format($data['jumlah_disetujui'], 0, ',', '.') . "*\n";
-            
-            $selisih = $data['jumlah_disetujui'] - $data['jumlah_pinjaman'];
-            if ($selisih != 0) {
-                $message .= "ℹ️ Penyesuaian: ";
-                $message .= $selisih > 0 ? "+" : "";
-                $message .= "Rp " . number_format(abs($selisih), 0, ',', '.') . "\n";
-            }
-        } else {
-            $message .= "💰 Pinjaman: Rp " . number_format($data['jumlah_pinjaman'], 0, ',', '.') . "\n";
+        // Calculate financial breakdown
+        $pokok = !empty($data['jumlah_disetujui']) ? (float)$data['jumlah_disetujui'] : (float)$data['jumlah_pinjaman'];
+        $harga_pasar = !empty($data['harga_pasar']) ? (float)$data['harga_pasar'] : 0.0;
+        $bunga_pct = isset($data['bunga']) ? (float)$data['bunga'] : 0.0;
+        $lama = isset($data['lama_gadai']) ? (int)$data['lama_gadai'] : 0;
+        $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
+    $admin_fee = round($pokok * 0.01); // 1% biaya admin, rounded to nearest rupiah
+        $denda = !empty($data['denda_terakumulasi']) ? (float)$data['denda_terakumulasi'] : 0.0;
+        $total_tebus_calc = $pokok + $bunga_total + $admin_fee + $denda;
+
+        // Build message matching provided template
+        $pengajuan_display = isset($data['jumlah_pinjaman']) ? (float)$data['jumlah_pinjaman'] : 0.0;
+        $disetujui_display = isset($data['jumlah_disetujui']) ? (float)$data['jumlah_disetujui'] : $pengajuan_display;
+      
+    $message = "✅ *PENGAJUAN DISETUJUI*\n\n";
+    $message .= "Halo {$data['nama_nasabah']},\n\n";
+        $message .= "📋 *No. Registrasi:* #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
+        $item = trim((string)($data['merk'] . ' ' . $data['tipe']));
+        $message .= "📱 *Barang:* {$data['jenis_barang']}" . (!empty($item) ? " - {$item}" : "") . "\n";
+        $message .= "💰 *Pengajuan:* Rp " . number_format($pengajuan_display, 0, ',', '.') . "\n";
+        $message .= "✅ *Disetujui:* Rp " . number_format($disetujui_display, 0, ',', '.') . "\n";
+        if (!empty($data['tanggal_jatuh_tempo'])) {
+            $message .= "📅 *Jatuh Tempo:* " . date('d F Y', strtotime($data['tanggal_jatuh_tempo'])) . "\n\n";
         }
-        
-        $message .= "📅 Jatuh Tempo: " . date('d F Y', strtotime($data['tanggal_jatuh_tempo'])) . "\n\n";
-        
-        if (!empty($data['keterangan_admin'])) {
-            $message .= "📝 Catatan Admin:\n";
-            $message .= $data['keterangan_admin'] . "\n\n";
-        }
-        
+        $message .= "*Kelengkapan:* " . (!empty($data['kelengkapan_hp']) ? $data['kelengkapan_hp'] : '-') . "\n";
+        $message .= "*Kondisi:* " . (!empty($data['kondisi']) ? $data['kondisi'] : '-') . "\n";
+        $message .= "*IMEI/Serial Number:* " . (!empty($data['imei_serial']) ? $data['imei_serial'] : '-') . "\n\n";
+
+        $message .= "*Rincian Pembiayaan:*\n";
+        $message .= "- *Pokok pinjaman:* Rp " . number_format($disetujui_display, 0, ',', '.') . "\n";
+        $message .= "- *Bunga:* Rp " . number_format($bunga_total, 0, ',', '.') . " ({$bunga_pct}% x {$lama} bulan)\n";
+        $message .= "- *Biaya administrasi (1%):* Rp " . number_format($admin_fee, 0, ',', '.') . "\n\n";
+
+        $message .= "*Perkiraan Total Yang Harus Dibayar:* Rp " . number_format($total_tebus_calc, 0, ',', '.') . "\n\n";
+        $message .= "📝 *Catatan Admin:* " . (!empty($data['keterangan_admin']) ? $data['keterangan_admin'] : '-') . "\n\n";
+
         $message .= "Silakan datang ke kantor kami untuk proses pencairan dana.\n\n";
         $message .= "📍 Gadai Cepat Timika Papua\n";
-        $message .= "📞 WA: 0858-2309-1908";
-        
+        $message .= "📞 WA: 0858-2309-1908\n\n";
+     
+
         return $this->sendMessage($data['no_hp'], $message);
     }
     
@@ -247,14 +294,22 @@ class WhatsAppHelper {
         $message = "❌ *PENGAJUAN DITOLAK*\n\n";
         $message .= "Halo {$data['nama_nasabah']},\n\n";
         $message .= "Mohon maaf, pengajuan gadai Anda *DITOLAK*.\n\n";
-        $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
-        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk']} {$data['tipe']}\n\n";
-        
+        $message .= "📋 *No. Registrasi:* #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
+        $item = trim((string)($data['merk'] . ' ' . $data['tipe']));
+        $message .= "📱 *Barang:* {$data['jenis_barang']}" . (!empty($item) ? " - {$item}" : "") . "\n";
+        if (!empty($data['kelengkapan_hp'])) {
+            $message .= "- *Kelengkapan:* {$data['kelengkapan_hp']}\n";
+        }
+        if (!empty($data['kondisi'])) {
+            $message .= "- *Kemulusan/Kondisi:* {$data['kondisi']}\n";
+        }
+        $message .= "\n";
+
         if (!empty($data['reject_reason'])) {
-            $message .= "📝 Alasan Penolakan:\n";
+            $message .= "📝 *Alasan Penolakan:*\n";
             $message .= $data['reject_reason'] . "\n\n";
         }
-        
+
         $message .= "Anda dapat mengajukan kembali setelah memenuhi persyaratan.\n\n";
         $message .= "Hubungi kami untuk informasi lebih lanjut:\n";
         $message .= "📞 WA: 0858-2309-1908";
@@ -294,22 +349,97 @@ class WhatsAppHelper {
     }
 
     /**
+     * Notify admin when a user uploads proof for perpanjangan (pending review)
+     */
+    public function notifyAdminPerpanjanganUpload($data, $amount = null, $buktiFile = null) {
+        $message = "🔔 *UPLOAD BUKTI PERPANJANGAN*\n\n";
+        $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
+        $message .= "👤 Nama: {$data['nama_nasabah']}\n";
+        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk']} {$data['tipe']}\n";
+        if (!empty($amount)) {
+            $message .= "💸 Nominal dibayar (bunga+denda): Rp " . number_format($amount, 0, ',', '.') . "\n";
+        }
+        $message .= "\nStatus: *Menunggu ACC Admin*\n";
+
+        if (!empty($buktiFile) && !empty($data['no_ktp'])) {
+            $buktiUrl = rtrim($this->getBaseUrl(), '/') . "/GadaiHp/payment/" . rawurlencode($data['no_ktp']) . "/" . rawurlencode($buktiFile);
+            $message .= "Bukti: " . $buktiUrl . "\n";
+        }
+
+        $message .= "\nBuka detail di:\n";
+        $message .= $this->getBaseUrl() . "/GadaiHp/admin_verifikasi.php";
+
+        return $this->sendMessage($this->sender_number, $message);
+    }
+
+    /**
+     * Notify user when they upload perpanjangan proof (confirmation)
+     */
+    public function notifyUserPerpanjanganUpload($data, $amount = null, $buktiFile = null) {
+        $nama = !empty($data['nama_nasabah']) ? $data['nama_nasabah'] : '-';
+        $message = "🔔 *BUKTI PERPANJANGAN DITERIMA*\n\n";
+        $message .= "Halo {$nama},\n\n";
+        $message .= "Kami telah menerima bukti pembayaran perpanjangan untuk pengajuan Anda. Tim admin akan memverifikasi bukti tersebut.\n\n";
+        $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
+        if (!empty($amount)) {
+            $message .= "💸 Nominal dibayar (bunga+denda): Rp " . number_format($amount, 0, ',', '.') . "\n";
+        }
+        if (!empty($buktiFile) && !empty($data['no_ktp'])) {
+            $buktiUrl = rtrim($this->getBaseUrl(), '/') . "/GadaiHp/payment/" . rawurlencode($data['no_ktp']) . "/" . rawurlencode($buktiFile);
+            $message .= "Bukti: " . $buktiUrl . "\n";
+        }
+
+        $message .= "\nStatus: *Menunggu ACC Admin*. Kami akan menghubungi Anda setelah bukti diverifikasi.\n\n";
+        $message .= "Terima kasih,\nGadai Cepat Timika Papua";
+
+        return $this->sendMessage($data['no_hp'], $message);
+    }
+
+    /**
      * Template pesan untuk pelunasan gadai (ke User)
      */
     public function notifyUserPelunasan($data, $amount = null, $briva_number = null, $briva_name = null) {
-        $message = "💰 *PELUNASAN GADAI*\n\n";
-        $message .= "Halo {$data['nama_nasabah']},\n\n";
-        $message .= "Permintaan pelunasan gadai Anda telah kami terima.\n\n";
-        $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
-        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk']} {$data['tipe']}\n\n";
-        if (!empty($amount) && !empty($briva_number) && !empty($briva_name)) {
-            $message .= "🏦 *Pembayaran BRIVA BRI*\n";
-            $message .= "Nominal: Rp " . number_format($amount, 0, ',', '.') . "\n";
-            $message .= "No. BRIVA: {$briva_number}\n";
-            $message .= "Atas Nama: {$briva_name}\n\n";
-        }
-        $message .= "Tim kami akan menghubungi Anda untuk proses selanjutnya.\n\n";
-        $message .= "📞 WA: 0858-2309-1908";
+        $pokok = !empty($data['jumlah_disetujui']) ? (float)$data['jumlah_disetujui'] : (float)$data['jumlah_pinjaman'];
+        $bunga_pct = isset($data['bunga']) ? (float)$data['bunga'] : 0.0;
+        $lama = isset($data['lama_gadai']) ? (int)$data['lama_gadai'] : 0;
+        $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
+    $admin_fee = round($pokok * 0.01);
+
+    $message = "💰 *PERMINTAAN PELUNASAN DITERIMA*\n\n";
+    $message .= "Yth. Bapak/Ibu {$data['nama_nasabah']},\n\n";
+    $message .= "Terima kasih. Permintaan pelunasan gadai Anda telah kami terima dan sedang diproses.\n\n";
+    $message .= "📋 *No. Registrasi:* #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
+    $item_desc = trim((string)($data['merk'] . ' ' . $data['tipe']));
+    $imei_text = !empty($data['imei_serial']) ? " (IMEI/Serial: {$data['imei_serial']})" : '';
+    $message .= "📱 *Barang:* {$data['jenis_barang']}" . (!empty($item_desc) ? " - {$item_desc}" : "") . $imei_text . "\n";
+    if (!empty($data['kelengkapan_hp'])) {
+        $message .= "- *Kelengkapan:* {$data['kelengkapan_hp']}\n";
+    }
+    if (!empty($data['kondisi'])) {
+        $message .= "- *Kemulusan/Kondisi:* {$data['kondisi']}\n";
+    }
+    if (!empty($data['tanggal_gadai'])) {
+        $message .= "- *Tanggal Gadai:* " . date('d F Y', strtotime($data['tanggal_gadai'])) . "\n";
+    }
+    if (!empty($data['tanggal_jatuh_tempo'])) {
+        $message .= "- *Tanggal Jatuh Tempo:* " . date('d F Y', strtotime($data['tanggal_jatuh_tempo'])) . "\n";
+    }
+    $message .= "\n";
+    if (!empty($amount) && !empty($briva_number) && !empty($briva_name)) {
+        $message .= "🏦 *Pembayaran BRIVA BRI*\n";
+        $message .= "Nominal: Rp " . number_format($amount, 0, ',', '.') . "\n";
+        $message .= "No. BRIVA: {$briva_number}\n";
+        $message .= "Atas Nama: {$briva_name}\n\n";
+    }
+    $message .= "*Rincian estimasi (untuk referensi):*\n";
+    $message .= "- *Pokok pinjaman:* Rp " . number_format($pokok, 0, ',', '.') . "\n";
+    $message .= "- *Bunga:* Rp " . number_format($bunga_total, 0, ',', '.') . " ({$bunga_pct}% x {$lama} bulan)\n";
+    $message .= "- *Biaya administrasi (1%):* Rp " . number_format($admin_fee, 0, ',', '.') . "\n";
+    $estimated_total = $pokok + $bunga_total + $admin_fee;
+    $message .= "\n*Estimasi Total (tanpa denda): Rp " . number_format($estimated_total, 0, ',', '.') . "*\n\n";
+    $message .= "Petugas kami akan menghubungi Anda untuk konfirmasi lebih lanjut dan instruksi pembayaran jika diperlukan.\n\n";
+    $message .= "Hormat kami,\nGadai Cepat Timika Papua\n";
+    $message .= "📞 0858-2309-1908";
 
         return $this->sendMessage($data['no_hp'], $message);
     }
@@ -332,13 +462,44 @@ class WhatsAppHelper {
      * Template pesan pelunasan terverifikasi (ke User)
      */
     public function notifyUserPelunasanVerified($data) {
+        $pokok = !empty($data['jumlah_disetujui']) ? (float)$data['jumlah_disetujui'] : (float)$data['jumlah_pinjaman'];
+        $bunga_pct = isset($data['bunga']) ? (float)$data['bunga'] : 0.0;
+        $lama = isset($data['lama_gadai']) ? (int)$data['lama_gadai'] : 0;
+        $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
+    $admin_fee = round($pokok * 0.01);
+        $denda = !empty($data['denda_terakumulasi']) ? (float)$data['denda_terakumulasi'] : 0.0;
+        $total_tebus_calc = $pokok + $bunga_total + $admin_fee + $denda;
+
         $message = "✅ *PEMBAYARAN TERVERIFIKASI*\n\n";
-        $message .= "Halo {$data['nama_nasabah']},\n";
-        $message .= "Pembayaran Anda sudah kami verifikasi. Status gadai: *Ditebus*.\n\n";
-        $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
-        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk']} {$data['tipe']}\n\n";
-        $message .= "Terima kasih.\n";
-        $message .= "📞 WA: 0858-2309-1908";
+        $message .= "Yth. Bapak/Ibu {$data['nama_nasabah']},\n\n";
+        $message .= "Pembayaran Anda telah kami terima dan diverifikasi. Status pengajuan: *Ditebus*.\n\n";
+        $message .= "📋 *No. Registrasi:* #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
+        $item_desc = trim((string)($data['merk'] . ' ' . $data['tipe']));
+        $imei_text = !empty($data['imei_serial']) ? " (IMEI/Serial: {$data['imei_serial']})" : '';
+        $message .= "📱 *Barang:* {$data['jenis_barang']}" . (!empty($item_desc) ? " - {$item_desc}" : "") . $imei_text . "\n";
+        if (!empty($data['kelengkapan_hp'])) {
+            $message .= "- *Kelengkapan:* {$data['kelengkapan_hp']}\n";
+        }
+        if (!empty($data['kondisi'])) {
+            $message .= "- *Kemulusan/Kondisi:* {$data['kondisi']}\n";
+        }
+        if (!empty($data['tanggal_gadai'])) {
+            $message .= "- *Tanggal Gadai:* " . date('d F Y', strtotime($data['tanggal_gadai'])) . "\n";
+        }
+        if (!empty($data['tanggal_jatuh_tempo'])) {
+            $message .= "- *Tanggal Jatuh Tempo:* " . date('d F Y', strtotime($data['tanggal_jatuh_tempo'])) . "\n";
+        }
+        $message .= "\n*Rincian Pembayaran:*\n";
+        $message .= "- *Pokok:* Rp " . number_format($pokok, 0, ',', '.') . "\n";
+        $message .= "- *Bunga:* Rp " . number_format($bunga_total, 0, ',', '.') . " ({$bunga_pct}% x {$lama} bulan)\n";
+        $message .= "- *Biaya administrasi (1%):* Rp " . number_format($admin_fee, 0, ',', '.') . "\n";
+        if ($denda > 0) {
+            $message .= "- *Denda:* Rp " . number_format($denda, 0, ',', '.') . "\n";
+        }
+        $message .= "\n*Total Tebus:* Rp " . number_format($total_tebus_calc, 0, ',', '.') . "\n\n";
+        $message .= "Terima kasih atas kepercayaan Anda.\n\n";
+        $message .= "Hormat kami,\nGadai Cepat Timika Papua\n";
+        $message .= "📞 0858-2309-1908";
 
         return $this->sendMessage($data['no_hp'], $message);
     }
@@ -347,16 +508,40 @@ class WhatsAppHelper {
      * Template pesan reminder 3 hari sebelum jatuh tempo (ke User)
      */
     public function notifyUserDueSoon($data) {
-        $message = "⏰ *REMINDER JATUH TEMPO*\n\n";
-        $message .= "Halo {$data['nama_nasabah']},\n\n";
-        $message .= "Jatuh tempo gadai Anda tinggal *3 hari lagi*.\n\n";
-        $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
-        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk']} {$data['tipe']}\n";
-        $message .= "📅 Jatuh Tempo: " . date('d F Y', strtotime($data['tanggal_jatuh_tempo'])) . "\n\n";
-        $message .= "Silakan siapkan pelunasan atau hubungi kami untuk perpanjangan.\n\n";
-        $message .= "Cek status di:\n";
-        $message .= $this->getBaseUrl() . "/GadaiHp/cek_status.php?no_registrasi=" . $data['id'] . "\n\n";
-        $message .= "📞 WA: 0858-2309-1908";
+        $pokok = !empty($data['jumlah_disetujui']) ? (float)$data['jumlah_disetujui'] : (float)$data['jumlah_pinjaman'];
+        $bunga_pct = isset($data['bunga']) ? (float)$data['bunga'] : 0.0;
+        $lama = isset($data['lama_gadai']) ? (int)$data['lama_gadai'] : 0;
+        $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
+    $admin_fee = round($pokok * 0.01);
+        $total_tebus_est = $pokok + $bunga_total + $admin_fee;
+
+    $message = "⏰ *PENGINGAT JATUH TEMPO (3 HARI)*\n\n";
+    $message .= "Yth. Bapak/Ibu {$data['nama_nasabah']},\n\n";
+    $message .= "Kami informasikan bahwa jatuh tempo gadai Anda akan tiba dalam *3 hari* pada tanggal *" . date('d F Y', strtotime($data['tanggal_jatuh_tempo'])) . "*.\n\n";
+    $message .= "📋 *No. Registrasi:* #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
+    $item_desc = trim((string)($data['merk'] . ' ' . $data['tipe']));
+    $imei_text = !empty($data['imei_serial']) ? " (IMEI/Serial: {$data['imei_serial']})" : '';
+    $message .= "📱 *Barang:* {$data['jenis_barang']}" . (!empty($item_desc) ? " - {$item_desc}" : "") . $imei_text . "\n";
+    if (!empty($data['kelengkapan_hp'])) {
+        $message .= "- *Kelengkapan:* {$data['kelengkapan_hp']}\n";
+    }
+    if (!empty($data['kondisi'])) {
+        $message .= "- *Kemulusan/Kondisi:* {$data['kondisi']}\n";
+    }
+    if (!empty($data['tanggal_gadai'])) {
+        $message .= "- *Tanggal Gadai:* " . date('d F Y', strtotime($data['tanggal_gadai'])) . "\n";
+    }
+    $message .= "\n";
+    $message .= "*Rincian estimasi untuk referensi:*\n";
+    $message .= "- *Pokok:* Rp " . number_format($pokok, 0, ',', '.') . "\n";
+    $message .= "- *Bunga:* Rp " . number_format($bunga_total, 0, ',', '.') . " ({$bunga_pct}% x {$lama} bulan)\n";
+    $message .= "- *Biaya administrasi (1%):* Rp " . number_format($admin_fee, 0, ',', '.') . "\n";
+    $message .= "\n*Estimasi Total Tebus (tanpa denda):* Rp " . number_format($total_tebus_est, 0, ',', '.') . "\n\n";
+    $message .= "Silakan siapkan pelunasan atau hubungi kami untuk opsi perpanjangan.\n\n";
+    $message .= "Cek status di: \n";
+    $message .= $this->getBaseUrl() . "/GadaiHp/cek_status.php?no_registrasi=" . $data['id'] . "\n\n";
+    $message .= "Hormat kami,\nGadai Cepat Timika Papua\n";
+    $message .= "📞 0858-2309-1908";
 
         return $this->sendMessage($data['no_hp'], $message);
     }
@@ -369,27 +554,98 @@ class WhatsAppHelper {
         $bunga = (float)$data['bunga'];
         $lama = (int)$data['lama_gadai'];
         $bunga_total = $pokok * ($bunga / 100) * $lama;
-        $denda_harian = 30000;
-        $denda_total = $denda_harian * $days_overdue;
-        $total_tebus = $pokok + $bunga_total + $denda_total;
+    $denda_harian = 30000;
+    // Denda hanya dihitung sampai maksimal 7 hari; pada hari ke-8 sistem akan menandai sebagai Gagal Tebus
+    $denda_days_counted = min($days_overdue, 7);
+    $denda_total = $denda_harian * $denda_days_counted;
+    $total_tebus = $pokok + $bunga_total + $denda_total;
 
-        $message = "⚠️ *REMINDER TERLAMBAT*\n\n";
-        $message .= "Halo {$data['nama_nasabah']},\n\n";
-        $message .= "Gadai Anda sudah lewat jatuh tempo *{$days_overdue} hari*.\n\n";
-        $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
-        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk']} {$data['tipe']}\n";
-        $message .= "📅 Jatuh Tempo: " . date('d F Y', strtotime($data['tanggal_jatuh_tempo'])) . "\n\n";
-        $message .= "Rincian Tebus:\n";
-        $message .= "- Pokok: Rp " . number_format($pokok, 0, ',', '.') . "\n";
-        $message .= "- Bunga: Rp " . number_format($bunga_total, 0, ',', '.') . " ({$bunga}% x {$lama} bln)\n";
-        $message .= "- Denda Harian: Rp " . number_format($denda_harian, 0, ',', '.') . " x {$days_overdue} hari = Rp " . number_format($denda_total, 0, ',', '.') . "\n";
-        $message .= "*Total Tebus: Rp " . number_format($total_tebus, 0, ',', '.') . "*\n\n";
-        $message .= "Segera lakukan pelunasan atau ajukan perpanjangan.\n\n";
-        $message .= "Cek status di:\n";
-        $message .= $this->getBaseUrl() . "/GadaiHp/cek_status.php?no_registrasi=" . $data['id'] . "\n\n";
-        $message .= "📞 WA: 0858-2309-1908";
+    $message = "⚠️ *PENGINGAT: JATUH TEMPO TERLEWAT*\n\n";
+    $message .= "Yth. Bapak/Ibu {$data['nama_nasabah']},\n\n";
+    $message .= "Kami mencatat bahwa gadai Anda telah melewati tanggal jatuh tempo sebesar *{$days_overdue} hari*. Mohon segera mengambil tindakan untuk menghindari konsekuensi lebih lanjut.\n\n";
+    $message .= "📋 *No. Registrasi:* #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
+    $item_desc = trim((string)($data['merk'] . ' ' . $data['tipe']));
+    $imei_text = !empty($data['imei_serial']) ? " (IMEI/Serial: {$data['imei_serial']})" : '';
+    $message .= "📱 *Barang:* {$data['jenis_barang']}" . (!empty($item_desc) ? " - {$item_desc}" : "") . $imei_text . "\n";
+    if (!empty($data['kelengkapan_hp'])) {
+        $message .= "- *Kelengkapan:* {$data['kelengkapan_hp']}\n";
+    }
+    if (!empty($data['kondisi'])) {
+        $message .= "- *Kemulusan/Kondisi:* {$data['kondisi']}\n";
+    }
+    if (!empty($data['tanggal_gadai'])) {
+        $message .= "- *Tanggal Gadai:* " . date('d F Y', strtotime($data['tanggal_gadai'])) . "\n";
+    }
+    $message .= "- *Tanggal Jatuh Tempo:* " . date('d F Y', strtotime($data['tanggal_jatuh_tempo'])) . "\n\n";
+    $message .= "*Rincian Tebus:*\n";
+    $message .= "- *Pokok:* Rp " . number_format($pokok, 0, ',', '.') . "\n";
+    $message .= "- *Bunga:* Rp " . number_format($bunga_total, 0, ',', '.') . " ({$bunga}% x {$lama} bulan)\n";
+    $message .= "- *Denda Harian:* Rp " . number_format($denda_harian, 0, ',', '.') . " x {$denda_days_counted} hari = Rp " . number_format($denda_total, 0, ',', '.') . "\n";
+    $message .= "\n*Total Tebus:* Rp " . number_format($total_tebus, 0, ',', '.') . "\n\n";
+    $message .= "Mohon segera melakukan pelunasan atau menghubungi kami untuk mendiskusikan opsi perpanjangan.\n\n";
+    if ($days_overdue > 7) {
+        $message .= "⚠️ *PENTING:* Karena keterlambatan lebih dari 7 hari, pada hari ke-8 status akan otomatis berubah menjadi *Gagal Tebus*. Barang akan diproses sesuai ketentuan apabila tidak ada pelunasan.\n\n";
+    } else {
+        $message .= "Catatan: denda dihitung hingga maksimal 7 hari; jika tidak ada pelunasan hingga hari ke-8, pengajuan akan dinyatakan Gagal Tebus.\n\n";
+    }
+    $message .= "Cek status di:\n";
+    $message .= $this->getBaseUrl() . "/GadaiHp/cek_status.php?no_registrasi=" . $data['id'] . "\n\n";
+    $message .= "Hormat kami,\nGadai Cepat Timika Papua\n";
+    $message .= "📞 0858-2309-1908";
 
         return $this->sendMessage($data['no_hp'], $message);
+    }
+
+    /**
+     * Template pesan ketika status menjadi Gagal Tebus (ke User)
+     */
+    public function notifyUserGagalTebus($data) {
+        $message = "❗ *PENGUMUMAN: GAGAL TEBUS*\n\n";
+        $message .= "Yth. Bapak/Ibu {$data['nama_nasabah']},\n\n";
+        $message .= "Mohon maaf, pengajuan gadai Anda dinyatakan *Gagal Tebus* karena melewati batas tenggang. Barang akan diproses sesuai ketentuan.\n\n";
+        $message .= "📋 *No. Registrasi:* #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
+        $item_desc = trim((string)($data['merk'] . ' ' . $data['tipe']));
+        $imei_text = !empty($data['imei_serial']) ? " (IMEI/Serial: {$data['imei_serial']})" : '';
+        $message .= "📱 *Barang:* {$data['jenis_barang']}" . (!empty($item_desc) ? " - {$item_desc}" : "") . $imei_text . "\n\n";
+        if (!empty($data['tanggal_jatuh_tempo'])) {
+            $message .= "- *Tanggal Jatuh Tempo:* " . date('d F Y', strtotime($data['tanggal_jatuh_tempo'])) . "\n";
+        }
+        $denda = !empty($data['denda_terakumulasi']) ? (float)$data['denda_terakumulasi'] : 0.0;
+        if ($denda > 0) {
+            $message .= "- *Denda Terakumulasi:* Rp " . number_format($denda, 0, ',', '.') . "\n";
+        }
+        if (!empty($data['total_tebus'])) {
+            $message .= "\n*Total Tebus saat ini:* Rp " . number_format($data['total_tebus'], 0, ',', '.') . "\n\n";
+        }
+        $message .= "Silakan hubungi kami untuk informasi lebih lanjut.\n\n";
+        $message .= "Hormat kami,\nGadai Cepat Timika Papua\n";
+        $message .= "📞 0858-2309-1908";
+
+        return $this->sendMessage($data['no_hp'], $message);
+    }
+
+    /**
+     * Template pesan ketika status menjadi Gagal Tebus (ke Admin)
+     */
+    public function notifyAdminGagalTebus($data) {
+        $message = "⚠️ *PENGUMUMAN: GAGAL TEBUS*\n\n";
+        $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
+        $message .= "👤 Nama: {$data['nama_nasabah']}\n";
+        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk']} {$data['tipe']}\n";
+        if (!empty($data['tanggal_jatuh_tempo'])) {
+            $message .= "📅 Tgl Jatuh Tempo: " . date('d F Y', strtotime($data['tanggal_jatuh_tempo'])) . "\n";
+        }
+        $denda = !empty($data['denda_terakumulasi']) ? (float)$data['denda_terakumulasi'] : 0.0;
+        if ($denda > 0) {
+            $message .= "💸 Denda terakumulasi: Rp " . number_format($denda, 0, ',', '.') . "\n";
+        }
+        if (!empty($data['total_tebus'])) {
+            $message .= "💰 Total Tebus: Rp " . number_format($data['total_tebus'], 0, ',', '.') . "\n";
+        }
+        $message .= "\nBuka detail di:\n";
+        $message .= $this->getBaseUrl() . "/GadaiHp/admin_verifikasi.php";
+
+        return $this->sendMessage($this->sender_number, $message);
     }
 }
 

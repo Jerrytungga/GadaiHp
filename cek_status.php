@@ -25,6 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['byrcicilan'])) {
     $no_registrasi = $_POST['no_registrasi'] ?? '';
     $pelanggan = mysqli_real_escape_string($conn, trim($_POST['ktp'] ?? ''));
     $payment_input = trim($_POST['amount'] ?? '');
+    $action_for = isset($_POST['action_for']) ? trim($_POST['action_for']) : 'cicilan';
     $metode = mysqli_real_escape_string($conn, $_POST['method'] ?? '');
     $bukti = $_FILES['receipt'] ?? null;
 
@@ -48,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['byrcicilan'])) {
     }
 
     if (empty($upload_errors)) {
-        $checkGadai = mysqli_query($conn, "SELECT no_ktp FROM data_gadai WHERE id = '" . mysqli_real_escape_string($conn, $no_registrasi) . "' LIMIT 1");
+    $checkGadai = mysqli_query($conn, "SELECT no_ktp, imei_serial, jenis_barang, merk, tipe FROM data_gadai WHERE id = '" . mysqli_real_escape_string($conn, $no_registrasi) . "' LIMIT 1");
         if (!$checkGadai) {
             $upload_errors[] = 'Gagal memeriksa data gadai.';
         } elseif (mysqli_num_rows($checkGadai) === 0) {
@@ -67,8 +68,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['byrcicilan'])) {
             $upload_errors[] = 'Gagal memeriksa data transaksi.';
         } else {
             $attempts = (int)mysqli_fetch_assoc($checkAttempts)['total'];
-            if ($attempts >= 3) {
-                $upload_errors[] = 'Anda hanya dapat mengirim data maksimal 3 kali.';
+            if ($attempts >= 1) {
+                $upload_errors[] = 'Anda hanya dapat mengirim bukti pembayaran 1 kali. Jika perlu bantuan, hubungi admin.';
             }
         }
     }
@@ -90,11 +91,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['byrcicilan'])) {
         $target_file = $target_dir . $new_file_name;
 
         mysqli_begin_transaction($conn);
-        try {
-            $query = mysqli_query(
-                $conn,
-                "INSERT INTO `transaksi`(`pelanggan_nik`, `barang_id`, `jumlah_bayar`, `keterangan`, `metode_pembayaran`, `bukti`) VALUES ('$pelanggan', '$no_registrasi', '$payment', 'cicilan', '$metode', '$new_file_name')"
-            );
+            try {
+            // determine keterangan based on action_for
+            $allowed_ket = ['cicilan', 'pelunasan', 'perpanjangan'];
+            $keterangan_val = in_array($action_for, $allowed_ket, true) ? $action_for : 'cicilan';
+            $kesc = mysqli_real_escape_string($conn, $keterangan_val);
+            // include item identity (imei, jenis, merk, tipe) if available for easier admin lookup
+            $imei_val = isset($rowGadai['imei_serial']) ? mysqli_real_escape_string($conn, $rowGadai['imei_serial']) : null;
+            // serial_number will mirror imei_serial when available
+            $serial_val = $imei_val;
+            $jenis_val = isset($rowGadai['jenis_barang']) ? mysqli_real_escape_string($conn, $rowGadai['jenis_barang']) : null;
+            $merk_val = isset($rowGadai['merk']) ? mysqli_real_escape_string($conn, $rowGadai['merk']) : null;
+            $tipe_val = isset($rowGadai['tipe']) ? mysqli_real_escape_string($conn, $rowGadai['tipe']) : null;
+
+            $cols = [];
+            $vals = [];
+            if ($imei_val !== null) { $cols[] = "`imei`"; $vals[] = "'{$imei_val}'"; }
+            if ($serial_val !== null) { $cols[] = "`serial_number`"; $vals[] = "'{$serial_val}'"; }
+            if ($jenis_val !== null) { $cols[] = "`jenis_barang`"; $vals[] = "'{$jenis_val}'"; }
+            if ($merk_val !== null) { $cols[] = "`merk`"; $vals[] = "'{$merk_val}'"; }
+            if ($tipe_val !== null) { $cols[] = "`tipe`"; $vals[] = "'{$tipe_val}'"; }
+
+            $cols[] = "`pelanggan_nik`";
+            $cols[] = "`barang_id`";
+            $cols[] = "`jumlah_bayar`";
+            $cols[] = "`keterangan`";
+            $cols[] = "`metode_pembayaran`";
+            $cols[] = "`bukti`";
+
+            $vals[] = "'$pelanggan'";
+            $vals[] = "'$no_registrasi'";
+            $vals[] = "'$payment'";
+            $vals[] = "'$kesc'";
+            $vals[] = "'$metode'";
+            $vals[] = "'$new_file_name'";
+
+            $insert_sql = "INSERT INTO `transaksi`(" . implode(', ', $cols) . ") VALUES (" . implode(', ', $vals) . ")";
+            $query = mysqli_query($conn, $insert_sql);
 
             if (!$query) {
                 throw new Exception('Gagal menyimpan data pembayaran.');
@@ -105,7 +138,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['byrcicilan'])) {
             }
 
             mysqli_commit($conn);
-            $message = 'Bukti pembayaran berhasil diunggah. Menunggu konfirmasi admin.';
+            // If this upload is intended for perpanjangan, mark the gadai as perpanjangan pending so admin can confirm
+            if ($action_for === 'perpanjangan') {
+                $safe_reg = mysqli_real_escape_string($conn, $no_registrasi);
+                $update_q = mysqli_query($conn, "UPDATE data_gadai SET aksi_jatuh_tempo = 'Perpanjangan', aksi_jatuh_tempo_at = NULL, updated_at = NOW() WHERE id = '$safe_reg'");
+                // best-effort: ignore update failures here; admin will still see the transaksi record
+                $message = 'Bukti pembayaran perpanjangan berhasil diunggah. Menunggu konfirmasi admin.';
+
+                // notify admin via WhatsApp (best-effort)
+                try {
+                    if (isset($whatsapp)) {
+                        // fetch fresh data via PDO for richer message
+                        $stmt = $db->prepare("SELECT * FROM data_gadai WHERE id = ?");
+                        $stmt->execute([$no_registrasi]);
+                        $fresh = $stmt->fetch(PDO::FETCH_ASSOC);
+                        if ($fresh) {
+                            // pass the bukti filename so admin can quickly view the uploaded image
+                            $whatsapp->notifyAdminPerpanjanganUpload($fresh, (float)$payment, $new_file_name);
+                            // notify user that upload was received and is pending admin ACC
+                            try {
+                                if (method_exists($whatsapp, 'notifyUserPerpanjanganUpload')) {
+                                    $whatsapp->notifyUserPerpanjanganUpload($fresh, (float)$payment, $new_file_name);
+                                }
+                            } catch (Exception $e) {
+                                error_log('WA notify user perpanjangan failed: ' . $e->getMessage());
+                            }
+                        }
+                    }
+                } catch (Exception $e) {
+                    error_log('WA notify admin perpanjangan failed: ' . $e->getMessage());
+                }
+            } else {
+                $message = 'Bukti pembayaran berhasil diunggah. Menunggu konfirmasi admin.';
+            }
+            $last_action_type = $action_for;
             $message_type = 'success';
         } catch (Exception $e) {
             mysqli_rollback($conn);
@@ -192,10 +258,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type'], $_POST
                             $update_total_stmt->execute([$total_tebus_calc, $no_registrasi]);
                         }
             if ($action_type === 'perpanjangan') {
-                $current_due = $data['tanggal_jatuh_tempo'];
-                $new_due = date('Y-m-d', strtotime($current_due . ' +30 days'));
+                // Before allowing extension, require that bunga dan denda berjalan sudah dilunasi.
+                // Determine current denda (use capped calculation or stored) and bunga
+                $denda_for_check = isset($denda_total) ? $denda_total : 0;
+                $denda_stored_check = !empty($data['denda_terakumulasi']) ? (float)$data['denda_terakumulasi'] : 0;
+                $denda_display_check = max($denda_for_check, $denda_stored_check);
 
-                $update_sql = "UPDATE data_gadai SET 
+                list($pokok_chk, $bunga_total_chk, $total_tebus_chk) = calculateTotalTebus($data, $denda_display_check);
+
+                // For extension we require bunga + denda (not pelunasan pokok)
+                $required_for_extension = round($bunga_total_chk + $denda_display_check);
+
+                // Sum payments already made for this barang/pelanggan
+                try {
+                    $paid_stmt = $db->prepare("SELECT COALESCE(SUM(jumlah_bayar),0) FROM transaksi WHERE barang_id = ? AND pelanggan_nik = ?");
+                    $paid_stmt->execute([$no_registrasi, $data['no_ktp']]);
+                    $total_paid = (float)$paid_stmt->fetchColumn();
+                } catch (Exception $e) {
+                    // If transaksi table missing or query fails, assume no payments recorded
+                    $total_paid = 0.0;
+                }
+
+                if ($total_paid < $required_for_extension) {
+                    $short = $required_for_extension - $total_paid;
+                    $error = "Sebelum perpanjangan, harap lunasi semua tagihan bunga dan denda sebesar Rp " . number_format($required_for_extension, 0, ',', '.') . ". Kekurangan saat ini: Rp " . number_format($short, 0, ',', '.') . ". Silakan pilih Pelunasan dan unggah bukti pembayaran.";
+                    // do not process extension
+                } else {
+                    $current_due = $data['tanggal_jatuh_tempo'];
+                    $new_due = date('Y-m-d', strtotime($current_due . ' +30 days'));
+
+                    $update_sql = "UPDATE data_gadai SET 
                         status = 'Diperpanjang',
                         tanggal_jatuh_tempo = ?,
                         perpanjangan_ke = perpanjangan_ke + 1,
@@ -204,18 +296,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type'], $_POST
                         aksi_jatuh_tempo_at = NOW(),
                         updated_at = NOW()
                     WHERE id = ?";
-                $update_stmt = $db->prepare($update_sql);
-                $update_stmt->execute([$new_due, $no_registrasi]);
+                    $update_stmt = $db->prepare($update_sql);
+                    $update_stmt->execute([$new_due, $no_registrasi]);
 
-                try {
-                    $whatsapp->notifyUserExtension($data, $new_due);
-                    $whatsapp->notifyAdminExtension($data, $new_due);
-                } catch(Exception $e) {
-                    error_log("WhatsApp notification failed: " . $e->getMessage());
+                    try {
+                        $whatsapp->notifyUserExtension($data, $new_due);
+                        $whatsapp->notifyAdminExtension($data, $new_due);
+                    } catch(Exception $e) {
+                        error_log("WhatsApp notification failed: " . $e->getMessage());
+                    }
+
+                    $message = "Perpanjangan berhasil diproses. Jatuh tempo baru: " . date('d F Y', strtotime($new_due)) . ".";
+                    $message_type = 'success';
                 }
-
-                $message = "Perpanjangan berhasil diproses. Jatuh tempo baru: " . date('d F Y', strtotime($new_due)) . ".";
-                $message_type = 'success';
             } elseif ($action_type === 'pelunasan') {
                 $update_sql = "UPDATE data_gadai SET 
                         aksi_jatuh_tempo = 'Pelunasan',
@@ -800,17 +893,26 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
 
                     <?php if (!empty($result['tanggal_jatuh_tempo']) && in_array($result['status'], ['Disetujui', 'Diperpanjang'], true) && $aksi_pending && !$pelunasan_pending): ?>
                         <?php if ($today >= new DateTime($result['tanggal_jatuh_tempo'])): ?>
+                            <?php
+                                // amount required for extension: bunga (total for the period) + current denda
+                                $required_for_extension = round($bunga_total_display + $denda_display);
+                            ?>
                             <div class="info-section">
                                 <h5>🧾 Pilih Tindakan Jatuh Tempo</h5>
-                                <form method="POST" class="d-grid gap-2">
-                                    <input type="hidden" name="no_registrasi" value="<?php echo $result['id']; ?>">
-                                    <button type="submit" name="action_type" value="perpanjangan" class="btn btn-primary" style="border-radius: 50px; padding: 12px 30px; font-weight: 600;">
+                                <div class="d-grid gap-2">
+                                    <!-- Perpanjangan: open a modal to instruct payment of bunga+denda and upload proof -->
+                                    <button type="button" id="btnPerpanjangan" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#perpanjanganModal" style="border-radius: 50px; padding: 12px 30px; font-weight: 600;">
                                         🔁 Perpanjangan Gadai
                                     </button>
-                                    <button type="submit" name="action_type" value="pelunasan" class="btn btn-success" style="border-radius: 50px; padding: 12px 30px; font-weight: 600;">
-                                        💰 Pelunasan Gadai
-                                    </button>
-                                </form>
+
+                                    <!-- Pelunasan still uses server form submit -->
+                                    <form method="POST">
+                                        <input type="hidden" name="no_registrasi" value="<?php echo $result['id']; ?>">
+                                        <button type="submit" name="action_type" value="pelunasan" class="btn btn-success" style="border-radius: 50px; padding: 12px 30px; font-weight: 600;">
+                                            💰 Pelunasan Gadai
+                                        </button>
+                                    </form>
+                                </div>
                             </div>
                         <?php endif; ?>
                     <?php endif; ?>
@@ -865,6 +967,53 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                         <div class="modal-footer" style="border-top: 1px solid #e3f2fd;">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius: 50px;">Batal</button>
                             <button type="submit" class="btn btn-primary" name="byrcicilan" style="border-radius: 50px;">Kirim Bukti</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+    <?php if ($result): ?>
+        <!-- Perpanjangan Modal: show required bunga + denda and allow upload proof for perpanjangan -->
+        <div class="modal fade" id="perpanjanganModal" tabindex="-1" aria-labelledby="perpanjanganModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content" style="border-radius: 20px;">
+                    <div class="modal-header" style="border-bottom: 1px solid #e3f2fd;">
+                        <h5 class="modal-title" id="perpanjanganModalLabel">🔁 Perpanjangan - Lunasi Bunga & Denda</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form method="POST" action="cek_status.php" enctype="multipart/form-data">
+                        <div class="modal-body">
+                            <input type="hidden" name="no_registrasi" value="<?php echo $result['id']; ?>">
+                            <input type="hidden" name="action_for" value="perpanjangan">
+                            <div class="mb-3">
+                                <label class="form-label">NIK/KTP</label>
+                                <input type="text" class="form-control" name="ktp" value="<?php echo htmlspecialchars($result['no_ktp']); ?>" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Total yang harus dilunasi sekarang (Bunga + Denda)</label>
+                                <input type="text" class="form-control" id="perpanjanganAmount" name="amount" value="<?php echo number_format($required_for_extension ?? 0, 0, ',', '.'); ?>" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Metode Pembayaran</label>
+                                <select class="form-select" name="method" required>
+                                    <option value="" disabled selected>Pilih metode</option>
+                                    <option value="BRIVA">BRIVA</option>
+                                    <option value="Transfer">Transfer</option>
+                                    <option value="ATM">ATM</option>
+                                    <option value="Teller">Teller</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Bukti Pembayaran</label>
+                                <input type="file" class="form-control" id="perpanjanganReceipt" name="receipt" accept="image/jpeg,image/jpg,image/png,image/gif" required>
+                                <div class="mt-2" id="perpanjanganPreview"></div>
+                            </div>
+                            <div class="form-text">Unggah bukti pembayaran untuk perpanjangan. Setelah diunggah, status akan dicatat sebagai <strong>Perpanjangan</strong> dan menunggu konfirmasi admin.</div>
+                        </div>
+                        <div class="modal-footer" style="border-top: 1px solid #e3f2fd;">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius: 50px;">Batal</button>
+                            <button type="submit" class="btn btn-primary" name="byrcicilan" style="border-radius: 50px;">Kirim Bukti & Ajukan Perpanjangan</button>
                         </div>
                     </form>
                 </div>
@@ -950,7 +1099,64 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                     reader.readAsDataURL(file);
                 });
             }
+            // Perpanjangan fields (if present)
+            const perpanjanganAmount = document.getElementById('perpanjanganAmount');
+            if (perpanjanganAmount) {
+                perpanjanganAmount.addEventListener('input', () => {
+                    const raw = perpanjanganAmount.value.replace(/[^0-9]/g, '');
+                    if (raw === '') {
+                        perpanjanganAmount.value = '';
+                        return;
+                    }
+                    const formatted = new Intl.NumberFormat('id-ID').format(parseInt(raw, 10));
+                    perpanjanganAmount.value = formatted;
+                });
+            }
+
+            const perpanjanganReceipt = document.getElementById('perpanjanganReceipt');
+            const perpanjanganPreview = document.getElementById('perpanjanganPreview');
+            if (perpanjanganReceipt && perpanjanganPreview) {
+                perpanjanganReceipt.addEventListener('change', () => {
+                    const file = perpanjanganReceipt.files && perpanjanganReceipt.files[0];
+                    if (!file) {
+                        perpanjanganPreview.innerHTML = '';
+                        return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        perpanjanganPreview.innerHTML = '<img src="' + event.target.result + '" alt="Preview" style="max-width: 120px; max-height: 120px; border-radius: 8px;">';
+                    };
+                    reader.readAsDataURL(file);
+                });
+            }
         });
     </script>
+    <?php if ($result): ?>
+    <script>
+        // Auto-trigger reminder endpoint for this registration so reminders run while user views the page.
+        (function() {
+            const reg = <?php echo json_encode($result['id']); ?>;
+            if (!reg) return;
+
+            const endpoint = 'trigger_reminder.php?no_registrasi=' + encodeURIComponent(reg);
+
+            async function trigger() {
+                try {
+                    const resp = await fetch(endpoint, {cache: 'no-store'});
+                    // optional: handle response for debugging
+                    const data = await resp.json();
+                    // console.log('trigger_reminder', data);
+                } catch (err) {
+                    // ignore network errors; do not disturb the user
+                    // console.error('trigger_reminder error', err);
+                }
+            }
+
+            // call immediately, then every 60 seconds
+            trigger();
+            setInterval(trigger, 60000);
+        })();
+    </script>
+    <?php endif; ?>
 </body>
 </html>

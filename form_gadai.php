@@ -20,7 +20,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $kondisi = $_POST['kondisi'];
         $imei_serial = $_POST['imei_serial'];
         $kelengkapan_hp = $_POST['kelengkapan_hp'] ?? '';
-        $harga_pasar = $_POST['harga_pasar'];
+    // Harga pasar hanya diisi oleh admin saat verifikasi; simpan 0 sebagai placeholder
+    $harga_pasar = 0;
         $jumlah_pinjaman = $_POST['jumlah_pinjaman'];
         $bunga = $_POST['bunga'];
         $lama_gadai = $_POST['lama_gadai'];
@@ -82,6 +83,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         } catch(Exception $e) {
             // Jika gagal kirim WA, abaikan (data sudah tersimpan)
             error_log("WhatsApp notification failed: " . $e->getMessage());
+        }
+        // Kirim notifikasi WhatsApp ke User (rincian pengajuan)
+        try {
+            $data_pengajuan_user = [
+                'id' => $no_transaksi,
+                'nama_nasabah' => $nama_nasabah,
+                'jenis_barang' => $jenis_barang,
+                'merk' => $merk,
+                'tipe' => $tipe,
+                'imei_serial' => $imei_serial,
+                'kelengkapan_hp' => $kelengkapan_hp,
+                'kondisi' => $kondisi,
+                'jumlah_pinjaman' => $jumlah_pinjaman,
+                'tanggal_jatuh_tempo' => $tanggal_jatuh_tempo,
+                'no_hp' => $no_hp
+            ];
+            $whatsapp->notifyUserSubmissionReceived($data_pengajuan_user);
+        } catch(Exception $e) {
+            // Jika gagal kirim WA ke user, abaikan
+            error_log("WhatsApp user notification failed: " . $e->getMessage());
         }
         
     } catch(PDOException $e) {
@@ -370,7 +391,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         </select>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Merk <span class="required">*</span></label>
+                        <label class="form-label" id="merkLabel">Merek <span class="required">*</span></label>
                         <input type="text" class="form-control" name="merk" required placeholder="Contoh: Samsung, iPhone, Asus">
                     </div>
                 </div>
@@ -381,7 +402,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <input type="text" class="form-control" name="tipe" required placeholder="Contoh: Galaxy S21, MacBook Pro">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Kondisi Barang <span class="required">*</span></label>
+                        <label class="form-label" id="kondisiLabel">Kondisi Barang <span class="required">*</span></label>
                         <select class="form-select" name="kondisi" required>
                             <option value="">-- Pilih Kondisi --</option>
                             <option value="Sangat Baik">⭐⭐⭐⭐⭐ Sangat Baik (Seperti Baru)</option>
@@ -406,9 +427,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label">Keterangan Kelengkapan HP</label>
+                    <label class="form-label" id="kelengkapanLabel">Kelengkapan</label>
                     <textarea class="form-control" name="kelengkapan_hp" rows="2" placeholder="Contoh: box, charger, headset, kabel data"></textarea>
-                    <div class="form-text">Isi jika ada kelengkapan tambahan untuk HP.</div>
+                    <div class="form-text" id="kelengkapanHelp">Isi jika ada kelengkapan tambahan untuk HP atau aksesoris yang disertakan.</div>
                 </div>
                 
                 <!-- Data Pinjaman -->
@@ -416,18 +437,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 
                 <div class="row mb-3">
                     <div class="col-md-6">
-                        <label class="form-label">Harga Pasar (Estimasi) <span class="required">*</span></label>
-                        <div class="input-group">
-                            <span class="input-group-text">Rp</span>
-                            <input type="number" class="form-control" name="harga_pasar" required placeholder="0" min="0">
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Jumlah Pinjaman (Max 70%) <span class="required">*</span></label>
+                        <label class="form-label">Jumlah Pinjaman <span class="required">*</span></label>
                         <div class="input-group">
                             <span class="input-group-text">Rp</span>
                             <input type="number" class="form-control" name="jumlah_pinjaman" required placeholder="0" min="0">
                         </div>
+                        <div class="form-text">Jumlah pinjaman akan diverifikasi dan dibatasi oleh admin (maksimum biasanya 70% dari harga pasar yang ditentukan admin).</div>
                     </div>
                 </div>
                 
@@ -453,6 +468,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <div class="info-box">
                     <p><strong>📌 Catatan:</strong> Bunga tetap 30% per bulan (tidak dapat diubah). Denda keterlambatan Rp 30.000/hari setelah jatuh tempo.</p>
                 </div>
+
+                <!-- Perkiraan Total Yang Balik -->
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <label class="form-label">Total Yang Balik (perkiraan)</label>
+                        <input type="text" id="total_kembali_display" class="form-control" readonly placeholder="Rp 0">
+                        <div class="form-text">Estimasi total yang harus dibayar untuk menebus: pokok + bunga (per bulan) x lama. Belum termasuk denda keterlambatan.</div>
+                    </div>
+                </div>
                 
                 <button type="submit" class="btn-submit">💾 Simpan Data Gadai</button>
             </form>
@@ -476,27 +500,71 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Validasi jumlah pinjaman max 70% dari harga pasar
         const hargaPasar = document.querySelector('input[name="harga_pasar"]');
         const jumlahPinjaman = document.querySelector('input[name="jumlah_pinjaman"]');
-        
+        const bungaInput = document.querySelector('input[name="bunga"]');
+        const lamaSelect = document.querySelector('select[name="lama_gadai"]');
+
+        function updateTotalBack() {
+            const pokok = parseFloat(jumlahPinjaman.value) || 0;
+            const bunga = parseFloat(bungaInput.value) || 0;
+            const lama = parseInt(lamaSelect.value) || 0;
+            const total = pokok + (pokok * (bunga / 100) * lama);
+            document.getElementById('total_kembali_display').value = 'Rp ' + total.toLocaleString('id-ID');
+        }
+
         jumlahPinjaman.addEventListener('input', function() {
-            const maxPinjaman = hargaPasar.value * 0.7;
-            if (this.value > maxPinjaman) {
-                alert('⚠️ Jumlah pinjaman maksimal 70% dari harga pasar (Rp ' + maxPinjaman.toLocaleString('id-ID') + ')');
+            const maxPinjaman = (parseFloat(hargaPasar.value) || 0) * 0.7;
+            if (this.value > maxPinjaman && maxPinjaman > 0) {
+                alert('⚠️ Jumlah pinjaman maksimal 70% dari harga pasar (Rp ' + Math.floor(maxPinjaman).toLocaleString('id-ID') + ')');
                 this.value = Math.floor(maxPinjaman);
             }
+            updateTotalBack();
         });
-        
-        // Format currency
+
+        lamaSelect.addEventListener('change', updateTotalBack);
+
+        // Format currency (keep numeric-only inputs)
         function formatRupiah(input) {
             let value = input.value.replace(/[^0-9]/g, '');
             input.value = value;
         }
-        
+
         document.querySelectorAll('input[type="number"]').forEach(input => {
             if (input.name === 'harga_pasar' || input.name === 'jumlah_pinjaman') {
                 input.addEventListener('input', function() {
                     formatRupiah(this);
+                    updateTotalBack();
                 });
             }
+        });
+
+        // Initialize total on load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateTotalBack();
+            // Update labels based on selected device type
+            function updateDeviceLabels() {
+                const jenis = document.querySelector('select[name="jenis_barang"]').value;
+                const merkLabel = document.getElementById('merkLabel');
+                const kondisiLabel = document.getElementById('kondisiLabel');
+                const kelengkapanLabel = document.getElementById('kelengkapanLabel');
+                const kelengkapanHelp = document.getElementById('kelengkapanHelp');
+
+                if (jenis === 'Laptop') {
+                    merkLabel.textContent = 'Merek Laptop ';
+                    kondisiLabel.textContent = 'Kondisi Laptop ';
+                    kelengkapanLabel.textContent = 'Kelengkapan (charger, tas, dll)';
+                    kelengkapanHelp.textContent = 'Isi jika ada kelengkapan tambahan untuk laptop (charger, tas, kabel, dll).';
+                } else {
+                    // default to HP
+                    merkLabel.textContent = 'Merek HP ';
+                    kondisiLabel.textContent = 'Kondisi HP ';
+                    kelengkapanLabel.textContent = 'Kelengkapan';
+                    kelengkapanHelp.textContent = 'Isi jika ada kelengkapan tambahan untuk HP atau aksesoris yang disertakan.';
+                }
+            }
+            // Run once on load
+            updateDeviceLabels();
+            // Attach listener
+            document.querySelector('select[name="jenis_barang"]').addEventListener('change', updateDeviceLabels);
         });
     </script>
 </body>
