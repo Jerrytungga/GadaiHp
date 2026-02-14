@@ -1,4 +1,13 @@
 <?php
+// Proteksi akses - hanya bisa dijalankan via cron dengan token
+$required_token = 'RAHASIAANDA123'; // ganti dengan token yang sama di cron
+$provided_token = isset($_GET['token']) ? $_GET['token'] : '';
+
+if ($provided_token !== $required_token) {
+    http_response_code(403);
+    die(json_encode(['error' => 'Forbidden - Invalid token']));
+}
+
 // reminder_batch.php
 // Run this PHP script from CLI or via web to process reminders in batch.
 // It will:
