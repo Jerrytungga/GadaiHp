@@ -1,5 +1,3 @@
-
-
 <!doctype html>
 <html lang="en">
   <head>
@@ -7,8 +5,28 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes">
     <meta name="theme-color" content="#0056b3">
-    <meta name="description" content="Gadai Cepat Timika Papua - Gadai HP & Laptop dengan proses cepat, dana cair dalam 5 menit. Aman, terpercaya, dan profesional.">
-    <meta name="keywords" content="gadai hp, gadai laptop, gadai cepat, timika, papua, pinjaman cepat">
+    <meta name="description" content="Gadai HP & Laptop di Timika Papua - Proses cepat 5 menit, bunga rendah 30%, aman & terpercaya. Terima iPhone, Samsung, Xiaomi, Laptop. COD tersedia. Hubungi 0858-2309-1908">
+    <meta name="keywords" content="gadai hp timika, gadai laptop timika, gadai hp papua, pinjaman cepat timika, gadai iphone timika, gadai samsung timika, gadai xiaomi timika, pegadaian hp timika, dana cepat timika papua">
+    <meta name="author" content="Gadai Cepat Timika Papua">
+    <meta name="robots" content="index, follow">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Gadai HP & Laptop Cepat di Timika Papua - Dana Cair 5 Menit">
+    <meta property="og:description" content="Layanan gadai HP & Laptop terpercaya di Timika Papua. Proses mudah, bunga rendah, aman & legal. COD tersedia.">
+    <meta property="og:image" content="https://gadaicepat.site/image/logo_baru.png">
+    <meta property="og:url" content="https://gadaicepat.site/">
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Gadai HP & Laptop Cepat di Timika Papua">
+    <meta name="twitter:description" content="Proses cepat 5 menit, bunga rendah, aman & terpercaya. Hubungi 0858-2309-1908"
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="image/logo_baru.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="image/logo_baru.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="image/logo_baru.png">
+    <link rel="shortcut icon" href="image/logo_baru.png">
     
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
@@ -19,7 +37,46 @@
     <!-- jQuery -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 
-    <title>Gadai Cepat Timika Papua</title>
+    <title>Gadai HP & Laptop Cepat Timika Papua | Dana Cair 5 Menit - Bunga Rendah</title>
+    
+    <!-- Structured Data (JSON-LD) for Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "LocalBusiness",
+      "name": "Gadai Cepat Timika Papua",
+      "description": "Layanan gadai HP dan Laptop dengan proses cepat, dana cair dalam 5 menit. Aman, terpercaya, dan profesional.",
+      "image": "https://gadaicepat.site/image/logo_baru.png",
+      "telephone": "+62858-2309-1908",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Timika",
+        "addressRegion": "Papua",
+        "addressCountry": "ID"
+      },
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": "-4.5391",
+        "longitude": "136.8883"
+      },
+      "openingHours": "Mo-Su 08:00-20:00",
+      "priceRange": "$$",
+      "url": "https://gadaicepat.site",
+      "sameAs": [
+        "https://wa.me/6285823091908"
+      ],
+      "offers": {
+        "@type": "Offer",
+        "description": "Gadai HP & Laptop - Bunga 30% per bulan, Dana cair 5 menit"
+      }
+    }
+    </script>
+    
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://gadaicepat.site/">
+    
+    <!-- Sitemap -->
+    <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml">
 
     <link href="css/style.css" rel="stylesheet" type="text/css">
     <style>
@@ -2159,8 +2216,8 @@
         <div class="row align-items-center g-5">
           <div class="col-lg-6 col-md-12 text-center text-lg-start">
             <div class="hero-content">
-              <h1 class="headtext">GADAI CEPAT TIMIKA PAPUA</h1>
-              <p class="hero-description">Proses Cepat, Dana Cair dalam 5 Menit!</p>
+              <h1 class="headtext">Gadai HP & Laptop Cepat di Timika Papua - Dana Cair 5 Menit</h1>
+              <p class="hero-description">Layanan Gadai HP dan Laptop Terpercaya | Proses Mudah, Bunga Rendah, Aman & Legal</p>
               <a href="https://wa.me/6285823091908?text=Halo%2C%20saya%20ingin%20bertanya%20tentang%20layanan%20Gadai%20Cepat." target="_blank" class="btn btn-primary btn-lg hero-btn mb-3">💬 HUBUNGI KAMI SEKARANG</a>
               <br>
               <span class="badge bg-danger badge-cod">✓ Sistem Cash on Delivery (COD)</span>

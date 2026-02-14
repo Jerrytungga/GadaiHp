@@ -1,0 +1,26 @@
+# robots.txt untuk Gadai Cepat Timika Papua
+
+# Allow all search engines to crawl the site
+User-agent: *
+Allow: /
+
+# Block access to admin and sensitive files
+Disallow: /admin_verifikasi.php
+Disallow: /database.php
+Disallow: /whatsapp_helper.php
+Disallow: /login.php
+Disallow: /logout.php
+Disallow: /reminder_batch.php
+Disallow: /reminder_jatuh_tempo.php
+Disallow: /trigger_reminder.php
+Disallow: /trigger_reminder_multi.php
+Disallow: /setup_ulasan.php
+Disallow: /vendor/
+Disallow: /payment/
+Disallow: /uploads/
+Disallow: *.sql$
+Disallow: *.log$
+Disallow: *.md$
+
+# Sitemap location
+Sitemap: https://gadaicepat.site/sitemap.xml
