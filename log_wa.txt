@@ -3541,3 +3541,180 @@ Terima kasih,
 Gadai Cepat Timika Papua
 Response: {"detail":"success! message in queue","id":[143609397],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":889,"remaining":888,"used":1}},"requestid":381155856,"status":true,"target":["6281241935244"]}
 
+[2026-02-15 06:31:20] To: 6285823091908
+Message: 🔔 *PENGAJUAN GADAI BARU*
+
+📋 No. Registrasi: #000001
+👤 Nama: Kidung ID
+📱 Barang: HP iphone iphone 13 pro
+💰 Pengajuan: Rp 5.000.000
+📞 HP: 081241935244
+
+⏳ Status: Menunggu Verifikasi
+
+Klik link untuk verifikasi:
+http://10.83.21.252/GadaiHp/admin_verifikasi.php
+Response: {"detail":"success! message in queue","id":[143818746],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":879,"remaining":878,"used":1}},"requestid":383103434,"status":true,"target":["6285823091908"]}
+
+[2026-02-15 06:31:20] To: 6281241935244
+Message: 🔔 *PENGAJUAN GADAI DITERIMA (MENUNGGU VERIFIKASI)*
+
+Halo Kidung ID,
+
+Terima kasih telah mengajukan gadai. Pengajuan Anda telah kami terima dan akan segera diverifikasi oleh admin.
+
+📋 *No. Registrasi:* #000001
+📱 *Barang:* HP - iphone iphone 13 pro
+🔢 IMEI/Serial: 435345435435
+📦 Kelengkapan: gdfgdfgd
+🛠️ Kondisi: Baik
+
+💰 *Jumlah Pengajuan:* Rp 5.000.000
+📅 *Jatuh Tempo (estimasi):* 15 May 2026
+
+Kami akan menghubungi Anda melalui WhatsApp setelah verifikasi selesai.
+Jika ada pertanyaan, hubungi: 0858-2309-1908
+
+Hormat kami,
+Gadai Cepat Timika Papua
+Response: {"detail":"success! message in queue","id":[143818749],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":878,"remaining":877,"used":1}},"requestid":383103439,"status":true,"target":["6281241935244"]}
+
+[2026-02-15 06:37:50] To: 6281241935244
+Message: ❌ *PENGAJUAN DITOLAK*
+
+Halo Kidung ID,
+
+Mohon maaf, pengajuan gadai Anda *DITOLAK*.
+
+📋 *No. Registrasi:* #000001
+📱 *Barang:* HP - iphone iphone 13 pro
+- *Kelengkapan:* gdfgdfgd
+- *Kemulusan/Kondisi:* Baik
+
+📝 *Alasan Penolakan:*
+fghfgh
+
+Anda dapat mengajukan kembali setelah memenuhi persyaratan.
+
+Hubungi kami untuk informasi lebih lanjut:
+📞 WA: 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[143819105],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":877,"remaining":876,"used":1}},"requestid":383108047,"status":true,"target":["6281241935244"]}
+
+[2026-02-15 06:45:07] To: 6285823091908
+Message: 🔔 *PENGAJUAN GADAI BARU*
+
+📋 No. Registrasi: #000002
+👤 Nama: Adista Arwinidia
+📱 Barang: HP Xiaomi   redmi Pad Pro
+💰 Pengajuan: Rp 1.500.000
+📞 HP: 081241935244
+
+⏳ Status: Menunggu Verifikasi
+
+Klik link untuk verifikasi:
+http://10.83.21.252/GadaiHp/admin_verifikasi.php
+Response: {"detail":"success! message in queue","id":[143820724],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":876,"remaining":875,"used":1}},"requestid":383114759,"status":true,"target":["6285823091908"]}
+
+[2026-02-15 06:45:07] To: 6281241935244
+Message: 🔔 *PENGAJUAN GADAI DITERIMA (MENUNGGU VERIFIKASI)*
+
+Halo Adista Arwinidia,
+
+Terima kasih telah mengajukan gadai. Pengajuan Anda telah kami terima dan akan segera diverifikasi oleh admin.
+
+📋 *No. Registrasi:* #000002
+📱 *Barang:* HP - Xiaomi   redmi Pad Pro
+🔢 IMEI/Serial: 56987
+📦 Kelengkapan: lengkap
+🛠️ Kondisi: Baik
+
+💰 *Jumlah Pengajuan:* Rp 1.500.000
+📅 *Jatuh Tempo (estimasi):* 15 March 2026
+
+Kami akan menghubungi Anda melalui WhatsApp setelah verifikasi selesai.
+Jika ada pertanyaan, hubungi: 0858-2309-1908
+
+Hormat kami,
+Gadai Cepat Timika Papua
+Response: {"detail":"success! message in queue","id":[143820725],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":875,"remaining":874,"used":1}},"requestid":383114813,"status":true,"target":["6281241935244"]}
+
+[2026-02-15 06:45:34] To: 6281241935244
+Message: ✅ *PENGAJUAN DISETUJUI*
+
+Halo Adista Arwinidia,
+
+📋 *No. Registrasi:* #000002
+📱 *Barang:* HP - Xiaomi   redmi Pad Pro
+💰 *Pengajuan:* Rp 1.500.000
+✅ *Disetujui:* Rp 1.500.000
+📅 *Jatuh Tempo:* 15 March 2026
+
+*Kelengkapan:* lengkap
+*Kondisi:* Baik
+*IMEI/Serial Number:* 56987
+
+*Rincian Pembiayaan:*
+- *Pokok pinjaman:* Rp 1.500.000
+- *Bunga:* Rp 450.000 (30% x 1 bulan)
+- *Biaya administrasi (1%):* Rp 15.000
+
+*Perkiraan Total Yang Harus Dibayar:* Rp 1.965.000
+
+📝 *Catatan Admin:* oke
+
+Silakan datang ke kantor kami untuk proses pencairan dana.
+
+📍 Gadai Cepat Timika Papua
+📞 WA: 0858-2309-1908
+
+
+Response: {"detail":"success! message in queue","id":[143820747],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":874,"remaining":873,"used":1}},"requestid":383115162,"status":true,"target":["6281241935244"]}
+
+[2026-02-15 06:45:34] To: 6285823091908
+Message: 🔔 *PENGAJUAN GADAI BARU*
+
+📋 No. Registrasi: #000002
+👤 Nama: Adista Arwinidia
+📱 Barang: HP Xiaomi   redmi Pad Pro
+💰 Pengajuan: Rp 1.500.000
+📞 HP: 081241935244
+
+⏳ Status: Menunggu Verifikasi
+
+Klik link untuk verifikasi:
+http://10.83.21.252/GadaiHp/admin_verifikasi.php
+Response: {"detail":"success! message in queue","id":[143820749],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":873,"remaining":872,"used":1}},"requestid":383115166,"status":true,"target":["6285823091908"]}
+
+[2026-02-15 06:47:11] To: 6281241935244
+Message: ⚠️ *PENGINGAT: JATUH TEMPO TERLEWAT*
+
+Yth. Bapak/Ibu Adista Arwinidia,
+
+Kami mencatat bahwa gadai Anda telah melewati tanggal jatuh tempo sebesar *3 hari*. Mohon segera mengambil tindakan untuk menghindari konsekuensi lebih lanjut.
+
+📋 *No. Registrasi:* #000002
+📱 *Barang:* HP - Xiaomi   redmi Pad Pro (IMEI/Serial: 56987)
+- *Kelengkapan:* lengkap
+- *Kemulusan/Kondisi:* Baik
+- *Tanggal Gadai:* 12 January 2026
+- *Tanggal Jatuh Tempo:* 12 February 2026
+
+*Rincian Tebus:*
+- *Pokok:* Rp 1.500.000
+- *Bunga:* Rp 450.000 (30% x 1 bulan)
+- *Denda Harian:* Rp 30.000 x 3 hari = Rp 90.000
+
+*Total Tebus:* Rp 2.040.000
+
+Mohon segera melakukan pelunasan atau menghubungi kami untuk mendiskusikan opsi perpanjangan.
+
+Catatan: denda dihitung hingga maksimal 7 hari; jika tidak ada pelunasan hingga hari ke-8, pengajuan akan dinyatakan Gagal Tebus.
+
+Cek status di:
+http://10.83.21.252/GadaiHp/cek_status.php?no_registrasi=2
+
+Hormat kami,
+Gadai Cepat Timika Papua
+📞 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[143820837],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":872,"remaining":871,"used":1}},"requestid":383116271,"status":true,"target":["6281241935244"]}
+

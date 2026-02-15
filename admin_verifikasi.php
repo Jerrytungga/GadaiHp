@@ -236,6 +236,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
+// --- Handle rejection (Tolak Pengajuan) ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'reject') {
+    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+    $reject_reason = isset($_POST['alasan_reject']) ? trim($_POST['alasan_reject']) : '';
+    
+    try {
+        $stmt = $db->prepare("SELECT * FROM data_gadai WHERE id = ?");
+        $stmt->execute([$id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$row) {
+            $message = 'Data tidak ditemukan.';
+            $message_type = 'danger';
+        } elseif (empty($reject_reason)) {
+            $message = 'Alasan penolakan harus diisi.';
+            $message_type = 'warning';
+        } else {
+            // Update status to rejected
+            $verified_by = isset($_SESSION['admin_user']) ? $_SESSION['admin_user'] : 'admin';
+            $update_sql = "UPDATE data_gadai SET 
+                status = 'Ditolak',
+                reject_reason = ?,
+                verified_at = NOW(),
+                verified_by = ?,
+                updated_at = NOW()
+            WHERE id = ?";
+            $update_stmt = $db->prepare($update_sql);
+            $update_stmt->execute([$reject_reason, $verified_by, $id]);
+            
+            // Refetch for notifications
+            $stmt2 = $db->prepare("SELECT * FROM data_gadai WHERE id = ?");
+            $stmt2->execute([$id]);
+            $fresh = $stmt2->fetch(PDO::FETCH_ASSOC);
+            
+            // Notify user about rejection
+            try {
+                if (isset($whatsapp)) {
+                    $whatsapp->notifyUserRejected($fresh);
+                }
+            } catch (Exception $e) {
+                error_log('WhatsApp notify failed: ' . $e->getMessage());
+            }
+            
+            $message = 'Pengajuan berhasil ditolak. Notifikasi telah dikirim ke nasabah.';
+            $message_type = 'success';
+        }
+    } catch (Exception $e) {
+        $message = 'Gagal memproses penolakan: ' . $e->getMessage();
+        $message_type = 'danger';
+    }
+}
+
 // Simple authentication (ganti dengan sistem login yang lebih aman)
 if (!isset($_SESSION['admin_logged_in'])) {
     // Temporary login - hapus ini dan ganti dengan sistem login proper
