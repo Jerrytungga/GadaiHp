@@ -1,5 +1,6 @@
 <?php
-session_start();
+// Require auth_check FIRST - ini sudah include session_start()
+require_once 'auth_check.php'; 
 require_once 'database.php';
 require_once 'whatsapp_helper.php';
 
@@ -288,26 +289,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
-// Simple authentication (ganti dengan sistem login yang lebih aman)
-if (!isset($_SESSION['admin_logged_in'])) {
-    // Temporary login - hapus ini dan ganti dengan sistem login proper
-    if (isset($_POST['admin_login'])) {
-        // Upload feature disabled/removed
-        if (false && isset($_POST['upload_csv'])) {
-            $upload_errors = [];
-            $upload_success = 0;
-            $upload_failed = 0;
+// Authentication handled by auth_check.php (included at top of file)
 
-            if (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
-                $upload_errors[] = 'File CSV gagal diunggah.';
-            } else {
-                $file_tmp = $_FILES['csv_file']['tmp_name'];
-                $file_name = $_FILES['csv_file']['name'];
-                $ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
-
-                if ($ext !== 'csv') {
-                    $upload_errors[] = 'Format file harus CSV.';
-                } else {
+// Old upload CSV code disabled (commented out to avoid syntax errors)
+/*
                     $handle = fopen($file_tmp, 'r');
                     if ($handle === false) {
                         $upload_errors[] = 'Gagal membaca file CSV.';
@@ -668,7 +653,8 @@ if (!isset($_SESSION['admin_logged_in'])) {
         $message = implode(' ', $upload_errors);
         $message_type = 'danger';
     }
-}
+} 
+*/ // End of commented old upload code
 
 // (Download template Excel removed)
 

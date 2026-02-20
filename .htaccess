@@ -14,8 +14,8 @@ Options +FollowSymLinks -Indexes
     # RewriteRule ^(.*)$ https://%1/$1 [R=301,L]
 </IfModule>
 
-# Security: Protect sensitive files
-<FilesMatch "^(database\.php|whatsapp_helper\.php|composer\.json|composer\.lock|\.env|\.git.*|.*\.log|.*\.sql)$">
+# Security: Protect sensitive files (NOT login/admin pages)
+<FilesMatch "^(database\.php|whatsapp_helper\.php|auth_check\.php|composer\.json|composer\.lock|\.env|\.git.*|.*\.log|.*\.sql)$">
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>
@@ -25,22 +25,21 @@ Options +FollowSymLinks -Indexes
     </IfModule>
 </FilesMatch>
 
+# Allow PHP files (login, admin, setup, etc) - DO NOT BLOCK
+<FilesMatch "\.(php|html|css|js|jpg|jpeg|png|gif|ico|pdf)$">
+    <IfModule mod_authz_core.c>
+        Require all granted
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Allow from all
+    </IfModule>
+</FilesMatch>
+
 # PHP settings (adjust based on your needs)
 <IfModule mod_php7.c>
     php_value upload_max_filesize 10M
     php_value post_max_size 10M
     php_value max_execution_time 300
     php_value max_input_time 300
-</IfModule>
-
-# Allow access to all other files
-<IfModule mod_authz_core.c>
-    <FilesMatch "\.(php|html|css|js|jpg|jpeg|png|gif|ico|pdf)$">
-        Require all granted
-    </FilesMatch>
-</IfModule>
-
-<IfModule !mod_authz_core.c>
-    Order allow,deny
-    Allow from all
 </IfModule>
