@@ -40,7 +40,7 @@ class WhatsAppHelper {
      */
     private function formatPhoneNumber($phone) {
         // Hapus karakter non-numeric
-        $phone = preg_replace('/[^0-9]/', '', $phone);
+        $phone = preg_replace('/[^0-9]/', '', (string)$phone);
         
         // Jika diawali 0, ganti dengan 62
         if (substr($phone, 0, 1) == '0') {
@@ -191,10 +191,10 @@ class WhatsAppHelper {
     public function notifyAdminNewSubmission($data) {
         $message = "🔔 *PENGAJUAN GADAI BARU*\n\n";
         $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
-        $message .= "👤 Nama: {$data['nama_nasabah']}\n";
-        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk']} {$data['tipe']}\n";
+        $message .= "👤 Nama: {$data['nama']}\n";
+        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk_barang']} {$data['spesifikasi_barang']}\n";
         $message .= "💰 Pengajuan: Rp " . number_format($data['jumlah_pinjaman'], 0, ',', '.') . "\n";
-        $message .= "📞 HP: {$data['no_hp']}\n\n";
+        $message .= "📞 HP: {$data['no_wa']}\n\n";
         $message .= "⏳ Status: Menunggu Verifikasi\n\n";
         $message .= "Klik link untuk verifikasi:\n";
         $message .= $this->getBaseUrl() . "/GadaiHp/admin_verifikasi.php";
@@ -207,12 +207,12 @@ class WhatsAppHelper {
      */
     public function notifyUserSubmissionReceived($data) {
         $message = "🔔 *PENGAJUAN GADAI DITERIMA (MENUNGGU VERIFIKASI)*\n\n";
-        $message .= "Halo " . ($data['nama_nasabah'] ?? '-') . ",\n\n";
+        $message .= "Halo " . ($data['nama'] ?? '-') . ",\n\n";
         $message .= "Terima kasih telah mengajukan gadai. Pengajuan Anda telah kami terima dan akan segera diverifikasi oleh admin.\n\n";
         $message .= "📋 *No. Registrasi:* #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
 
         // Barang details
-        $item = trim((($data['merk'] ?? '') . ' ' . ($data['tipe'] ?? '')));
+        $item = trim((($data['merk_barang'] ?? '') . ' ' . ($data['spesifikasi_barang'] ?? '')));
         $message .= "📱 *Barang:* " . ($data['jenis_barang'] ?? '-') . (!empty($item) ? " - {$item}" : "") . "\n";
         if (!empty($data['imei_serial'])) {
             $message .= "🔢 IMEI/Serial: " . $data['imei_serial'] . "\n";
@@ -220,8 +220,8 @@ class WhatsAppHelper {
         if (!empty($data['kelengkapan_hp'])) {
             $message .= "📦 Kelengkapan: " . $data['kelengkapan_hp'] . "\n";
         }
-        if (!empty($data['kondisi'])) {
-            $message .= "🛠️ Kondisi: " . $data['kondisi'] . "\n";
+        if (!empty($data['kondisi_barang'])) {
+            $message .= "🛠️ Kondisi: " . $data['kondisi_barang'] . "\n";
         }
         $message .= "\n";
 
@@ -236,7 +236,7 @@ class WhatsAppHelper {
         $message .= "Jika ada pertanyaan, hubungi: 0858-2309-1908\n\n";
         $message .= "Hormat kami,\nGadai Cepat Timika Papua";
 
-        return $this->sendMessage($data['no_hp'], $message);
+        return $this->sendMessage($data['no_wa'], $message);
     }
     
     /**
@@ -250,17 +250,18 @@ class WhatsAppHelper {
         $lama = isset($data['lama_gadai']) ? (int)$data['lama_gadai'] : 0;
         $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
     $admin_fee = round($pokok * 0.01); // 1% biaya admin, rounded to nearest rupiah
+        $biaya_asuransi = 10000; // Biaya asuransi tetap
         $denda = !empty($data['denda_terakumulasi']) ? (float)$data['denda_terakumulasi'] : 0.0;
-        $total_tebus_calc = $pokok + $bunga_total + $admin_fee + $denda;
+        $total_tebus_calc = $pokok + $bunga_total + $admin_fee + $biaya_asuransi + $denda;
 
         // Build message matching provided template
         $pengajuan_display = isset($data['jumlah_pinjaman']) ? (float)$data['jumlah_pinjaman'] : 0.0;
         $disetujui_display = isset($data['jumlah_disetujui']) ? (float)$data['jumlah_disetujui'] : $pengajuan_display;
       
     $message = "✅ *PENGAJUAN DISETUJUI*\n\n";
-    $message .= "Halo {$data['nama_nasabah']},\n\n";
+    $message .= "Halo {$data['nama']},\n\n";
         $message .= "📋 *No. Registrasi:* #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
-        $item = trim((string)($data['merk'] . ' ' . $data['tipe']));
+        $item = trim((string)($data['merk_barang'] . ' ' . $data['spesifikasi_barang']));
         $message .= "📱 *Barang:* {$data['jenis_barang']}" . (!empty($item) ? " - {$item}" : "") . "\n";
         $message .= "💰 *Pengajuan:* Rp " . number_format($pengajuan_display, 0, ',', '.') . "\n";
         $message .= "✅ *Disetujui:* Rp " . number_format($disetujui_display, 0, ',', '.') . "\n";
@@ -268,23 +269,24 @@ class WhatsAppHelper {
             $message .= "📅 *Jatuh Tempo:* " . date('d F Y', strtotime($data['tanggal_jatuh_tempo'])) . "\n\n";
         }
         $message .= "*Kelengkapan:* " . (!empty($data['kelengkapan_hp']) ? $data['kelengkapan_hp'] : '-') . "\n";
-        $message .= "*Kondisi:* " . (!empty($data['kondisi']) ? $data['kondisi'] : '-') . "\n";
+        $message .= "*Kondisi:* " . (!empty($data['kondisi_barang']) ? $data['kondisi_barang'] : '-') . "\n";
         $message .= "*IMEI/Serial Number:* " . (!empty($data['imei_serial']) ? $data['imei_serial'] : '-') . "\n\n";
 
         $message .= "*Rincian Pembiayaan:*\n";
         $message .= "- *Pokok pinjaman:* Rp " . number_format($disetujui_display, 0, ',', '.') . "\n";
         $message .= "- *Bunga:* Rp " . number_format($bunga_total, 0, ',', '.') . " ({$bunga_pct}% x {$lama} bulan)\n";
-        $message .= "- *Biaya administrasi (1%):* Rp " . number_format($admin_fee, 0, ',', '.') . "\n\n";
+        $message .= "- *Biaya administrasi (1%):* Rp " . number_format($admin_fee, 0, ',', '.') . "\n";
+        $message .= "- *Biaya asuransi:* Rp " . number_format(10000, 0, ',', '.') . "\n\n";
 
         $message .= "*Perkiraan Total Yang Harus Dibayar:* Rp " . number_format($total_tebus_calc, 0, ',', '.') . "\n\n";
-        $message .= "📝 *Catatan Admin:* " . (!empty($data['keterangan_admin']) ? $data['keterangan_admin'] : '-') . "\n\n";
+        $message .= "📝 *Catatan Admin:* " . (!empty($data['catatan_admin']) ? $data['catatan_admin'] : '-') . "\n\n";
 
         $message .= "Silakan datang ke kantor kami untuk proses pencairan dana.\n\n";
         $message .= "📍 Gadai Cepat Timika Papua\n";
         $message .= "📞 WA: 0858-2309-1908\n\n";
      
 
-        return $this->sendMessage($data['no_hp'], $message);
+        return $this->sendMessage($data['no_wa'], $message);
     }
     
     /**
@@ -292,16 +294,16 @@ class WhatsAppHelper {
      */
     public function notifyUserRejected($data) {
         $message = "❌ *PENGAJUAN DITOLAK*\n\n";
-        $message .= "Halo {$data['nama_nasabah']},\n\n";
+        $message .= "Halo {$data['nama']},\n\n";
         $message .= "Mohon maaf, pengajuan gadai Anda *DITOLAK*.\n\n";
         $message .= "📋 *No. Registrasi:* #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
-        $item = trim((string)($data['merk'] . ' ' . $data['tipe']));
+        $item = trim((string)($data['merk_barang'] . ' ' . $data['spesifikasi_barang']));
         $message .= "📱 *Barang:* {$data['jenis_barang']}" . (!empty($item) ? " - {$item}" : "") . "\n";
         if (!empty($data['kelengkapan_hp'])) {
             $message .= "- *Kelengkapan:* {$data['kelengkapan_hp']}\n";
         }
-        if (!empty($data['kondisi'])) {
-            $message .= "- *Kemulusan/Kondisi:* {$data['kondisi']}\n";
+        if (!empty($data['kondisi_barang'])) {
+            $message .= "- *Kemulusan/Kondisi:* {$data['kondisi_barang']}\n";
         }
         $message .= "\n";
 
@@ -314,7 +316,7 @@ class WhatsAppHelper {
         $message .= "Hubungi kami untuk informasi lebih lanjut:\n";
         $message .= "📞 WA: 0858-2309-1908";
         
-        return $this->sendMessage($data['no_hp'], $message);
+        return $this->sendMessage($data['no_wa'], $message);
     }
 
     /**
@@ -322,15 +324,15 @@ class WhatsAppHelper {
      */
     public function notifyUserExtension($data, $new_due_date) {
         $message = "🔁 *PERPANJANGAN GADAI BERHASIL*\n\n";
-        $message .= "Halo {$data['nama_nasabah']},\n\n";
+        $message .= "Halo {$data['nama']},\n\n";
         $message .= "Permintaan perpanjangan gadai Anda telah kami terima.\n\n";
         $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
-        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk']} {$data['tipe']}\n";
+        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk_barang']} {$data['spesifikasi_barang']}\n";
         $message .= "📅 Jatuh Tempo Baru: " . date('d F Y', strtotime($new_due_date)) . "\n\n";
         $message .= "Kami akan menghubungi Anda bila ada informasi tambahan.\n\n";
         $message .= "📞 WA: 0858-2309-1908";
 
-        return $this->sendMessage($data['no_hp'], $message);
+        return $this->sendMessage($data['no_wa'], $message);
     }
 
     /**
@@ -339,8 +341,8 @@ class WhatsAppHelper {
     public function notifyAdminExtension($data, $new_due_date) {
         $message = "🔁 *PERPANJANGAN GADAI*\n\n";
         $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
-        $message .= "👤 Nama: {$data['nama_nasabah']}\n";
-        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk']} {$data['tipe']}\n";
+        $message .= "👤 Nama: {$data['nama']}\n";
+        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk_barang']} {$data['spesifikasi_barang']}\n";
         $message .= "📅 Jatuh Tempo Baru: " . date('d F Y', strtotime($new_due_date)) . "\n\n";
         $message .= "Buka detail di:\n";
         $message .= $this->getBaseUrl() . "/GadaiHp/admin_verifikasi.php";
@@ -354,15 +356,15 @@ class WhatsAppHelper {
     public function notifyAdminPerpanjanganUpload($data, $amount = null, $buktiFile = null) {
         $message = "🔔 *UPLOAD BUKTI PERPANJANGAN*\n\n";
         $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
-        $message .= "👤 Nama: {$data['nama_nasabah']}\n";
-        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk']} {$data['tipe']}\n";
+        $message .= "👤 Nama: {$data['nama']}\n";
+        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk_barang']} {$data['spesifikasi_barang']}\n";
         if (!empty($amount)) {
             $message .= "💸 Nominal dibayar (bunga+denda): Rp " . number_format($amount, 0, ',', '.') . "\n";
         }
         $message .= "\nStatus: *Menunggu ACC Admin*\n";
 
-        if (!empty($buktiFile) && !empty($data['no_ktp'])) {
-            $buktiUrl = rtrim($this->getBaseUrl(), '/') . "/GadaiHp/payment/" . rawurlencode($data['no_ktp']) . "/" . rawurlencode($buktiFile);
+        if (!empty($buktiFile) && !empty($data['nik'])) {
+            $buktiUrl = rtrim($this->getBaseUrl(), '/') . "/GadaiHp/payment/" . rawurlencode($data['nik']) . "/" . rawurlencode($buktiFile);
             $message .= "Bukti: " . $buktiUrl . "\n";
         }
 
@@ -376,7 +378,7 @@ class WhatsAppHelper {
      * Notify user when they upload perpanjangan proof (confirmation)
      */
     public function notifyUserPerpanjanganUpload($data, $amount = null, $buktiFile = null) {
-        $nama = !empty($data['nama_nasabah']) ? $data['nama_nasabah'] : '-';
+        $nama = !empty($data['nama']) ? $data['nama'] : '-';
         $message = "🔔 *BUKTI PERPANJANGAN DITERIMA*\n\n";
         $message .= "Halo {$nama},\n\n";
         $message .= "Kami telah menerima bukti pembayaran perpanjangan untuk pengajuan Anda. Tim admin akan memverifikasi bukti tersebut.\n\n";
@@ -384,15 +386,15 @@ class WhatsAppHelper {
         if (!empty($amount)) {
             $message .= "💸 Nominal dibayar (bunga+denda): Rp " . number_format($amount, 0, ',', '.') . "\n";
         }
-        if (!empty($buktiFile) && !empty($data['no_ktp'])) {
-            $buktiUrl = rtrim($this->getBaseUrl(), '/') . "/GadaiHp/payment/" . rawurlencode($data['no_ktp']) . "/" . rawurlencode($buktiFile);
+        if (!empty($buktiFile) && !empty($data['nik'])) {
+            $buktiUrl = rtrim($this->getBaseUrl(), '/') . "/GadaiHp/payment/" . rawurlencode($data['nik']) . "/" . rawurlencode($buktiFile);
             $message .= "Bukti: " . $buktiUrl . "\n";
         }
 
         $message .= "\nStatus: *Menunggu ACC Admin*. Kami akan menghubungi Anda setelah bukti diverifikasi.\n\n";
         $message .= "Terima kasih,\nGadai Cepat Timika Papua";
 
-        return $this->sendMessage($data['no_hp'], $message);
+        return $this->sendMessage($data['no_wa'], $message);
     }
 
     /**
@@ -404,19 +406,20 @@ class WhatsAppHelper {
         $lama = isset($data['lama_gadai']) ? (int)$data['lama_gadai'] : 0;
         $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
     $admin_fee = round($pokok * 0.01);
+        $biaya_asuransi = 10000; // Biaya asuransi tetap
 
     $message = "💰 *PERMINTAAN PELUNASAN DITERIMA*\n\n";
-    $message .= "Yth. Bapak/Ibu {$data['nama_nasabah']},\n\n";
+    $message .= "Yth. Bapak/Ibu {$data['nama']},\n\n";
     $message .= "Terima kasih. Permintaan pelunasan gadai Anda telah kami terima dan sedang diproses.\n\n";
     $message .= "📋 *No. Registrasi:* #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
-    $item_desc = trim((string)($data['merk'] . ' ' . $data['tipe']));
+    $item_desc = trim((string)($data['merk_barang'] . ' ' . $data['spesifikasi_barang']));
     $imei_text = !empty($data['imei_serial']) ? " (IMEI/Serial: {$data['imei_serial']})" : '';
     $message .= "📱 *Barang:* {$data['jenis_barang']}" . (!empty($item_desc) ? " - {$item_desc}" : "") . $imei_text . "\n";
     if (!empty($data['kelengkapan_hp'])) {
         $message .= "- *Kelengkapan:* {$data['kelengkapan_hp']}\n";
     }
-    if (!empty($data['kondisi'])) {
-        $message .= "- *Kemulusan/Kondisi:* {$data['kondisi']}\n";
+    if (!empty($data['kondisi_barang'])) {
+        $message .= "- *Kemulusan/Kondisi:* {$data['kondisi_barang']}\n";
     }
     if (!empty($data['tanggal_gadai'])) {
         $message .= "- *Tanggal Gadai:* " . date('d F Y', strtotime($data['tanggal_gadai'])) . "\n";
@@ -435,13 +438,14 @@ class WhatsAppHelper {
     $message .= "- *Pokok pinjaman:* Rp " . number_format($pokok, 0, ',', '.') . "\n";
     $message .= "- *Bunga:* Rp " . number_format($bunga_total, 0, ',', '.') . " ({$bunga_pct}% x {$lama} bulan)\n";
     $message .= "- *Biaya administrasi (1%):* Rp " . number_format($admin_fee, 0, ',', '.') . "\n";
-    $estimated_total = $pokok + $bunga_total + $admin_fee;
+    $message .= "- *Biaya asuransi:* Rp " . number_format($biaya_asuransi, 0, ',', '.') . "\n";
+    $estimated_total = $pokok + $bunga_total + $admin_fee + $biaya_asuransi;
     $message .= "\n*Estimasi Total (tanpa denda): Rp " . number_format($estimated_total, 0, ',', '.') . "*\n\n";
     $message .= "Petugas kami akan menghubungi Anda untuk konfirmasi lebih lanjut dan instruksi pembayaran jika diperlukan.\n\n";
     $message .= "Hormat kami,\nGadai Cepat Timika Papua\n";
     $message .= "📞 0858-2309-1908";
 
-        return $this->sendMessage($data['no_hp'], $message);
+        return $this->sendMessage($data['no_wa'], $message);
     }
 
     /**
@@ -450,8 +454,8 @@ class WhatsAppHelper {
     public function notifyAdminPelunasan($data) {
         $message = "💰 *PENGAJUAN PELUNASAN*\n\n";
         $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
-        $message .= "👤 Nama: {$data['nama_nasabah']}\n";
-        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk']} {$data['tipe']}\n\n";
+        $message .= "👤 Nama: {$data['nama']}\n";
+        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk_barang']} {$data['spesifikasi_barang']}\n\n";
         $message .= "Buka detail di:\n";
         $message .= $this->getBaseUrl() . "/GadaiHp/admin_verifikasi.php";
 
@@ -467,21 +471,22 @@ class WhatsAppHelper {
         $lama = isset($data['lama_gadai']) ? (int)$data['lama_gadai'] : 0;
         $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
     $admin_fee = round($pokok * 0.01);
+        $biaya_asuransi = 10000; // Biaya asuransi tetap
         $denda = !empty($data['denda_terakumulasi']) ? (float)$data['denda_terakumulasi'] : 0.0;
-        $total_tebus_calc = $pokok + $bunga_total + $admin_fee + $denda;
+        $total_tebus_calc = $pokok + $bunga_total + $admin_fee + $biaya_asuransi + $denda;
 
         $message = "✅ *PEMBAYARAN TERVERIFIKASI*\n\n";
-        $message .= "Yth. Bapak/Ibu {$data['nama_nasabah']},\n\n";
+        $message .= "Yth. Bapak/Ibu {$data['nama']},\n\n";
         $message .= "Pembayaran Anda telah kami terima dan diverifikasi. Status pengajuan: *Ditebus*.\n\n";
         $message .= "📋 *No. Registrasi:* #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
-        $item_desc = trim((string)($data['merk'] . ' ' . $data['tipe']));
+        $item_desc = trim((string)($data['merk_barang'] . ' ' . $data['spesifikasi_barang']));
         $imei_text = !empty($data['imei_serial']) ? " (IMEI/Serial: {$data['imei_serial']})" : '';
         $message .= "📱 *Barang:* {$data['jenis_barang']}" . (!empty($item_desc) ? " - {$item_desc}" : "") . $imei_text . "\n";
         if (!empty($data['kelengkapan_hp'])) {
             $message .= "- *Kelengkapan:* {$data['kelengkapan_hp']}\n";
         }
-        if (!empty($data['kondisi'])) {
-            $message .= "- *Kemulusan/Kondisi:* {$data['kondisi']}\n";
+        if (!empty($data['kondisi_barang'])) {
+            $message .= "- *Kemulusan/Kondisi:* {$data['kondisi_barang']}\n";
         }
         if (!empty($data['tanggal_gadai'])) {
             $message .= "- *Tanggal Gadai:* " . date('d F Y', strtotime($data['tanggal_gadai'])) . "\n";
@@ -493,6 +498,7 @@ class WhatsAppHelper {
         $message .= "- *Pokok:* Rp " . number_format($pokok, 0, ',', '.') . "\n";
         $message .= "- *Bunga:* Rp " . number_format($bunga_total, 0, ',', '.') . " ({$bunga_pct}% x {$lama} bulan)\n";
         $message .= "- *Biaya administrasi (1%):* Rp " . number_format($admin_fee, 0, ',', '.') . "\n";
+        $message .= "- *Biaya asuransi:* Rp " . number_format(10000, 0, ',', '.') . "\n";
         if ($denda > 0) {
             $message .= "- *Denda:* Rp " . number_format($denda, 0, ',', '.') . "\n";
         }
@@ -501,7 +507,7 @@ class WhatsAppHelper {
         $message .= "Hormat kami,\nGadai Cepat Timika Papua\n";
         $message .= "📞 0858-2309-1908";
 
-        return $this->sendMessage($data['no_hp'], $message);
+        return $this->sendMessage($data['no_wa'], $message);
     }
 
     /**
@@ -513,20 +519,21 @@ class WhatsAppHelper {
         $lama = isset($data['lama_gadai']) ? (int)$data['lama_gadai'] : 0;
         $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
     $admin_fee = round($pokok * 0.01);
-        $total_tebus_est = $pokok + $bunga_total + $admin_fee;
+        $biaya_asuransi = 10000; // Biaya asuransi tetap
+        $total_tebus_est = $pokok + $bunga_total + $admin_fee + $biaya_asuransi;
 
     $message = "⏰ *PENGINGAT JATUH TEMPO (3 HARI)*\n\n";
-    $message .= "Yth. Bapak/Ibu {$data['nama_nasabah']},\n\n";
+    $message .= "Yth. Bapak/Ibu {$data['nama']},\n\n";
     $message .= "Kami informasikan bahwa jatuh tempo gadai Anda akan tiba dalam *3 hari* pada tanggal *" . date('d F Y', strtotime($data['tanggal_jatuh_tempo'])) . "*.\n\n";
     $message .= "📋 *No. Registrasi:* #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
-    $item_desc = trim((string)($data['merk'] . ' ' . $data['tipe']));
+    $item_desc = trim((string)($data['merk_barang'] . ' ' . $data['spesifikasi_barang']));
     $imei_text = !empty($data['imei_serial']) ? " (IMEI/Serial: {$data['imei_serial']})" : '';
     $message .= "📱 *Barang:* {$data['jenis_barang']}" . (!empty($item_desc) ? " - {$item_desc}" : "") . $imei_text . "\n";
     if (!empty($data['kelengkapan_hp'])) {
         $message .= "- *Kelengkapan:* {$data['kelengkapan_hp']}\n";
     }
-    if (!empty($data['kondisi'])) {
-        $message .= "- *Kemulusan/Kondisi:* {$data['kondisi']}\n";
+    if (!empty($data['kondisi_barang'])) {
+        $message .= "- *Kemulusan/Kondisi:* {$data['kondisi_barang']}\n";
     }
     if (!empty($data['tanggal_gadai'])) {
         $message .= "- *Tanggal Gadai:* " . date('d F Y', strtotime($data['tanggal_gadai'])) . "\n";
@@ -536,6 +543,7 @@ class WhatsAppHelper {
     $message .= "- *Pokok:* Rp " . number_format($pokok, 0, ',', '.') . "\n";
     $message .= "- *Bunga:* Rp " . number_format($bunga_total, 0, ',', '.') . " ({$bunga_pct}% x {$lama} bulan)\n";
     $message .= "- *Biaya administrasi (1%):* Rp " . number_format($admin_fee, 0, ',', '.') . "\n";
+    $message .= "- *Biaya asuransi:* Rp " . number_format(10000, 0, ',', '.') . "\n";
     $message .= "\n*Estimasi Total Tebus (tanpa denda):* Rp " . number_format($total_tebus_est, 0, ',', '.') . "\n\n";
     $message .= "Silakan siapkan pelunasan atau hubungi kami untuk opsi perpanjangan.\n\n";
     $message .= "Cek status di: \n";
@@ -543,7 +551,7 @@ class WhatsAppHelper {
     $message .= "Hormat kami,\nGadai Cepat Timika Papua\n";
     $message .= "📞 0858-2309-1908";
 
-        return $this->sendMessage($data['no_hp'], $message);
+        return $this->sendMessage($data['no_wa'], $message);
     }
 
     /**
@@ -554,24 +562,26 @@ class WhatsAppHelper {
         $bunga = (float)$data['bunga'];
         $lama = (int)$data['lama_gadai'];
         $bunga_total = $pokok * ($bunga / 100) * $lama;
+        $admin_fee = round($pokok * 0.01);
+        $biaya_asuransi = 10000; // Biaya asuransi tetap
     $denda_harian = 30000;
     // Denda hanya dihitung sampai maksimal 7 hari; pada hari ke-8 sistem akan menandai sebagai Gagal Tebus
     $denda_days_counted = min($days_overdue, 7);
     $denda_total = $denda_harian * $denda_days_counted;
-    $total_tebus = $pokok + $bunga_total + $denda_total;
+    $total_tebus = $pokok + $bunga_total + $admin_fee + $biaya_asuransi + $denda_total;
 
     $message = "⚠️ *PENGINGAT: JATUH TEMPO TERLEWAT*\n\n";
-    $message .= "Yth. Bapak/Ibu {$data['nama_nasabah']},\n\n";
+    $message .= "Yth. Bapak/Ibu {$data['nama']},\n\n";
     $message .= "Kami mencatat bahwa gadai Anda telah melewati tanggal jatuh tempo sebesar *{$days_overdue} hari*. Mohon segera mengambil tindakan untuk menghindari konsekuensi lebih lanjut.\n\n";
     $message .= "📋 *No. Registrasi:* #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
-    $item_desc = trim((string)($data['merk'] . ' ' . $data['tipe']));
+    $item_desc = trim((string)($data['merk_barang'] . ' ' . $data['spesifikasi_barang']));
     $imei_text = !empty($data['imei_serial']) ? " (IMEI/Serial: {$data['imei_serial']})" : '';
     $message .= "📱 *Barang:* {$data['jenis_barang']}" . (!empty($item_desc) ? " - {$item_desc}" : "") . $imei_text . "\n";
     if (!empty($data['kelengkapan_hp'])) {
         $message .= "- *Kelengkapan:* {$data['kelengkapan_hp']}\n";
     }
-    if (!empty($data['kondisi'])) {
-        $message .= "- *Kemulusan/Kondisi:* {$data['kondisi']}\n";
+    if (!empty($data['kondisi_barang'])) {
+        $message .= "- *Kemulusan/Kondisi:* {$data['kondisi_barang']}\n";
     }
     if (!empty($data['tanggal_gadai'])) {
         $message .= "- *Tanggal Gadai:* " . date('d F Y', strtotime($data['tanggal_gadai'])) . "\n";
@@ -580,6 +590,8 @@ class WhatsAppHelper {
     $message .= "*Rincian Tebus:*\n";
     $message .= "- *Pokok:* Rp " . number_format($pokok, 0, ',', '.') . "\n";
     $message .= "- *Bunga:* Rp " . number_format($bunga_total, 0, ',', '.') . " ({$bunga}% x {$lama} bulan)\n";
+    $message .= "- *Biaya administrasi (1%):* Rp " . number_format($admin_fee, 0, ',', '.') . "\n";
+    $message .= "- *Biaya asuransi:* Rp " . number_format($biaya_asuransi, 0, ',', '.') . "\n";
     $message .= "- *Denda Harian:* Rp " . number_format($denda_harian, 0, ',', '.') . " x {$denda_days_counted} hari = Rp " . number_format($denda_total, 0, ',', '.') . "\n";
     $message .= "\n*Total Tebus:* Rp " . number_format($total_tebus, 0, ',', '.') . "\n\n";
     $message .= "Mohon segera melakukan pelunasan atau menghubungi kami untuk mendiskusikan opsi perpanjangan.\n\n";
@@ -593,7 +605,7 @@ class WhatsAppHelper {
     $message .= "Hormat kami,\nGadai Cepat Timika Papua\n";
     $message .= "📞 0858-2309-1908";
 
-        return $this->sendMessage($data['no_hp'], $message);
+        return $this->sendMessage($data['no_wa'], $message);
     }
 
     /**
@@ -601,10 +613,10 @@ class WhatsAppHelper {
      */
     public function notifyUserGagalTebus($data) {
         $message = "❗ *PENGUMUMAN: GAGAL TEBUS*\n\n";
-        $message .= "Yth. Bapak/Ibu {$data['nama_nasabah']},\n\n";
+        $message .= "Yth. Bapak/Ibu {$data['nama']},\n\n";
         $message .= "Mohon maaf, pengajuan gadai Anda dinyatakan *Gagal Tebus* karena melewati batas tenggang. Barang akan diproses sesuai ketentuan.\n\n";
         $message .= "📋 *No. Registrasi:* #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
-        $item_desc = trim((string)($data['merk'] . ' ' . $data['tipe']));
+        $item_desc = trim((string)($data['merk_barang'] . ' ' . $data['spesifikasi_barang']));
         $imei_text = !empty($data['imei_serial']) ? " (IMEI/Serial: {$data['imei_serial']})" : '';
         $message .= "📱 *Barang:* {$data['jenis_barang']}" . (!empty($item_desc) ? " - {$item_desc}" : "") . $imei_text . "\n\n";
         if (!empty($data['tanggal_jatuh_tempo'])) {
@@ -621,7 +633,7 @@ class WhatsAppHelper {
         $message .= "Hormat kami,\nGadai Cepat Timika Papua\n";
         $message .= "📞 0858-2309-1908";
 
-        return $this->sendMessage($data['no_hp'], $message);
+        return $this->sendMessage($data['no_wa'], $message);
     }
 
     /**
@@ -630,8 +642,8 @@ class WhatsAppHelper {
     public function notifyAdminGagalTebus($data) {
         $message = "⚠️ *PENGUMUMAN: GAGAL TEBUS*\n\n";
         $message .= "📋 No. Registrasi: #" . str_pad($data['id'], 6, '0', STR_PAD_LEFT) . "\n";
-        $message .= "👤 Nama: {$data['nama_nasabah']}\n";
-        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk']} {$data['tipe']}\n";
+        $message .= "👤 Nama: {$data['nama']}\n";
+        $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk_barang']} {$data['spesifikasi_barang']}\n";
         if (!empty($data['tanggal_jatuh_tempo'])) {
             $message .= "📅 Tgl Jatuh Tempo: " . date('d F Y', strtotime($data['tanggal_jatuh_tempo'])) . "\n";
         }

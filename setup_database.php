@@ -107,7 +107,7 @@ $sql_data_gadai = "CREATE TABLE IF NOT EXISTS `data_gadai` (
   `lama_gadai` int(11) DEFAULT 30,
   `tanggal_gadai` date NOT NULL,
   `tanggal_jatuh_tempo` date NOT NULL,
-  `status` enum('Pending','Disetujui','Ditolak','Lunas','Diperpanjang','Jatuh Tempo','Barang Dijual') DEFAULT 'Pending',
+  `status` enum('Pending','Disetujui','Ditolak','Lunas','Diperpanjang','Jatuh Tempo','Gagal Tebus','Barang Dijual') DEFAULT 'Pending',
   `foto_ktp` varchar(255) DEFAULT NULL,
   `foto_barang` varchar(255) DEFAULT NULL,
   `foto_tambahan` varchar(255) DEFAULT NULL,
@@ -121,6 +121,9 @@ $sql_data_gadai = "CREATE TABLE IF NOT EXISTS `data_gadai` (
   `tanggal_pelunasan` date DEFAULT NULL,
   `denda_terakumulasi` decimal(15,2) DEFAULT 0.00,
   `jumlah_perpanjangan` int(11) DEFAULT 0,
+  `perpanjangan_ke` int(11) DEFAULT 0,
+  `perpanjangan_terakhir_at` datetime DEFAULT NULL,
+  `gagal_tebus_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_nik` (`nik`),
   KEY `idx_status` (`status`),
@@ -160,7 +163,37 @@ try {
 }
 
 // ============================================
-// STEP 6: Create Table WA_LOG (WhatsApp Log)
+// STEP 6: Create Table TRANSAKSI
+// ============================================
+$sql_transaksi = "CREATE TABLE IF NOT EXISTS `transaksi` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `pelanggan_nik` varchar(32) NOT NULL,
+  `barang_id` int(11) NOT NULL,
+  `imei` varchar(64) DEFAULT NULL,
+  `serial_number` varchar(100) DEFAULT NULL,
+  `jenis_barang` varchar(32) DEFAULT NULL,
+  `merk` varchar(100) DEFAULT NULL,
+  `tipe` varchar(100) DEFAULT NULL,
+  `jumlah_bayar` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `keterangan` varchar(255) DEFAULT NULL,
+  `metode_pembayaran` varchar(64) DEFAULT NULL,
+  `bukti` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_barang` (`barang_id`),
+  KEY `idx_pelanggan` (`pelanggan_nik`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+
+try {
+    $mysqli->query($sql_transaksi);
+    logResult(6, true, "Tabel 'transaksi' dibuat", "Untuk menyimpan bukti pembayaran cicilan/pelunasan/perpanjangan");
+} catch (Exception $e) {
+    logResult(6, false, "GAGAL membuat tabel transaksi", $e->getMessage());
+}
+
+// ============================================
+// STEP 7: Create Table WA_LOG (WhatsApp Log)
 // ============================================
 $sql_wa_log = "CREATE TABLE IF NOT EXISTS `wa_log` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -179,13 +212,13 @@ $sql_wa_log = "CREATE TABLE IF NOT EXISTS `wa_log` (
 
 try {
     $mysqli->query($sql_wa_log);
-    logResult(6, true, "Tabel 'wa_log' dibuat", "Log WhatsApp notifications");
+    logResult(7, true, "Tabel 'wa_log' dibuat", "Log WhatsApp notifications");
 } catch (Exception $e) {
-    logResult(6, false, "GAGAL membuat tabel wa_log", $e->getMessage());
+    logResult(7, false, "GAGAL membuat tabel wa_log", $e->getMessage());
 }
 
 // ============================================
-// STEP 7: Create Table PAYMENTS (Pembayaran)
+// STEP 8: Create Table PAYMENTS (Pembayaran)
 // ============================================
 $sql_payments = "CREATE TABLE IF NOT EXISTS `payments` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -205,13 +238,13 @@ $sql_payments = "CREATE TABLE IF NOT EXISTS `payments` (
 
 try {
     $mysqli->query($sql_payments);
-    logResult(7, true, "Tabel 'payments' dibuat", "Tracking pembayaran");
+    logResult(8, true, "Tabel 'payments' dibuat", "Tracking pembayaran");
 } catch (Exception $e) {
-    logResult(7, false, "GAGAL membuat tabel payments", $e->getMessage());
+    logResult(8, false, "GAGAL membuat tabel payments", $e->getMessage());
 }
 
 // ============================================
-// STEP 8: Insert Default Admin
+// STEP 9: Insert Default Admin
 // ============================================
 $default_password = 'admin123';
 $hashed_password = password_hash($default_password, PASSWORD_DEFAULT);
@@ -225,16 +258,16 @@ if ($row['total'] == 0) {
     
     try {
         $mysqli->query($sql_insert_admin);
-        logResult(8, true, "User Admin Default dibuat", "NIK: admin123 | Password: admin123 | Role: superadmin");
+        logResult(9, true, "User Admin Default dibuat", "NIK: admin123 | Password: admin123 | Role: superadmin");
     } catch (Exception $e) {
-        logResult(8, false, "GAGAL insert admin default", $e->getMessage());
+        logResult(9, false, "GAGAL insert admin default", $e->getMessage());
     }
 } else {
-    logResult(8, true, "User Admin sudah ada", "NIK: admin123 (existing)");
+    logResult(9, true, "User Admin sudah ada", "NIK: admin123 (existing)");
 }
 
 // ============================================
-// STEP 9: Create Database Views (Optional)
+// STEP 10: Create Database Views (Optional)
 // ============================================
 $sql_view = "CREATE OR REPLACE VIEW v_gadai_aktif AS
 SELECT 
@@ -251,13 +284,13 @@ WHERE d.status IN ('Disetujui', 'Diperpanjang', 'Jatuh Tempo')";
 
 try {
     $mysqli->query($sql_view);
-    logResult(9, true, "View 'v_gadai_aktif' dibuat", "Untuk monitoring gadai aktif");
+    logResult(10, true, "View 'v_gadai_aktif' dibuat", "Untuk monitoring gadai aktif");
 } catch (Exception $e) {
-    logResult(9, false, "GAGAL membuat view", $e->getMessage());
+    logResult(10, false, "GAGAL membuat view", $e->getMessage());
 }
 
 // ============================================
-// STEP 10: Insert Sample Data (Optional)
+// STEP 11: Insert Sample Data (Optional)
 // ============================================
 $check_data = $mysqli->query("SELECT COUNT(*) as total FROM ulasan");
 $row_ulasan = $check_data->fetch_assoc();
@@ -270,22 +303,22 @@ if ($row_ulasan['total'] == 0) {
     
     try {
         $mysqli->query($sql_sample_ulasan);
-        logResult(10, true, "Sample ulasan ditambahkan", "3 ulasan contoh");
+        logResult(11, true, "Sample ulasan ditambahkan", "3 ulasan contoh");
     } catch (Exception $e) {
-        logResult(10, false, "GAGAL insert sample ulasan", $e->getMessage());
+        logResult(11, false, "GAGAL insert sample ulasan", $e->getMessage());
     }
 } else {
-    logResult(10, true, "Sample data sudah ada", "Skip insert sample");
+    logResult(11, true, "Sample data sudah ada", "Skip insert sample");
 }
 
 // ============================================
-// STEP 11: Set Permissions & Optimize
+// STEP 12: Set Permissions & Optimize
 // ============================================
 try {
-    $mysqli->query("OPTIMIZE TABLE admin, data_gadai, ulasan, wa_log, payments");
-    logResult(11, true, "Optimasi tabel selesai", "All tables optimized");
+    $mysqli->query("OPTIMIZE TABLE admin, data_gadai, ulasan, transaksi, wa_log, payments");
+    logResult(12, true, "Optimasi tabel selesai", "All tables optimized");
 } catch (Exception $e) {
-    logResult(11, false, "Optimasi tabel gagal", $e->getMessage());
+    logResult(12, false, "Optimasi tabel gagal", $e->getMessage());
 }
 
 show_results:

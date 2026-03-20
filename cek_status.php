@@ -49,21 +49,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['byrcicilan'])) {
     }
 
     if (empty($upload_errors)) {
-    $checkGadai = mysqli_query($conn, "SELECT no_ktp, imei_serial, jenis_barang, merk, tipe FROM data_gadai WHERE id = '" . mysqli_real_escape_string($conn, $no_registrasi) . "' LIMIT 1");
+    $checkGadai = mysqli_query($conn, "SELECT nik, imei_serial, jenis_barang, merk_barang, spesifikasi_barang FROM data_gadai WHERE id = '" . mysqli_real_escape_string($conn, $no_registrasi) . "' LIMIT 1");
         if (!$checkGadai) {
             $upload_errors[] = 'Gagal memeriksa data gadai.';
         } elseif (mysqli_num_rows($checkGadai) === 0) {
             $upload_errors[] = 'ID gadai tidak ditemukan.';
         } else {
             $rowGadai = mysqli_fetch_assoc($checkGadai);
-            if ($rowGadai['no_ktp'] !== $pelanggan) {
+            if ($rowGadai['nik'] !== $pelanggan) {
                 $upload_errors[] = 'NIK tidak sesuai dengan data gadai.';
             }
         }
     }
 
     if (empty($upload_errors)) {
-        $checkAttempts = mysqli_query($conn, "SELECT COUNT(*) AS total FROM transaksi WHERE pelanggan_nik = '$pelanggan' AND barang_id = '$no_registrasi'");
+        // Batasi 1x upload untuk transaksi yang masih pending pada jenis yang sama (cicilan/pelunasan/perpanjangan)
+        $safe_reg = mysqli_real_escape_string($conn, (string)$no_registrasi);
+        $checkAttempts = mysqli_query($conn, "SELECT COUNT(*) AS total FROM transaksi WHERE pelanggan_nik = '$pelanggan' AND barang_id = '$safe_reg' AND keterangan = '" . mysqli_real_escape_string($conn, $action_for) . "'");
         if (!$checkAttempts) {
             $upload_errors[] = 'Gagal memeriksa data transaksi.';
         } else {
@@ -101,8 +103,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['byrcicilan'])) {
             // serial_number will mirror imei_serial when available
             $serial_val = $imei_val;
             $jenis_val = isset($rowGadai['jenis_barang']) ? mysqli_real_escape_string($conn, $rowGadai['jenis_barang']) : null;
-            $merk_val = isset($rowGadai['merk']) ? mysqli_real_escape_string($conn, $rowGadai['merk']) : null;
-            $tipe_val = isset($rowGadai['tipe']) ? mysqli_real_escape_string($conn, $rowGadai['tipe']) : null;
+            $merk_val = isset($rowGadai['merk_barang']) ? mysqli_real_escape_string($conn, $rowGadai['merk_barang']) : null;
+            $tipe_val = isset($rowGadai['spesifikasi_barang']) ? mysqli_real_escape_string($conn, $rowGadai['spesifikasi_barang']) : null;
 
             $cols = [];
             $vals = [];
@@ -138,11 +140,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['byrcicilan'])) {
             }
 
             mysqli_commit($conn);
-            // If this upload is intended for perpanjangan, mark the gadai as perpanjangan pending so admin can confirm
+            // If this upload is intended for perpanjangan, the transaksi record will mark it for admin review
             if ($action_for === 'perpanjangan') {
                 $safe_reg = mysqli_real_escape_string($conn, $no_registrasi);
-                $update_q = mysqli_query($conn, "UPDATE data_gadai SET aksi_jatuh_tempo = 'Perpanjangan', aksi_jatuh_tempo_at = NULL, updated_at = NOW() WHERE id = '$safe_reg'");
-                // best-effort: ignore update failures here; admin will still see the transaksi record
+                // No need to update data_gadai; transaksi record is sufficient for admin to see pending perpanjangan
                 $message = 'Bukti pembayaran perpanjangan berhasil diunggah. Menunggu konfirmasi admin.';
 
                 // notify admin via WhatsApp (best-effort)
@@ -216,21 +217,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type'], $_POST
             if (!in_array($data['status'], $allowed_status, true)) {
                 $error = "Tindakan tidak dapat diproses untuk status saat ini.";
             } else {
-                $today = new DateTime(date('Y-m-d'));
-                $due_date = new DateTime($data['tanggal_jatuh_tempo']);
-                $aksi_at = !empty($data['aksi_jatuh_tempo_at']) ? new DateTime($data['aksi_jatuh_tempo_at']) : null;
-                $aksi_pending = !$aksi_at || ($aksi_at < $due_date);
-                $pelunasan_pending = ($data['aksi_jatuh_tempo'] === 'Pelunasan' && $data['status'] !== 'Ditebus');
-                if ($pelunasan_pending) {
-                    $aksi_pending = true;
+                // Check if pelunasan pending by looking at transaksi records
+                try {
+                    $check_pelunasan = $db->prepare("SELECT COUNT(*) FROM transaksi WHERE barang_id = ? AND pelanggan_nik = ? AND keterangan = 'pelunasan'");
+                    $check_pelunasan->execute([$no_registrasi, $data['nik']]);
+                    $pelunasan_pending = (int)$check_pelunasan->fetchColumn() > 0;
+                } catch (Exception $e) {
+                    $pelunasan_pending = false;
                 }
 
                 if ($pelunasan_pending) {
                     $error = "Pelunasan sedang menunggu pembayaran dan ACC admin. Gadai tetap berjalan.";
-                } elseif ($today < $due_date) {
+                } else {
+                $today = new DateTime(date('Y-m-d'));
+                $due_date = new DateTime($data['tanggal_jatuh_tempo']);
+                
+                if ($today < $due_date) {
                     $error = "Tindakan hanya bisa dilakukan saat jatuh tempo.";
-                } elseif (!$aksi_pending) {
-                    $error = "Tindakan jatuh tempo sudah diproses sebelumnya.";
                 } else {
                     $days_overdue = 0;
                     if ($today > $due_date) {
@@ -266,13 +269,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type'], $_POST
 
                 list($pokok_chk, $bunga_total_chk, $total_tebus_chk) = calculateTotalTebus($data, $denda_display_check);
 
-                // For extension we require bunga + denda (not pelunasan pokok)
-                $required_for_extension = round($bunga_total_chk + $denda_display_check);
+                // For extension we require bunga + denda + admin (1%) + asuransi (Rp 10,000)
+                $admin_fee = round($pokok_chk * 0.01); // 1% admin fee
+                $biaya_asuransi = 10000; // Rp 10,000 insurance
+                $required_for_extension = round($bunga_total_chk + $denda_display_check + $admin_fee + $biaya_asuransi);
 
                 // Sum payments already made for this barang/pelanggan
                 try {
-                    $paid_stmt = $db->prepare("SELECT COALESCE(SUM(jumlah_bayar),0) FROM transaksi WHERE barang_id = ? AND pelanggan_nik = ?");
-                    $paid_stmt->execute([$no_registrasi, $data['no_ktp']]);
+                    // Hitung pembayaran sejak perpanjangan terakhir (agar histori lama tidak membuat perpanjangan berikutnya gratis)
+                    $since = !empty($data['perpanjangan_terakhir_at']) ? $data['perpanjangan_terakhir_at'] : (!empty($data['created_at']) ? $data['created_at'] : null);
+                    if ($since) {
+                        $paid_stmt = $db->prepare("SELECT COALESCE(SUM(jumlah_bayar),0) FROM transaksi WHERE barang_id = ? AND pelanggan_nik = ? AND created_at >= ?");
+                        $paid_stmt->execute([$no_registrasi, $data['nik'], $since]);
+                    } else {
+                        $paid_stmt = $db->prepare("SELECT COALESCE(SUM(jumlah_bayar),0) FROM transaksi WHERE barang_id = ? AND pelanggan_nik = ?");
+                        $paid_stmt->execute([$no_registrasi, $data['nik']]);
+                    }
                     $total_paid = (float)$paid_stmt->fetchColumn();
                 } catch (Exception $e) {
                     // If transaksi table missing or query fails, assume no payments recorded
@@ -281,7 +293,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type'], $_POST
 
                 if ($total_paid < $required_for_extension) {
                     $short = $required_for_extension - $total_paid;
-                    $error = "Sebelum perpanjangan, harap lunasi semua tagihan bunga dan denda sebesar Rp " . number_format($required_for_extension, 0, ',', '.') . ". Kekurangan saat ini: Rp " . number_format($short, 0, ',', '.') . ". Silakan pilih Pelunasan dan unggah bukti pembayaran.";
+                    $error = "Sebelum perpanjangan, harap lunasi semua tagihan (Bunga + Denda + Admin 1% + Asuransi Rp 10.000) sebesar Rp " . number_format($required_for_extension, 0, ',', '.') . ". Kekurangan saat ini: Rp " . number_format($short, 0, ',', '.') . ". Silakan pilih Pelunasan dan unggah bukti pembayaran.";
                     // do not process extension
                 } else {
                     $current_due = $data['tanggal_jatuh_tempo'];
@@ -292,8 +304,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type'], $_POST
                         tanggal_jatuh_tempo = ?,
                         perpanjangan_ke = perpanjangan_ke + 1,
                         perpanjangan_terakhir_at = NOW(),
-                        aksi_jatuh_tempo = 'Perpanjangan',
-                        aksi_jatuh_tempo_at = NOW(),
                         updated_at = NOW()
                     WHERE id = ?";
                     $update_stmt = $db->prepare($update_sql);
@@ -310,13 +320,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type'], $_POST
                     $message_type = 'success';
                 }
             } elseif ($action_type === 'pelunasan') {
-                $update_sql = "UPDATE data_gadai SET 
-                        aksi_jatuh_tempo = 'Pelunasan',
-                        aksi_jatuh_tempo_at = NULL,
-                        updated_at = NOW()
-                    WHERE id = ?";
-                $update_stmt = $db->prepare($update_sql);
-                $update_stmt->execute([$no_registrasi]);
+                // No need to update data_gadai for pelunasan pending
+                // User will upload bukti and admin will ACC it
 
                 $denda_existing = !empty($data['denda_terakumulasi']) ? (float)$data['denda_terakumulasi'] : 0;
                 $denda_for_payment = $denda_total > 0 ? max($denda_total, $denda_existing) : $denda_existing;
@@ -334,10 +339,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type'], $_POST
                 $message = "Permintaan pelunasan telah kami terima. Silakan lakukan pembayaran via BRIVA BRI.";
                 $message_type = 'success';
             }
-                    }
-                }
-            }
-        }
+                        } // end else (days > max_denda check)
+                    } // end else (today < due_date check)
+                } // end else (pelunasan_pending check)
+            } // end else (allowed status check)
+        } // end else (!$data check)
     } catch(PDOException $e) {
         $error = "Error: " . $e->getMessage();
     }
@@ -359,13 +365,8 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
             if (in_array($result['status'], $status_check, true) && !empty($result['tanggal_jatuh_tempo'])) {
                 $today = new DateTime(date('Y-m-d'));
                 $due_date = new DateTime($result['tanggal_jatuh_tempo']);
-                $aksi_at = !empty($result['aksi_jatuh_tempo_at']) ? new DateTime($result['aksi_jatuh_tempo_at']) : null;
-                $aksi_pending = !$aksi_at || ($aksi_at < $due_date);
-                if ($result['aksi_jatuh_tempo'] === 'Pelunasan' && $result['status'] !== 'Ditebus') {
-                    $aksi_pending = true;
-                }
 
-                if ($today > $due_date && $aksi_pending) {
+                if ($today > $due_date) {
                     $days_overdue = (int)$due_date->diff($today)->format('%a');
                     $days_overdue_capped = min($days_overdue, $denda_max_days);
                     $denda_total = $days_overdue_capped > 0 ? $daily_denda * $days_overdue_capped : 0;
@@ -703,14 +704,11 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                 $today = new DateTime(date('Y-m-d'));
                 $days_overdue = 0;
                 $denda_total = 0;
-                $aksi_pending = false;
 
                 if (!empty($result['tanggal_jatuh_tempo']) && in_array($result['status'], ['Disetujui', 'Diperpanjang'], true)) {
                     $due_date = new DateTime($result['tanggal_jatuh_tempo']);
-                    $aksi_at = !empty($result['aksi_jatuh_tempo_at']) ? new DateTime($result['aksi_jatuh_tempo_at']) : null;
-                    $aksi_pending = !$aksi_at || ($aksi_at < $due_date);
 
-                    if ($today > $due_date && $aksi_pending) {
+                    if ($today > $due_date) {
                         $days_overdue = (int)$due_date->diff($today)->format('%a');
                         $days_overdue_capped = min($days_overdue, $denda_max_days);
                         if ($days_overdue_capped > 0) {
@@ -724,7 +722,24 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                 list($pokok_display, $bunga_total_display, $total_tebus_calc_display) = calculateTotalTebus($result, $denda_display);
                 $total_tebus_display = !empty($result['total_tebus']) ? (float)$result['total_tebus'] : $total_tebus_calc_display;
                 $payment_amount_display = $payment_amount !== null ? $payment_amount : $total_tebus_display;
-                $pelunasan_pending = ($result['aksi_jatuh_tempo'] === 'Pelunasan' && $result['status'] !== 'Ditebus');
+                
+                // Check pelunasan pending from transaksi table
+                try {
+                    $check_pelunasan_display = $db->prepare("SELECT COUNT(*) FROM transaksi WHERE barang_id = ? AND pelanggan_nik = ? AND keterangan = 'pelunasan'");
+                    $check_pelunasan_display->execute([$result['id'], $result['nik']]);
+                    $pelunasan_pending = (int)$check_pelunasan_display->fetchColumn() > 0 && $result['status'] !== 'Lunas';
+                } catch (Exception $e) {
+                    $pelunasan_pending = false;
+                }
+                
+                // Check perpanjangan pending from transaksi table
+                try {
+                    $check_perpanjangan_display = $db->prepare("SELECT COUNT(*) FROM transaksi WHERE barang_id = ? AND pelanggan_nik = ? AND keterangan = 'perpanjangan'");
+                    $check_perpanjangan_display->execute([$result['id'], $result['nik']]);
+                    $perpanjangan_pending = (int)$check_perpanjangan_display->fetchColumn() > 0;
+                } catch (Exception $e) {
+                    $perpanjangan_pending = false;
+                }
                 ?>
                 
                 <div class="status-card <?php echo $status_class; ?>">
@@ -754,12 +769,12 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                             <span class="info-value"><?php echo $result['jenis_barang']; ?></span>
                         </div>
                         <div class="info-row">
-                            <span class="info-label">Merk & Tipe:</span>
-                            <span class="info-value"><?php echo $result['merk'] . ' ' . $result['tipe']; ?></span>
+                            <span class="info-label">Merk & Spesifikasi:</span>
+                            <span class="info-value"><?php echo ($result['merk_barang'] ?? '-') . ' ' . ($result['spesifikasi_barang'] ?? ''); ?></span>
                         </div>
                         <div class="info-row">
                             <span class="info-label">Kondisi:</span>
-                            <span class="info-value"><?php echo $result['kondisi']; ?></span>
+                            <span class="info-value"><?php echo $result['kondisi_barang'] ?? '-'; ?></span>
                         </div>
                     </div>
                     
@@ -842,7 +857,7 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                         </div>
                     <?php endif; ?>
                     
-                    <?php if ($result['keterangan_admin'] && $result['status'] == 'Disetujui'): ?>
+                    <?php if (!empty($result['keterangan_admin']) && $result['status'] == 'Disetujui'): ?>
                         <div class="alert alert-info" style="border-radius: 15px; padding: 15px; margin-top: 20px;">
                             <strong>📝 Catatan dari Admin:</strong><br>
                             <?php echo nl2br(htmlspecialchars($result['keterangan_admin'])); ?>
@@ -865,19 +880,14 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                         </div>
                     <?php endif; ?>
 
-                    <?php if ($days_overdue > 0 && $days_overdue <= 7 && $aksi_pending): ?>
+                    <?php if ($days_overdue > 0 && $days_overdue <= 7 && !$pelunasan_pending && !$perpanjangan_pending): ?>
                         <div class="alert alert-warning alert-box">
                             <strong>⚠️ Denda Harian Aktif</strong><br>
                             Terlambat <?php echo $days_overdue; ?> hari. Denda berjalan: Rp 30.000 x <?php echo $days_overdue; ?> = <strong>Rp <?php echo number_format($denda_total, 0, ',', '.'); ?></strong>
                         </div>
                     <?php endif; ?>
 
-                    <?php if (!empty($result['aksi_jatuh_tempo']) && !empty($result['aksi_jatuh_tempo_at'])): ?>
-                        <div class="alert alert-info alert-box">
-                            <strong>ℹ️ Aksi Terakhir:</strong>
-                            <?php echo $result['aksi_jatuh_tempo']; ?> pada <?php echo date('d F Y, H:i', strtotime($result['aksi_jatuh_tempo_at'])); ?>.
-                        </div>
-                    <?php endif; ?>
+                    <?php // Aksi jatuh tempo info removed - no longer using aksi_jatuh_tempo column ?>
 
                     <?php if ($pelunasan_pending): ?>
                         <div class="alert alert-warning alert-box">
@@ -891,16 +901,19 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                         </div>
                     <?php endif; ?>
 
-                    <?php if (!empty($result['tanggal_jatuh_tempo']) && in_array($result['status'], ['Disetujui', 'Diperpanjang'], true) && $aksi_pending && !$pelunasan_pending): ?>
+                    <?php if (!empty($result['tanggal_jatuh_tempo']) && in_array($result['status'], ['Disetujui', 'Diperpanjang'], true) && !$pelunasan_pending && !$perpanjangan_pending): ?>
                         <?php if ($today >= new DateTime($result['tanggal_jatuh_tempo'])): ?>
                             <?php
-                                // amount required for extension: bunga (total for the period) + current denda
-                                $required_for_extension = round($bunga_total_display + $denda_display);
+                                // amount required for extension: bunga + denda + admin (1%) + asuransi (Rp 10,000)
+                                $pokok_for_ext = !empty($result['jumlah_disetujui']) ? (float)$result['jumlah_disetujui'] : (float)$result['jumlah_pinjaman'];
+                                $admin_fee_ext = round($pokok_for_ext * 0.01); // 1% admin fee
+                                $biaya_asuransi_ext = 10000; // Rp 10,000 insurance
+                                $required_for_extension = round($bunga_total_display + $denda_display + $admin_fee_ext + $biaya_asuransi_ext);
                             ?>
                             <div class="info-section">
                                 <h5>🧾 Pilih Tindakan Jatuh Tempo</h5>
                                 <div class="d-grid gap-2">
-                                    <!-- Perpanjangan: open a modal to instruct payment of bunga+denda and upload proof -->
+                                    <!-- Perpanjangan: open a modal to instruct payment of bunga+denda+admin+asuransi and upload proof -->
                                     <button type="button" id="btnPerpanjangan" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#perpanjanganModal" style="border-radius: 50px; padding: 12px 30px; font-weight: 600;">
                                         🔁 Perpanjangan Gadai
                                     </button>
@@ -941,7 +954,7 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                             <input type="hidden" name="no_registrasi" value="<?php echo $result['id']; ?>">
                             <div class="mb-3">
                                 <label class="form-label">NIK/KTP</label>
-                                <input type="text" class="form-control" name="ktp" value="<?php echo htmlspecialchars($result['no_ktp']); ?>" required>
+                                <input type="text" class="form-control" name="ktp" value="<?php echo htmlspecialchars($result['nik'] ?? ''); ?>" required>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Nominal Pembayaran</label>
@@ -974,12 +987,12 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
         </div>
     <?php endif; ?>
     <?php if ($result): ?>
-        <!-- Perpanjangan Modal: show required bunga + denda and allow upload proof for perpanjangan -->
+        <!-- Perpanjangan Modal: show required bunga + denda + admin + asuransi and allow upload proof for perpanjangan -->
         <div class="modal fade" id="perpanjanganModal" tabindex="-1" aria-labelledby="perpanjanganModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content" style="border-radius: 20px;">
                     <div class="modal-header" style="border-bottom: 1px solid #e3f2fd;">
-                        <h5 class="modal-title" id="perpanjanganModalLabel">🔁 Perpanjangan - Lunasi Bunga & Denda</h5>
+                        <h5 class="modal-title" id="perpanjanganModalLabel">🔁 Perpanjangan - Bunga + Denda + Admin + Asuransi</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <form method="POST" action="cek_status.php" enctype="multipart/form-data">
@@ -988,10 +1001,10 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                             <input type="hidden" name="action_for" value="perpanjangan">
                             <div class="mb-3">
                                 <label class="form-label">NIK/KTP</label>
-                                <input type="text" class="form-control" name="ktp" value="<?php echo htmlspecialchars($result['no_ktp']); ?>" required>
+                                <input type="text" class="form-control" name="ktp" value="<?php echo htmlspecialchars($result['nik'] ?? ''); ?>" required>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">Total yang harus dilunasi sekarang (Bunga + Denda)</label>
+                                <label class="form-label">Total yang harus dilunasi (Bunga + Denda + Admin 1% + Asuransi Rp 10.000)</label>
                                 <input type="text" class="form-control" id="perpanjanganAmount" name="amount" value="<?php echo number_format($required_for_extension ?? 0, 0, ',', '.'); ?>" required>
                             </div>
                             <div class="mb-3">

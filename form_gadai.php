@@ -49,20 +49,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             move_uploaded_file($_FILES["foto_ktp"]["tmp_name"], $foto_ktp);
         }
         
+        // Gabungkan tipe dan imei_serial menjadi spesifikasi_barang
+        $spesifikasi_barang = trim($tipe . ($imei_serial ? ' (IMEI: ' . $imei_serial . ')' : ''));
+        
         // Insert ke database
         $sql = "INSERT INTO data_gadai (
-            nama_nasabah, no_ktp, no_hp, alamat, jenis_barang, merk, tipe, 
-            kondisi, imei_serial, kelengkapan_hp, harga_pasar, jumlah_pinjaman, bunga, 
-            lama_gadai, tanggal_gadai, tanggal_jatuh_tempo, foto_barang, foto_ktp, status
+            nama, nik, no_wa, alamat, jenis_barang, merk_barang, spesifikasi_barang, 
+            kondisi_barang, nilai_taksiran, jumlah_pinjaman, bunga, 
+            lama_gadai, tanggal_gadai, tanggal_jatuh_tempo, foto_barang, foto_ktp, 
+            kelengkapan_hp, imei_serial, status
         ) VALUES (
             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending'
         )";
         
         $stmt = $db->prepare($sql);
         $stmt->execute([
-            $nama_nasabah, $no_ktp, $no_hp, $alamat, $jenis_barang, $merk, $tipe,
-            $kondisi, $imei_serial, $kelengkapan_hp, $harga_pasar, $jumlah_pinjaman, $bunga,
-            $lama_gadai, $tanggal_gadai, $tanggal_jatuh_tempo, $foto_barang, $foto_ktp
+            $nama_nasabah, $no_ktp, $no_hp, $alamat, $jenis_barang, $merk, $spesifikasi_barang,
+            $kondisi, $harga_pasar, $jumlah_pinjaman, $bunga,
+            $lama_gadai, $tanggal_gadai, $tanggal_jatuh_tempo, $foto_barang, $foto_ktp,
+            $kelengkapan_hp, $imei_serial
         ]);
         
         $no_transaksi = $db->lastInsertId();
@@ -72,12 +77,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         try {
             $data_pengajuan = [
                 'id' => $no_transaksi,
-                'nama_nasabah' => $nama_nasabah,
+                'nama' => $nama_nasabah,
                 'jenis_barang' => $jenis_barang,
-                'merk' => $merk,
-                'tipe' => $tipe,
+                'merk_barang' => $merk,
+                'spesifikasi_barang' => $spesifikasi_barang,
                 'jumlah_pinjaman' => $jumlah_pinjaman,
-                'no_hp' => $no_hp
+                'no_wa' => $no_hp
             ];
             $whatsapp->notifyAdminNewSubmission($data_pengajuan);
         } catch(Exception $e) {
@@ -88,16 +93,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         try {
             $data_pengajuan_user = [
                 'id' => $no_transaksi,
-                'nama_nasabah' => $nama_nasabah,
+                'nama' => $nama_nasabah,
                 'jenis_barang' => $jenis_barang,
-                'merk' => $merk,
-                'tipe' => $tipe,
+                'merk_barang' => $merk,
+                'spesifikasi_barang' => $spesifikasi_barang,
                 'imei_serial' => $imei_serial,
                 'kelengkapan_hp' => $kelengkapan_hp,
-                'kondisi' => $kondisi,
+                'kondisi_barang' => $kondisi,
                 'jumlah_pinjaman' => $jumlah_pinjaman,
                 'tanggal_jatuh_tempo' => $tanggal_jatuh_tempo,
-                'no_hp' => $no_hp
+                'no_wa' => $no_hp
             ];
             $whatsapp->notifyUserSubmissionReceived($data_pengajuan_user);
         } catch(Exception $e) {
@@ -405,9 +410,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <label class="form-label" id="kondisiLabel">Kondisi Barang <span class="required">*</span></label>
                         <select class="form-select" name="kondisi" required>
                             <option value="">-- Pilih Kondisi --</option>
-                            <option value="Sangat Baik">⭐⭐⭐⭐⭐ Sangat Baik (Seperti Baru)</option>
-                            <option value="Baik">⭐⭐⭐⭐ Baik (Normal)</option>
-                            <option value="Cukup">⭐⭐⭐ Cukup (Ada Lecet)</option>
+                            <option value="Baru">⭐⭐⭐⭐⭐ Baru (Seperti Baru)</option>
+                            <option value="Bekas - Baik">⭐⭐⭐⭐ Bekas - Baik (Normal)</option>
+                            <option value="Bekas - Cukup">⭐⭐⭐ Bekas - Cukup (Ada Lecet)</option>
+                            <option value="Rusak Ringan">⭐⭐ Rusak Ringan</option>
                         </select>
                     </div>
                 </div>
@@ -474,7 +480,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <div class="col-md-12">
                         <label class="form-label">Total Yang Balik (perkiraan)</label>
                         <input type="text" id="total_kembali_display" class="form-control" readonly placeholder="Rp 0">
-                        <div class="form-text">Estimasi total yang harus dibayar untuk menebus: pokok + bunga (per bulan) x lama. Belum termasuk denda keterlambatan.</div>
+                        <div class="form-text">Estimasi total yang harus dibayar untuk menebus: pokok + bunga (30% × lama gadai) + biaya admin (1%) + biaya asuransi (Rp 10.000). Belum termasuk denda keterlambatan.</div>
                     </div>
                 </div>
                 
@@ -507,7 +513,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             const pokok = parseFloat(jumlahPinjaman.value) || 0;
             const bunga = parseFloat(bungaInput.value) || 0;
             const lama = parseInt(lamaSelect.value) || 0;
-            const total = pokok + (pokok * (bunga / 100) * lama);
+            
+            // Bunga per bulan x lama gadai
+            const bungaBulanan = pokok * (bunga / 100) * lama;
+            
+            // Biaya administrasi 1%
+            const biayaAdmin = pokok * 0.01;
+            
+            // Biaya asuransi tetap
+            const biayaAsuransi = 10000;
+            
+            // Total yang dikembalikan (sama dengan halaman simulasi)
+            const total = pokok + bungaBulanan + biayaAdmin + biayaAsuransi;
+            
             document.getElementById('total_kembali_display').value = 'Rp ' + total.toLocaleString('id-ID');
         }
 
