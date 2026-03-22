@@ -313,7 +313,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 // --- Kirim Nota Gadai via WhatsApp (format PDF) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'manual_send_nota') {
-    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+    $idRaw = $_POST['id'] ?? ($_POST['id_btn'] ?? ($_POST['no_registrasi'] ?? 0));
+    $id = (int)preg_replace('/[^0-9]/', '', (string)$idRaw);
     try {
         if ($id <= 0) {
             $message = 'ID tidak valid.';
@@ -376,7 +377,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     }
                 }
 
-                $statusUrl = ($host !== '' ? ($scheme . '://' . $host) : '') . $basePath . '/cek_status.php?no_registrasi=' . $row['id'];
+                // Jika folder project ini adalah document root (mis. vhost mengarah langsung ke GadaiHp),
+                // maka basePath tidak perlu memakai prefix seperti /GadaiHp.
+                try {
+                    $docRoot = isset($_SERVER['DOCUMENT_ROOT']) ? realpath((string)$_SERVER['DOCUMENT_ROOT']) : null;
+                    $appRoot = realpath(__DIR__);
+                    if ($docRoot && $appRoot && strcasecmp(rtrim($docRoot, '\\/'), rtrim($appRoot, '\\/')) === 0) {
+                        $basePath = '';
+                    }
+                } catch (Throwable $e) {
+                    // ignore
+                }
+
+                // Base URL: jika localhost, coba pakai IP lokal (supaya link bisa dibuka dari HP)
+                $baseUrl = '';
+                if ($host !== '') {
+                    $baseUrl = $scheme . '://' . $host;
+                    if ($host === 'localhost' || $host === '127.0.0.1') {
+                        $localIp = gethostbyname(gethostname());
+                        if ($localIp && $localIp !== '127.0.0.1' && filter_var($localIp, FILTER_VALIDATE_IP)) {
+                            $baseUrl = 'http://' . $localIp;
+                        }
+                    }
+                }
+
+                $noRegParam = str_pad((string)$row['id'], 6, '0', STR_PAD_LEFT);
+                $statusUrl = $baseUrl . $basePath . '/cek_status.php?no_registrasi=' . rawurlencode($noRegParam);
 
                 // Build HTML Nota (tanpa NIK/KTP)
                 $fmt = function($v) { return 'Rp ' . number_format((float)$v, 0, ',', '.'); };
@@ -510,9 +536,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $dompdf->render();
                 file_put_contents($filePath, $dompdf->output());
 
-                $pdfUrl = ($host !== '' ? ($scheme . '://' . $host) : '') . $basePath . '/uploads/nota/' . rawurlencode($fileName);
+                $pdfUrl = $baseUrl . $basePath . '/uploads/nota/' . rawurlencode($fileName);
 
-                $waText = "Assalamualaikum. Berikut nota gadai Anda (PDF): " . $pdfUrl;
+                $waText  = "Assalamualaikum " . ($nama !== '' ? $nama : '') . ",\n\n";
+                $waText .= "Berikut *Nota Gadai* Anda dari *Gadai Cepat Timika*.\n\n";
+                $waText .= "No. Registrasi: " . $reg . "\n";
+                if ($barang !== '') {
+                    $waText .= "Barang: " . $barang . "\n";
+                }
+                $waText .= "Jatuh Tempo: " . $tglJt . "\n";
+                $waText .= "Total Tebus: " . $fmt($total_tebus) . "\n\n";
+                $waText .= "Silakan buka/unduh PDF nota di link berikut:\n";
+                $waText .= $pdfUrl . "\n\n";
+                $waText .= "Terima kasih.\n";
+                $waText .= $storeName . "\n";
+                $waText .= "WA: " . $storeWhatsapp;
 
                 // Kirim otomatis via provider (Fonnte/Wablas). Jika provider 'manual', response berisi link (tidak terkirim otomatis).
                 $sendResp = null;
@@ -2085,7 +2123,7 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                             <form method="POST" style="display:inline;" onsubmit="return confirm('Kirim nota gadai untuk #' + <?php echo json_encode(str_pad($row['id'], 6, '0', STR_PAD_LEFT)); ?> + ' via WhatsApp?');">
                                                 <input type="hidden" name="action" value="manual_send_nota">
                                                 <input type="hidden" name="id" value="<?php echo (int)$row['id']; ?>">
-                                                <button type="submit" class="btn btn-sm btn-primary">Kirim Nota PDF</button>
+                                                <button type="submit" name="id_btn" value="<?php echo (int)$row['id']; ?>" class="btn btn-sm btn-primary">Kirim Nota PDF</button>
                                             </form>
                                             <?php if (($row['status'] ?? '') === 'Gagal Tebus'): ?>
                                                 <form method="POST" style="display:inline; margin-left:4px;" onsubmit="return confirm('Kirim notifikasi Gagal Tebus untuk #' + <?php echo json_encode(str_pad($row['id'], 6, '0', STR_PAD_LEFT)); ?> + '?');">

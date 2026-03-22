@@ -4616,3 +4616,29 @@ Response: {"detail":"success! message in queue","id":[148549710],"process":"pend
 Message: Assalamualaikum. Berikut nota gadai Anda (PDF): http://localhost/GadaiHp/uploads/nota/nota_4_a8de09abebb68866.pdf
 Response: {"detail":"success! message in queue","id":[148549902],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":955,"remaining":954,"used":1}},"requestid":425883827,"status":true,"target":["6285825366619"]}
 
+[2026-03-22 12:24:25] To: 6285825366619
+Message: Assalamualaikum. Berikut nota gadai Anda (PDF): http://172.20.10.3/GadaiHp/uploads/nota/nota_4_777a29ab868b845d.pdf
+Response: {"detail":"success! message in queue","id":[148575189],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":952,"remaining":951,"used":1}},"requestid":426101338,"status":true,"target":["6285825366619"]}
+
+[2026-03-22 12:27:27] To: 6285825366619
+Message: Assalamualaikum. Berikut nota gadai Anda (PDF): http://172.20.10.3/GadaiHp/uploads/nota/nota_4_e484be1c30223420.pdf
+Response: {"detail":"success! message in queue","id":[148575333],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":951,"remaining":950,"used":1}},"requestid":426102459,"status":true,"target":["6285825366619"]}
+
+[2026-03-22 12:28:42] To: 6285825366619
+Message: Assalamualaikum Basthian,
+
+Berikut *Nota Gadai* Anda dari *Gadai Cepat Timika*.
+
+No. Registrasi: #000004
+Barang: HP Vivo Y400
+Jatuh Tempo: 18 Mar 2026
+Total Tebus: Rp 1.975.000
+
+Silakan buka/unduh PDF nota di link berikut:
+http://172.20.10.3/GadaiHp/uploads/nota/nota_4_31d16b272a5e4d1b.pdf
+
+Terima kasih.
+Gadai Cepat Timika Papua
+WA: 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[148575385],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":950,"remaining":949,"used":1}},"requestid":426102856,"status":true,"target":["6285825366619"]}
+
