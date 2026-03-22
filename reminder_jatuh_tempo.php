@@ -63,7 +63,8 @@ try {
             $lama = isset($row['lama_gadai']) ? (int)$row['lama_gadai'] : 0;
             $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
             $admin_fee = round($pokok * 0.01);
-            $total_tebus = $pokok + $bunga_total + $admin_fee + $denda_total;
+            $biaya_asuransi = 10000;
+            $total_tebus = $pokok + $bunga_total + $admin_fee + $biaya_asuransi + $denda_total;
 
             // Update DB: denda_terakumulasi and total_tebus, and reminder metadata
             $update_sql = "UPDATE data_gadai
@@ -114,7 +115,8 @@ try {
             $lama = isset($row['lama_gadai']) ? (int)$row['lama_gadai'] : 0;
             $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
             $admin_fee = round($pokok * 0.01);
-            $total_tebus = $pokok + $bunga_total + $admin_fee + $denda_total;
+            $biaya_asuransi = 10000;
+            $total_tebus = $pokok + $bunga_total + $admin_fee + $biaya_asuransi + $denda_total;
 
             // Update status to Gagal Tebus and persist penalty/total
             $update_sql = "UPDATE data_gadai

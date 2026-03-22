@@ -109,8 +109,134 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
 
             $newId = $db->lastInsertId();
-            $message = 'Data gadai berhasil ditambahkan (NIK dibuat otomatis). ID: #' . str_pad((string)$newId, 6, '0', STR_PAD_LEFT);
-            $message_type = 'success';
+
+            // Kirim notifikasi WhatsApp sebagai bukti gadai (otomatis, jika provider mendukung)
+            $reg = '#' . str_pad((string)$newId, 6, '0', STR_PAD_LEFT);
+            $waSentOk = false;
+            $waIsManualMode = false;
+            $waLink = '';
+            $waErr = '';
+
+            try {
+                if (!isset($whatsapp) || !is_object($whatsapp) || !method_exists($whatsapp, 'sendMessage')) {
+                    throw new RuntimeException('WhatsApp helper tidak tersedia.');
+                }
+
+                // Ambil data terbaru untuk isi pesan
+                $stmtNew = $db->prepare("SELECT * FROM data_gadai WHERE id = ?");
+                $stmtNew->execute([(int)$newId]);
+                $newRow = $stmtNew->fetch(PDO::FETCH_ASSOC);
+
+                // Build base URL + basePath (tanpa hardcode /GadaiHp)
+                $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
+                $host = $_SERVER['HTTP_HOST'] ?? '';
+                $basePath = '';
+                if (!empty($_SERVER['SCRIPT_NAME'])) {
+                    $basePath = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/');
+                    if ($basePath === '.') {
+                        $basePath = '';
+                    }
+                }
+                try {
+                    $docRoot = isset($_SERVER['DOCUMENT_ROOT']) ? realpath((string)$_SERVER['DOCUMENT_ROOT']) : null;
+                    $appRoot = realpath(__DIR__);
+                    if ($docRoot && $appRoot && strcasecmp(rtrim($docRoot, '\\\\/'), rtrim($appRoot, '\\\\/')) === 0) {
+                        $basePath = '';
+                    }
+                } catch (Throwable $e) {
+                    // ignore
+                }
+
+                $baseUrl = '';
+                if ($host !== '') {
+                    $baseUrl = $scheme . '://' . $host;
+                    if ($host === 'localhost' || $host === '127.0.0.1') {
+                        $localIp = gethostbyname(gethostname());
+                        if ($localIp && $localIp !== '127.0.0.1' && filter_var($localIp, FILTER_VALIDATE_IP)) {
+                            $baseUrl = $scheme . '://' . $localIp;
+                        }
+                    }
+                }
+
+                $statusUrl = $baseUrl . $basePath . '/cek_status.php?no_registrasi=' . rawurlencode((string)(int)$newId);
+
+                $namaUser = (string)($newRow['nama'] ?? $nama);
+                $barang = trim((string)(($newRow['jenis_barang'] ?? $jenis_barang) . ' ' . ($newRow['merk_barang'] ?? $merk_barang) . ' ' . ($newRow['spesifikasi_barang'] ?? $spesifikasi_barang)));
+                $barang = trim(preg_replace('/\s+/', ' ', $barang));
+                $tglGadaiFmt = !empty($newRow['tanggal_gadai']) ? date('d M Y', strtotime((string)$newRow['tanggal_gadai'])) : (!empty($tanggal_gadai) ? date('d M Y', strtotime($tanggal_gadai)) : '-');
+                $tglJtFmt = !empty($newRow['tanggal_jatuh_tempo']) ? date('d M Y', strtotime((string)$newRow['tanggal_jatuh_tempo'])) : (!empty($tanggal_jatuh_tempo) ? date('d M Y', strtotime($tanggal_jatuh_tempo)) : '-');
+                $pinjaman = !empty($newRow['jumlah_disetujui']) ? (float)$newRow['jumlah_disetujui'] : (float)($newRow['jumlah_pinjaman'] ?? $jumlah_pinjaman);
+                $fmt = function($v) { return 'Rp ' . number_format((float)$v, 0, ',', '.'); };
+
+                $storeName = 'Gadai Cepat Timika Papua';
+                $storeWhatsapp = '0858-2309-1908';
+
+                $waText  = "Assalamualaikum " . ($namaUser !== '' ? $namaUser : '') . ",\n\n";
+                $waText .= "Data gadai Anda sudah dibuat dan *Disetujui*.\n\n";
+                $waText .= "No. Registrasi: " . $reg . "\n";
+                if ($barang !== '') {
+                    $waText .= "Barang: " . $barang . "\n";
+                }
+                $waText .= "Tanggal Gadai: " . $tglGadaiFmt . "\n";
+                $waText .= "Jatuh Tempo: " . $tglJtFmt . "\n";
+                $waText .= "Pinjaman: " . $fmt($pinjaman) . "\n\n";
+                $waText .= "Cek status/riwayat di link berikut:\n";
+                $waText .= $statusUrl . "\n\n";
+                $waText .= "Simpan pesan ini sebagai bukti transaksi.\n";
+                $waText .= "Terima kasih.\n";
+                $waText .= $storeName . "\n";
+                $waText .= "WA: " . $storeWhatsapp;
+
+                $sendResp = $whatsapp->sendMessage($no_wa, $waText);
+                $waIsManualMode = is_array($sendResp) && isset($sendResp['link']);
+                if ($waIsManualMode) {
+                    $waLink = (string)$sendResp['link'];
+                }
+
+                $waSentOk = is_array($sendResp) && (
+                    (!empty($sendResp['success']) && $sendResp['success'] === true && !$waIsManualMode)
+                    || (!empty($sendResp['status']) && $sendResp['status'] === true)
+                );
+
+                if (!$waSentOk && is_array($sendResp) && isset($sendResp['message'])) {
+                    $waErr = (string)$sendResp['message'];
+                }
+
+                if (!$waSentOk && $waLink === '') {
+                    // Fallback wa.me link
+                    $phone = preg_replace('/[^0-9]/', '', (string)$no_wa);
+                    if (substr($phone, 0, 1) === '0') {
+                        $phone = '62' . substr($phone, 1);
+                    }
+                    if (substr($phone, 0, 2) !== '62') {
+                        $phone = '62' . $phone;
+                    }
+                    $waLink = 'https://wa.me/' . $phone . '?text=' . urlencode($waText);
+                }
+            } catch (Throwable $e) {
+                $waErr = $e->getMessage();
+                // Fallback wa.me link (kalau bisa)
+                $phone = preg_replace('/[^0-9]/', '', (string)$no_wa);
+                if (substr($phone, 0, 1) === '0') {
+                    $phone = '62' . substr($phone, 1);
+                }
+                if (substr($phone, 0, 2) !== '62') {
+                    $phone = '62' . $phone;
+                }
+                $waLink = $phone !== '' ? ('https://wa.me/' . $phone) : '';
+            }
+
+            if ($waSentOk) {
+                $message = 'Data gadai berhasil ditambahkan. Notif WhatsApp berhasil diproses. ID: ' . $reg;
+                $message_type = 'success';
+            } else {
+                $extra = $waErr !== '' ? (' (' . htmlspecialchars($waErr, ENT_QUOTES, 'UTF-8') . ')') : '';
+                $message = 'Data gadai berhasil ditambahkan, namun notif WhatsApp tidak terkirim otomatis' . $extra . '. ID: ' . $reg;
+                if ($waLink !== '') {
+                    $message .= ' <a href="' . htmlspecialchars($waLink, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">Buka WhatsApp</a>';
+                }
+                $message_type = 'warning';
+            }
         }
     } catch (Throwable $e) {
         $message = 'Gagal menambahkan data gadai: ' . $e->getMessage();
@@ -1959,7 +2085,7 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                     </button>
                 </div>
 
-                <!-- Modal: Input Manual Data Gadai (tanpa kirim WhatsApp) -->
+                <!-- Modal: Input Manual Data Gadai (akan kirim notifikasi WhatsApp) -->
                 <div class="modal fade" id="addGadaiModal" tabindex="-1" aria-hidden="true">
                     <div class="modal-dialog modal-lg">
                         <div class="modal-content">
@@ -1969,7 +2095,7 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                             </div>
                             <form method="POST">
                                 <div class="modal-body">
-                                    <p class="text-muted mb-3">Form ini hanya menyimpan data ke sistem (tanpa mengirim WhatsApp).</p>
+                                    <p class="text-muted mb-3">Setelah disimpan, sistem akan mengirim notifikasi WhatsApp ke user sebagai bukti gadai.</p>
                                     <input type="hidden" name="action" value="manual_add_gadai">
 
                                     <div class="row g-3">

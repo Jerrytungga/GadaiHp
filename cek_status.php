@@ -194,7 +194,9 @@ function calculateTotalTebus($row, $denda_total) {
     $bunga = (float)$row['bunga'];
     $lama = (int)$row['lama_gadai'];
     $bunga_total = $pokok * ($bunga / 100) * $lama;
-    $total_tebus = $pokok + $bunga_total + (float)$denda_total;
+    $admin_fee = round($pokok * 0.01);
+    $biaya_asuransi = 10000;
+    $total_tebus = $pokok + $bunga_total + $admin_fee + $biaya_asuransi + (float)$denda_total;
 
     return [$pokok, $bunga_total, $total_tebus];
 }

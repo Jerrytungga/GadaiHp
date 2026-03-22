@@ -77,7 +77,8 @@ try {
                 $lama = isset($row['lama_gadai']) ? (int)$row['lama_gadai'] : 0;
                 $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
                 $admin_fee = round($pokok * 0.01);
-                $total_tebus = $pokok + $bunga_total + $admin_fee + $denda_total;
+                $biaya_asuransi = 10000;
+                $total_tebus = $pokok + $bunga_total + $admin_fee + $biaya_asuransi + $denda_total;
 
                 $last_sent_date = !empty($row['reminder_telat_at']) ? date('Y-m-d', strtotime($row['reminder_telat_at'])) : null;
                 $should_send = ($last_sent_date !== $today);
@@ -117,7 +118,8 @@ try {
                 $lama = isset($row['lama_gadai']) ? (int)$row['lama_gadai'] : 0;
                 $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
                 $admin_fee = round($pokok * 0.01);
-                $total_tebus = $pokok + $bunga_total + $admin_fee + $denda_total;
+                $biaya_asuransi = 10000;
+                $total_tebus = $pokok + $bunga_total + $admin_fee + $biaya_asuransi + $denda_total;
 
                 $u = $db->prepare("UPDATE data_gadai SET status = 'Gagal Tebus', gagal_tebus_at = NOW(), denda_terakumulasi = ?, total_tebus = ? WHERE id = ?");
                 $u->execute([$denda_total, $total_tebus, $row['id']]);
