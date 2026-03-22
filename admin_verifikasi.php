@@ -953,6 +953,97 @@ try {
     $transaksi_error = "Data transaksi belum tersedia (cek tabel transaksi).";
 }
 
+// --- Keuntungan Bulanan (berdasarkan transaksi) ---
+// Definisi:
+// - Lunas: keuntungan = bunga_total + admin_fee(1%) + asuransi(10.000) + denda
+// - Perpanjangan: keuntungan = total pembayaran perpanjangan (keterangan LIKE 'perpanjangan%')
+$profit_error = null;
+$profit_year = (int)($_GET['profit_year'] ?? date('Y'));
+if ($profit_year < 2000 || $profit_year > 2100) {
+    $profit_year = (int)date('Y');
+}
+
+$profit_months = [];
+for ($m = 1; $m <= 12; $m++) {
+    $profit_months[$m] = [
+        'lunas_count' => 0,
+        'lunas_profit' => 0.0,
+        'perp_count' => 0,
+        'perp_profit' => 0.0,
+    ];
+}
+
+try {
+    // Jika tabel transaksi belum ada, fitur ini tidak bisa menghitung per bulan.
+    $checkTbl = $db->prepare("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'transaksi'");
+    $checkTbl->execute();
+    $tblExists = (int)$checkTbl->fetchColumn() > 0;
+
+    if (!$tblExists) {
+        $profit_error = 'Fitur keuntungan membutuhkan tabel transaksi.';
+    } else {
+        // 1) Keuntungan Lunas per bulan (pakai tanggal transaksi pelunasan terakhir)
+        $sqlLunas = "
+            SELECT x.mm,
+                   COUNT(*) AS lunas_count,
+                   SUM(x.profit) AS lunas_profit
+            FROM (
+                SELECT dg.id,
+                       MONTH(MAX(t.created_at)) AS mm,
+                       (
+                           (
+                               (IFNULL(NULLIF(dg.jumlah_disetujui, 0), dg.jumlah_pinjaman) * (IFNULL(dg.bunga,0) / 100) * IFNULL(dg.lama_gadai,0))
+                               + ROUND(IFNULL(NULLIF(dg.jumlah_disetujui, 0), dg.jumlah_pinjaman) * 0.01)
+                               + 10000
+                               + IFNULL(dg.denda_terakumulasi, 0)
+                           )
+                       ) AS profit
+                FROM data_gadai dg
+                INNER JOIN transaksi t
+                    ON t.barang_id = dg.id
+                   AND (t.keterangan = 'pelunasan' OR t.keterangan = 'pelunasan_admin')
+                WHERE dg.status = 'Lunas'
+                  AND YEAR(t.created_at) = ?
+                GROUP BY dg.id
+            ) x
+            GROUP BY x.mm
+        ";
+        $stmtLunas = $db->prepare($sqlLunas);
+        $stmtLunas->execute([$profit_year]);
+        $rowsLunas = $stmtLunas->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rowsLunas as $r) {
+            $mm = (int)($r['mm'] ?? 0);
+            if ($mm >= 1 && $mm <= 12) {
+                $profit_months[$mm]['lunas_count'] = (int)($r['lunas_count'] ?? 0);
+                $profit_months[$mm]['lunas_profit'] = (float)($r['lunas_profit'] ?? 0);
+            }
+        }
+
+        // 2) Keuntungan Perpanjangan per bulan (jumlah bayar dianggap keuntungan)
+        $sqlPerp = "
+            SELECT MONTH(t.created_at) AS mm,
+                   COUNT(*) AS perp_count,
+                   SUM(IFNULL(t.jumlah_bayar, 0)) AS perp_profit
+            FROM transaksi t
+            WHERE YEAR(t.created_at) = ?
+              AND t.keterangan LIKE 'perpanjangan%'
+            GROUP BY MONTH(t.created_at)
+        ";
+        $stmtPerp = $db->prepare($sqlPerp);
+        $stmtPerp->execute([$profit_year]);
+        $rowsPerp = $stmtPerp->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rowsPerp as $r) {
+            $mm = (int)($r['mm'] ?? 0);
+            if ($mm >= 1 && $mm <= 12) {
+                $profit_months[$mm]['perp_count'] = (int)($r['perp_count'] ?? 0);
+                $profit_months[$mm]['perp_profit'] = (float)($r['perp_profit'] ?? 0);
+            }
+        }
+    }
+} catch (Throwable $e) {
+    $profit_error = 'Gagal menghitung keuntungan: ' . $e->getMessage();
+}
+
 // Statistics
 $stats_sql = "SELECT 
     COUNT(*) as total,
@@ -1237,6 +1328,11 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="transaksi-tab" data-bs-toggle="tab" data-bs-target="#transaksi" type="button">
                     🧾 Transaksi (<?php echo !empty($transaksi_data) ? count($transaksi_data) : 0; ?>)
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="profit-tab" data-bs-toggle="tab" data-bs-target="#profit" type="button">
+                    📈 Keuntungan Bulanan
                 </button>
             </li>
             <li class="nav-item" role="presentation">
@@ -2072,6 +2168,81 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                             </table>
                         </div>
                     <?php endif; ?>
+                <?php endif; ?>
+            </div>
+
+            <!-- Keuntungan Bulanan Tab -->
+            <div class="tab-pane fade" id="profit" role="tabpanel">
+                <div class="d-flex flex-wrap justify-content-between align-items-center mt-3">
+                    <div>
+                        <h5 class="mb-1">📈 Keuntungan Bulanan</h5>
+                        <div class="text-muted" style="font-size: 0.95rem;">
+                            Lunas = bunga + admin 1% + asuransi 10.000 + denda. Perpanjangan = total pembayaran perpanjangan.
+                        </div>
+                    </div>
+                    <form class="d-flex align-items-center gap-2" method="GET">
+                        <label class="form-label mb-0">Tahun</label>
+                        <input type="number" name="profit_year" class="form-control" style="max-width:120px;" min="2000" max="2100" value="<?php echo (int)$profit_year; ?>">
+                        <button type="submit" class="btn btn-primary">Tampilkan</button>
+                    </form>
+                </div>
+
+                <?php if ($profit_error): ?>
+                    <div class="alert alert-warning mt-3"><?php echo htmlspecialchars($profit_error); ?></div>
+                <?php else: ?>
+                    <?php
+                        $bulanNama = [
+                            1=>'Januari',2=>'Februari',3=>'Maret',4=>'April',5=>'Mei',6=>'Juni',
+                            7=>'Juli',8=>'Agustus',9=>'September',10=>'Oktober',11=>'November',12=>'Desember'
+                        ];
+                        $sumLunas = 0.0;
+                        $sumPerp = 0.0;
+                    ?>
+                    <div class="table-responsive mt-3">
+                        <table class="table table-striped table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Bulan</th>
+                                    <th class="text-center">Lunas (qty)</th>
+                                    <th class="text-end">Keuntungan Lunas</th>
+                                    <th class="text-center">Perpanjangan (trx)</th>
+                                    <th class="text-end">Keuntungan Perpanjangan</th>
+                                    <th class="text-end">Total Keuntungan</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php for ($m=1; $m<=12; $m++): ?>
+                                    <?php
+                                        $lunasCount = (int)$profit_months[$m]['lunas_count'];
+                                        $lunasProfit = (float)$profit_months[$m]['lunas_profit'];
+                                        $perpCount = (int)$profit_months[$m]['perp_count'];
+                                        $perpProfit = (float)$profit_months[$m]['perp_profit'];
+                                        $totalProfit = $lunasProfit + $perpProfit;
+                                        $sumLunas += $lunasProfit;
+                                        $sumPerp += $perpProfit;
+                                    ?>
+                                    <tr>
+                                        <td><?php echo $bulanNama[$m]; ?></td>
+                                        <td class="text-center"><?php echo $lunasCount; ?></td>
+                                        <td class="text-end">Rp <?php echo number_format($lunasProfit, 0, ',', '.'); ?></td>
+                                        <td class="text-center"><?php echo $perpCount; ?></td>
+                                        <td class="text-end">Rp <?php echo number_format($perpProfit, 0, ',', '.'); ?></td>
+                                        <td class="text-end"><strong>Rp <?php echo number_format($totalProfit, 0, ',', '.'); ?></strong></td>
+                                    </tr>
+                                <?php endfor; ?>
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <th>Total</th>
+                                    <th class="text-center">-</th>
+                                    <th class="text-end">Rp <?php echo number_format($sumLunas, 0, ',', '.'); ?></th>
+                                    <th class="text-center">-</th>
+                                    <th class="text-end">Rp <?php echo number_format($sumPerp, 0, ',', '.'); ?></th>
+                                    <th class="text-end"><strong>Rp <?php echo number_format($sumLunas + $sumPerp, 0, ',', '.'); ?></strong></th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
                 <?php endif; ?>
             </div>
 
