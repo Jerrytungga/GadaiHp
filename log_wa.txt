@@ -4490,3 +4490,129 @@ Gadai Cepat Timika Papua
 📞 0858-2309-1908
 Response: {"detail":"success! message in queue","id":[148468524],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":968,"remaining":967,"used":1}},"requestid":425175707,"status":true,"target":["6285825366619"]}
 
+[2026-03-22 03:01:29] To: 6281241935244
+Message: ⚠️ *PENGINGAT: JATUH TEMPO TERLEWAT*
+
+Yth. Bapak/Ibu Eko Adi Purnomo,
+
+Kami mencatat bahwa gadai Anda telah melewati tanggal jatuh tempo sebesar *9 hari*. Mohon segera mengambil tindakan untuk menghindari konsekuensi lebih lanjut.
+
+📋 *No. Registrasi:* #000001
+📱 *Barang:* Laptop - Lenovo Yoga 370
+- *Kelengkapan:* Laptop dan cas
+- *Kemulusan/Kondisi:* Bekas - Cukup
+- *Tanggal Gadai:* 13 February 2026
+- *Tanggal Jatuh Tempo:* 13 March 2026
+
+*Rincian Tebus:*
+- *Pokok:* Rp 1.500.000
+- *Bunga:* Rp 450.000 (30% x 1 bulan)
+- *Biaya administrasi (1%):* Rp 15.000
+- *Biaya asuransi:* Rp 10.000
+- *Denda Harian:* Rp 30.000 x 7 hari = Rp 210.000
+
+*Total Tebus:* Rp 2.185.000
+
+Mohon segera melakukan pelunasan atau menghubungi kami untuk mendiskusikan opsi perpanjangan.
+
+⚠️ *PENTING:* Karena keterlambatan lebih dari 7 hari, pada hari ke-8 status akan otomatis berubah menjadi *Gagal Tebus*. Barang akan diproses sesuai ketentuan apabila tidak ada pelunasan.
+
+Cek status di:
+http://172.20.10.3/GadaiHp/cek_status.php?no_registrasi=1
+
+Hormat kami,
+Gadai Cepat Timika Papua
+📞 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[148546027],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":963,"remaining":962,"used":1}},"requestid":425853958,"status":true,"target":["6281241935244"]}
+
+[2026-03-22 03:20:50] To: 6281241935244
+Message: ❗ *PENGUMUMAN: GAGAL TEBUS*
+
+Yth. Bapak/Ibu Eko Adi Purnomo,
+
+Mohon maaf, pengajuan gadai Anda dinyatakan *Gagal Tebus* karena melewati batas tenggang. Barang akan diproses sesuai ketentuan.
+
+📋 *No. Registrasi:* #000001
+📱 *Barang:* Laptop - Lenovo Yoga 370
+
+- *Tanggal Jatuh Tempo:* 13 March 2026
+- *Denda Terakumulasi:* Rp 210.000
+
+*Total Tebus saat ini:* Rp 2.185.000
+
+Silakan hubungi kami untuk informasi lebih lanjut.
+
+Hormat kami,
+Gadai Cepat Timika Papua
+📞 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[148546946],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":962,"remaining":961,"used":1}},"requestid":425861391,"status":true,"target":["6281241935244"]}
+
+[2026-03-22 03:20:51] To: 6285823091908
+Message: ⚠️ *PENGUMUMAN: GAGAL TEBUS*
+
+📋 No. Registrasi: #000001
+👤 Nama: Eko Adi Purnomo
+📱 Barang: Laptop Lenovo Yoga 370
+📅 Tgl Jatuh Tempo: 13 March 2026
+💸 Denda terakumulasi: Rp 210.000
+💰 Total Tebus: Rp 2.185.000
+
+Buka detail di:
+http://172.20.10.3/GadaiHp/admin_verifikasi.php
+Response: {"detail":"success! message in queue","id":[148546948],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":961,"remaining":960,"used":1}},"requestid":425861394,"status":true,"target":["6285823091908"]}
+
+[2026-03-22 03:37:11] To: 6281241935244
+Message: Assalamualaikum. Berikut nota gadai Anda (PDF): http://localhost/GadaiHp/uploads/nota/nota_1_56a908a392c6212b.pdf
+Response: {"detail":"success! message in queue","id":[148547886],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":960,"remaining":959,"used":1}},"requestid":425867470,"status":true,"target":["6281241935244"]}
+
+[2026-03-22 03:40:01] To: 6281241935244
+Message: Assalamualaikum. Berikut nota gadai Anda (PDF): http://localhost/GadaiHp/uploads/nota/nota_1_a229771473fdeb4a.pdf
+Response: {"detail":"success! message in queue","id":[148548023],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":959,"remaining":958,"used":1}},"requestid":425868250,"status":true,"target":["6281241935244"]}
+
+[2026-03-22 03:43:43] To: 6281241935244
+Message: Assalamualaikum. Berikut nota gadai Anda (PDF): http://localhost/GadaiHp/uploads/nota/nota_1_7ecd11155778070b.pdf
+Response: {"detail":"success! message in queue","id":[148548136],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":958,"remaining":957,"used":1}},"requestid":425869644,"status":true,"target":["6281241935244"]}
+
+[2026-03-22 03:44:53] To: 6281241935244
+Message: Assalamualaikum. Berikut nota gadai Anda (PDF): http://localhost/GadaiHp/uploads/nota/nota_1_63634a2a106998a5.pdf
+Response: {"detail":"success! message in queue","id":[148548173],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":957,"remaining":956,"used":1}},"requestid":425869975,"status":true,"target":["6281241935244"]}
+
+[2026-03-22 04:18:11] To: 6285825366619
+Message: ⚠️ *PENGINGAT: JATUH TEMPO TERLEWAT*
+
+Yth. Bapak/Ibu Basthian,
+
+Kami mencatat bahwa gadai Anda telah melewati tanggal jatuh tempo sebesar *4 hari*. Mohon segera mengambil tindakan untuk menghindari konsekuensi lebih lanjut.
+
+📋 *No. Registrasi:* #000004
+📱 *Barang:* HP - Vivo Y400
+- *Kelengkapan:* HP dan DUS
+- *Kemulusan/Kondisi:* Bekas - Baik
+- *Tanggal Gadai:* 18 February 2026
+- *Tanggal Jatuh Tempo:* 18 March 2026
+
+*Rincian Tebus:*
+- *Pokok:* Rp 1.500.000
+- *Bunga:* Rp 450.000 (30% x 1 bulan)
+- *Biaya administrasi (1%):* Rp 15.000
+- *Biaya asuransi:* Rp 10.000
+- *Denda Harian:* Rp 30.000 x 4 hari = Rp 120.000
+
+*Total Tebus:* Rp 2.095.000
+
+Mohon segera melakukan pelunasan atau menghubungi kami untuk mendiskusikan opsi perpanjangan.
+
+Catatan: denda dihitung hingga maksimal 7 hari; jika tidak ada pelunasan hingga hari ke-8, pengajuan akan dinyatakan Gagal Tebus.
+
+Cek status di:
+http://172.20.10.3/GadaiHp/cek_status.php?no_registrasi=4
+
+Hormat kami,
+Gadai Cepat Timika Papua
+📞 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[148549710],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":956,"remaining":955,"used":1}},"requestid":425882515,"status":true,"target":["6285825366619"]}
+
+[2026-03-22 04:23:14] To: 6285825366619
+Message: Assalamualaikum. Berikut nota gadai Anda (PDF): http://localhost/GadaiHp/uploads/nota/nota_4_a8de09abebb68866.pdf
+Response: {"detail":"success! message in queue","id":[148549902],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":955,"remaining":954,"used":1}},"requestid":425883827,"status":true,"target":["6285825366619"]}
+

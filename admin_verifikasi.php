@@ -6,6 +6,562 @@ require_once 'whatsapp_helper.php';
 $message = '';
 $message_type = '';
 
+// --- Tambah data gadai manual oleh admin (tanpa input KTP/NIK) ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'manual_add_gadai') {
+    try {
+        $nama = trim((string)($_POST['nama'] ?? ''));
+        $no_wa = trim((string)($_POST['no_wa'] ?? ''));
+        $alamat = trim((string)($_POST['alamat'] ?? ''));
+        $jenis_barang = trim((string)($_POST['jenis_barang'] ?? ''));
+        $merk_barang = trim((string)($_POST['merk_barang'] ?? ''));
+        $spesifikasi_barang = trim((string)($_POST['spesifikasi_barang'] ?? ''));
+        $kondisi_barang = trim((string)($_POST['kondisi_barang'] ?? 'Bekas - Baik'));
+        $kelengkapan_barang = trim((string)($_POST['kelengkapan_barang'] ?? ''));
+
+        $nilai_taksiran = ($_POST['nilai_taksiran'] ?? null);
+        $nilai_taksiran = ($nilai_taksiran === '' || $nilai_taksiran === null) ? null : (float)$nilai_taksiran;
+
+        $jumlah_pinjaman = (float)($_POST['jumlah_pinjaman'] ?? 0);
+        $bunga = (float)($_POST['bunga'] ?? 5.00);
+        $lama_gadai = (int)($_POST['lama_gadai'] ?? 30);
+        $tanggal_gadai = trim((string)($_POST['tanggal_gadai'] ?? ''));
+        $tanggal_jatuh_tempo = trim((string)($_POST['tanggal_jatuh_tempo'] ?? ''));
+
+        if ($nama === '' || $no_wa === '' || $alamat === '' || $jenis_barang === '' || $jumlah_pinjaman <= 0 || $tanggal_gadai === '' || $tanggal_jatuh_tempo === '') {
+            $message = 'Lengkapi field wajib (Nama, No. WhatsApp, Alamat, Jenis Barang, Jumlah Pinjaman, Tanggal).';
+            $message_type = 'warning';
+        } else {
+            $catatan_admin = $kelengkapan_barang !== '' ? $kelengkapan_barang : null;
+            $kelengkapan_hp = $kelengkapan_barang !== '' ? $kelengkapan_barang : null;
+
+            $baseParams = [
+                $nama,
+                null, // nik placeholder
+                $no_wa,
+                $alamat,
+                $jenis_barang,
+                ($merk_barang !== '' ? $merk_barang : null),
+                ($spesifikasi_barang !== '' ? $spesifikasi_barang : null),
+                $kondisi_barang,
+                $nilai_taksiran,
+                $jumlah_pinjaman,
+                $bunga,
+                $lama_gadai,
+                $tanggal_gadai,
+                $tanggal_jatuh_tempo,
+            ];
+
+            $sqlFull = "INSERT INTO data_gadai (
+                nama, nik, no_wa, alamat, jenis_barang, merk_barang, spesifikasi_barang,
+                kondisi_barang, nilai_taksiran, jumlah_pinjaman, bunga, lama_gadai,
+                tanggal_gadai, tanggal_jatuh_tempo, status, catatan_admin, kelengkapan_hp
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?,
+                ?, ?, 'Disetujui', ?, ?
+            )";
+
+            $sqlFallback = "INSERT INTO data_gadai (
+                nama, nik, no_wa, alamat, jenis_barang, merk_barang, spesifikasi_barang,
+                kondisi_barang, nilai_taksiran, jumlah_pinjaman, bunga, lama_gadai,
+                tanggal_gadai, tanggal_jatuh_tempo, status
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?,
+                ?, ?, 'Disetujui'
+            )";
+
+            $attempts = 0;
+            $inserted = false;
+            while (!$inserted && $attempts < 3) {
+                $attempts++;
+
+                // Buat NIK 16-digit otomatis (tanpa input KTP)
+                // Format: yymmddHHMMSS + 4 digit random (total 16 digit)
+                $nik = date('ymdHis') . str_pad((string)random_int(0, 9999), 4, '0', STR_PAD_LEFT);
+
+                $paramsFull = $baseParams;
+                $paramsFull[1] = $nik;
+
+                try {
+                    $stmt = $db->prepare($sqlFull);
+                    $stmt->execute(array_merge($paramsFull, [$catatan_admin, $kelengkapan_hp]));
+                    $inserted = true;
+                } catch (PDOException $e) {
+                    // Unknown column? fallback to minimal insert.
+                    $msg = $e->getMessage();
+                    if (stripos($msg, 'Unknown column') !== false) {
+                        $stmt = $db->prepare($sqlFallback);
+                        $stmt->execute($paramsFull);
+                        $inserted = true;
+                    } elseif (stripos($msg, 'Duplicate') !== false || stripos($msg, 'duplicate') !== false) {
+                        // Jika suatu DB memasang UNIQUE di kolom nik, coba regenerate
+                        $inserted = false;
+                        continue;
+                    } else {
+                        throw $e;
+                    }
+                }
+            }
+
+            if (!$inserted) {
+                throw new RuntimeException('Gagal membuat NIK unik untuk input manual.');
+            }
+
+            $newId = $db->lastInsertId();
+            $message = 'Data gadai berhasil ditambahkan (NIK dibuat otomatis). ID: #' . str_pad((string)$newId, 6, '0', STR_PAD_LEFT);
+            $message_type = 'success';
+        }
+    } catch (Throwable $e) {
+        $message = 'Gagal menambahkan data gadai: ' . $e->getMessage();
+        $message_type = 'danger';
+    }
+}
+
+// --- Kirim reminder manual WhatsApp (overdue) ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'manual_reminder_overdue') {
+    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+    try {
+        if ($id <= 0) {
+            $message = 'ID tidak valid.';
+            $message_type = 'warning';
+        } else {
+            $stmt = $db->prepare("SELECT dg.*, DATEDIFF(CURDATE(), dg.tanggal_jatuh_tempo) AS days_overdue FROM data_gadai dg WHERE dg.id = ?");
+            $stmt->execute([$id]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$row) {
+                $message = 'Data gadai tidak ditemukan.';
+                $message_type = 'danger';
+            } elseif (empty($row['no_wa'])) {
+                $message = 'Nomor WhatsApp kosong. Tidak dapat mengirim reminder.';
+                $message_type = 'warning';
+            } elseif (empty($row['tanggal_jatuh_tempo'])) {
+                $message = 'Tanggal jatuh tempo belum ada. Tidak dapat mengirim reminder.';
+                $message_type = 'warning';
+            } else {
+                $days_overdue = isset($row['days_overdue']) ? (int)$row['days_overdue'] : 0;
+                if ($days_overdue < 0) {
+                    $days_overdue = 0;
+                }
+                if ($days_overdue <= 0) {
+                    $message = 'Belum terlambat jatuh tempo. Reminder overdue tidak dikirim.';
+                    $message_type = 'info';
+                } else {
+                    if (!isset($whatsapp)) {
+                        throw new RuntimeException('WhatsApp helper tidak terinisialisasi.');
+                    }
+
+                    // Jika lewat dari 7 hari (hari ke-8+), tandai sebagai Gagal Tebus / Gagal Bayar
+                    if ($days_overdue >= 8) {
+                        // Denda maksimal 7 hari
+                        $denda_harian = 30000;
+                        $denda_total = $denda_harian * 7;
+
+                        // Recalculate total tebus
+                        $pokok = !empty($row['jumlah_disetujui']) ? (float)$row['jumlah_disetujui'] : (float)$row['jumlah_pinjaman'];
+                        $bunga_pct = isset($row['bunga']) ? (float)$row['bunga'] : 0.0;
+                        $lama = isset($row['lama_gadai']) ? (int)$row['lama_gadai'] : 0;
+                        $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
+                        $admin_fee = round($pokok * 0.01);
+                        $biaya_asuransi = 10000;
+                        $total_tebus = $pokok + $bunga_total + $admin_fee + $biaya_asuransi + $denda_total;
+
+                        // Update status
+                        $updFail = $db->prepare("UPDATE data_gadai SET status = 'Gagal Tebus', gagal_tebus_at = NOW(), denda_terakumulasi = ?, total_tebus = ?, updated_at = NOW() WHERE id = ?");
+                        $updFail->execute([$denda_total, $total_tebus, $id]);
+
+                        // Refresh row then notify
+                        $stmtRef = $db->prepare("SELECT * FROM data_gadai WHERE id = ?");
+                        $stmtRef->execute([$id]);
+                        $fresh = $stmtRef->fetch(PDO::FETCH_ASSOC);
+
+                        try {
+                            $whatsapp->notifyUserGagalTebus($fresh);
+                            $whatsapp->notifyAdminGagalTebus($fresh);
+                        } catch (Throwable $e) {
+                            error_log('WhatsApp notify gagal tebus failed: ' . $e->getMessage());
+                        }
+
+                        $message = 'Telat lebih dari 7 hari. Status diubah menjadi Gagal Tebus (gagal bayar) untuk #' . str_pad((string)$id, 6, '0', STR_PAD_LEFT) . '.';
+                        $message_type = 'warning';
+                    }
+
+                    // Normal overdue reminder hanya untuk hari 1..7
+                    if ($days_overdue < 8) {
+                        $resp = null;
+                        try {
+                            $resp = $whatsapp->notifyUserOverdue($row, $days_overdue);
+                        } catch (Throwable $e) {
+                            // Fallback: generate wa.me link so admin can send manually
+                            $phone = preg_replace('/[^0-9]/', '', (string)$row['no_wa']);
+                            if (substr($phone, 0, 1) === '0') {
+                                $phone = '62' . substr($phone, 1);
+                            }
+                            if (substr($phone, 0, 2) !== '62') {
+                                $phone = '62' . $phone;
+                            }
+
+                            $reg = '#' . str_pad((string)$id, 6, '0', STR_PAD_LEFT);
+                            $text = "Reminder jatuh tempo: {$reg} telat {$days_overdue} hari. Mohon segera pelunasan/perpanjangan.\n";
+                            $text .= "Cek status: " . ((isset($_SERVER['HTTP_HOST']) ? ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] : '') . "/GadaiHp/cek_status.php?no_registrasi={$id}");
+                            $link = 'https://wa.me/' . $phone . '?text=' . urlencode($text);
+
+                            $message = 'Gagal kirim otomatis (' . $e->getMessage() . '). Silakan kirim manual: ';
+                            $message .= '<a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">Buka WhatsApp</a>';
+                            $message_type = 'warning';
+                            $resp = ['success' => false, 'message' => 'fallback_manual', 'link' => $link];
+                        }
+
+                        // Simpan jejak reminder (opsional, jika kolom ada)
+                        try {
+                            $upd = $db->prepare("UPDATE data_gadai SET reminder_telat_at = NOW(), reminder_telat_due_date = CURDATE(), updated_at = NOW() WHERE id = ?");
+                            $upd->execute([$id]);
+                        } catch (Throwable $e) {
+                            // ignore jika kolom tidak tersedia
+                        }
+
+                        $ok = false;
+                        $extra = '';
+                        if (is_array($resp)) {
+                            $ok = (!empty($resp['success']) && $resp['success'] === true) || (!empty($resp['status']) && $resp['status'] === true);
+                            if (!$ok && isset($resp['message'])) {
+                                $extra = ' (' . (string)$resp['message'] . ')';
+                            }
+                            if (!empty($resp['link'])) {
+                                $link = (string)$resp['link'];
+                                $extra .= ' <a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">Buka WhatsApp</a>';
+                            }
+                        }
+
+                        if ($ok) {
+                            $message = 'Reminder WhatsApp berhasil diproses untuk #' . str_pad((string)$id, 6, '0', STR_PAD_LEFT) . ' (telat ' . $days_overdue . ' hari).' . $extra;
+                            $message_type = 'success';
+                        } else {
+                            // Jika fallback sudah mengisi message_type, jangan timpa
+                            if ($message === '') {
+                                $message = 'Reminder WhatsApp gagal diproses untuk #' . str_pad((string)$id, 6, '0', STR_PAD_LEFT) . '.' . $extra . ' (Cek log_wa.txt)';
+                                $message_type = 'warning';
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } catch (Throwable $e) {
+        $message = 'Gagal mengirim reminder WhatsApp: ' . $e->getMessage();
+        $message_type = 'danger';
+    }
+}
+
+// --- Kirim ulang notifikasi WhatsApp untuk status Gagal Tebus (manual) ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'manual_notify_gagal_tebus') {
+    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+    try {
+        if ($id <= 0) {
+            $message = 'ID tidak valid.';
+            $message_type = 'warning';
+        } else {
+            $stmt = $db->prepare("SELECT * FROM data_gadai WHERE id = ?");
+            $stmt->execute([$id]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$row) {
+                $message = 'Data gadai tidak ditemukan.';
+                $message_type = 'danger';
+            } elseif (($row['status'] ?? '') !== 'Gagal Tebus') {
+                $message = 'Status belum Gagal Tebus. Notifikasi tidak dikirim.';
+                $message_type = 'info';
+            } else {
+                if (!isset($whatsapp)) {
+                    throw new RuntimeException('WhatsApp helper tidak terinisialisasi.');
+                }
+
+                $respUser = null;
+                $respAdmin = null;
+                try {
+                    $respUser = $whatsapp->notifyUserGagalTebus($row);
+                } catch (Throwable $e) {
+                    $respUser = ['success' => false, 'message' => $e->getMessage()];
+                }
+                try {
+                    $respAdmin = $whatsapp->notifyAdminGagalTebus($row);
+                } catch (Throwable $e) {
+                    $respAdmin = ['success' => false, 'message' => $e->getMessage()];
+                }
+
+                $okUser = is_array($respUser) && ((!empty($respUser['success']) && $respUser['success'] === true) || (!empty($respUser['status']) && $respUser['status'] === true));
+                $okAdmin = is_array($respAdmin) && ((!empty($respAdmin['success']) && $respAdmin['success'] === true) || (!empty($respAdmin['status']) && $respAdmin['status'] === true));
+
+                if ($okUser || $okAdmin) {
+                    $message = 'Notifikasi Gagal Tebus diproses untuk #' . str_pad((string)$id, 6, '0', STR_PAD_LEFT) . '.';
+                    $message_type = 'success';
+                } else {
+                    $detail = '';
+                    if (is_array($respUser) && isset($respUser['message'])) $detail .= ' User: ' . (string)$respUser['message'] . '.';
+                    if (is_array($respAdmin) && isset($respAdmin['message'])) $detail .= ' Admin: ' . (string)$respAdmin['message'] . '.';
+                    $message = 'Gagal memproses notifikasi Gagal Tebus untuk #' . str_pad((string)$id, 6, '0', STR_PAD_LEFT) . '.' . $detail . ' (Cek log_wa.txt)';
+                    $message_type = 'warning';
+                }
+            }
+        }
+    } catch (Throwable $e) {
+        $message = 'Gagal memproses notifikasi Gagal Tebus: ' . $e->getMessage();
+        $message_type = 'danger';
+    }
+}
+
+// --- Kirim Nota Gadai via WhatsApp (format PDF) ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'manual_send_nota') {
+    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+    try {
+        if ($id <= 0) {
+            $message = 'ID tidak valid.';
+            $message_type = 'warning';
+        } else {
+            $stmt = $db->prepare("SELECT * FROM data_gadai WHERE id = ?");
+            $stmt->execute([$id]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$row) {
+                $message = 'Data gadai tidak ditemukan.';
+                $message_type = 'danger';
+            } elseif (empty($row['no_wa'])) {
+                $message = 'Nomor WhatsApp kosong. Nota tidak bisa dikirim.';
+                $message_type = 'warning';
+            } else {
+                $autoload = __DIR__ . '/vendor/autoload.php';
+                if (!file_exists($autoload)) {
+                    throw new RuntimeException('vendor/autoload.php tidak ditemukan. Jalankan composer install.');
+                }
+                require_once $autoload;
+
+                // Format nomor -> 62xxxx
+                $phone = preg_replace('/[^0-9]/', '', (string)$row['no_wa']);
+                if (substr($phone, 0, 1) === '0') {
+                    $phone = '62' . substr($phone, 1);
+                }
+                if (substr($phone, 0, 2) !== '62') {
+                    $phone = '62' . $phone;
+                }
+
+                // Hitung rincian (mengikuti pola yang ada di halaman admin)
+                $pokok = !empty($row['jumlah_disetujui']) ? (float)$row['jumlah_disetujui'] : (float)$row['jumlah_pinjaman'];
+                $bunga_pct = isset($row['bunga']) ? (float)$row['bunga'] : 0.0;
+                $lama = isset($row['lama_gadai']) ? (int)$row['lama_gadai'] : 0;
+                $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
+                $admin_fee = round($pokok * 0.01);
+                $biaya_asuransi = 10000;
+                $denda = !empty($row['denda_terakumulasi']) ? (float)$row['denda_terakumulasi'] : 0.0;
+
+                $total_tebus = (!empty($row['total_tebus']) && (float)$row['total_tebus'] > 0)
+                    ? (float)$row['total_tebus']
+                    : ($pokok + $bunga_total + $admin_fee + $biaya_asuransi + $denda);
+
+                $reg = '#' . str_pad((string)$row['id'], 6, '0', STR_PAD_LEFT);
+                $nama = (string)($row['nama'] ?? '-');
+                $barang = trim((string)(($row['jenis_barang'] ?? '') . ' ' . ($row['merk_barang'] ?? '') . ' ' . ($row['spesifikasi_barang'] ?? '')));
+                $barang = trim(preg_replace('/\s+/', ' ', $barang));
+
+                $tglGadai = !empty($row['tanggal_gadai']) ? date('d M Y', strtotime($row['tanggal_gadai'])) : '-';
+                $tglJt = !empty($row['tanggal_jatuh_tempo']) ? date('d M Y', strtotime($row['tanggal_jatuh_tempo'])) : '-';
+                $status = (string)($row['status'] ?? '-');
+                $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
+                $host = $_SERVER['HTTP_HOST'] ?? '';
+                $basePath = '';
+                if (!empty($_SERVER['SCRIPT_NAME'])) {
+                    $basePath = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/');
+                    if ($basePath === '.') {
+                        $basePath = '';
+                    }
+                }
+
+                $statusUrl = ($host !== '' ? ($scheme . '://' . $host) : '') . $basePath . '/cek_status.php?no_registrasi=' . $row['id'];
+
+                // Build HTML Nota (tanpa NIK/KTP)
+                $fmt = function($v) { return 'Rp ' . number_format((float)$v, 0, ',', '.'); };
+                $safe = function($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); };
+
+                // Embed logo as data URI (lebih aman untuk Dompdf)
+                $logoDataUri = null;
+                $logoCandidates = [
+                    __DIR__ . '/image/logo_baru.png',
+                    __DIR__ . '/image/GC.png',
+                ];
+                foreach ($logoCandidates as $candidate) {
+                    if (is_file($candidate)) {
+                        $ext = strtolower(pathinfo($candidate, PATHINFO_EXTENSION));
+                        $mime = ($ext === 'jpg' || $ext === 'jpeg') ? 'image/jpeg' : (($ext === 'png') ? 'image/png' : null);
+                        if ($mime) {
+                            $bin = @file_get_contents($candidate);
+                            if ($bin !== false && $bin !== '') {
+                                $logoDataUri = 'data:' . $mime . ';base64,' . base64_encode($bin);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // Identitas usaha (untuk nota)
+                $storeName = 'Gadai Cepat Timika Papua';
+                $storeAddress = 'Timika, Papua';
+                $storeWhatsapp = '0858-2309-1908';
+                $printedAt = date('d M Y H:i');
+
+                $html = '<html><head><meta charset="utf-8">'
+                    . '<style>'
+                    . 'body{font-family:DejaVu Sans, Arial, sans-serif;font-size:12px;color:#111;margin:0;padding:18px;}'
+                    . '.card{border:1px solid #ddd;padding:14px;}'
+                    . '.muted{color:#555;}'
+                    . '.right{text-align:right;}'
+                    . '.header{width:100%;border-collapse:collapse;margin:0 0 10px 0;}'
+                    . '.header td{padding:0;vertical-align:top;}'
+                    . '.logo{height:44px;}'
+                    . '.title{font-size:16px;font-weight:bold;margin:0;line-height:1.2;}'
+                    . '.slogan{font-size:12px;font-weight:bold;margin-top:2px;line-height:1.2;}'
+                    . '.meta{font-size:11px;line-height:1.35;}'
+                    . '.divider{border-top:1px solid #ddd;margin:10px 0;}'
+                    . '.info{width:100%;border-collapse:collapse;margin:0;}'
+                    . '.info td{padding:2px 0;vertical-align:top;}'
+                    . '.label{width:34%;color:#555;}'
+                    . '.items{width:100%;border-collapse:collapse;margin-top:6px;}'
+                    . '.items th{font-weight:bold;text-align:left;padding:6px 0;border-bottom:1px solid #ddd;}'
+                    . '.items td{padding:6px 0;border-bottom:1px solid #ddd;vertical-align:top;}'
+                    . '.items .amount{text-align:right;white-space:nowrap;}'
+                    . '.total-row td{border-bottom:none;border-top:1px solid #111;padding-top:8px;font-weight:bold;font-size:13px;}'
+                    . '.footer{margin-top:12px;font-size:10.5px;line-height:1.4;color:#555;}'
+                    . '</style></head><body>';
+
+                $html .= '<div class="card">';
+
+                // Header
+                $html .= '<table class="header"><tr>';
+                if ($logoDataUri) {
+                    $html .= '<td style="width:1%;white-space:nowrap;padding-right:12px;"><img class="logo" src="' . $safe($logoDataUri) . '" alt="Logo"></td>';
+                }
+                $html .= '<td>';
+                $html .= '<div class="title">NOTA GADAI</div>';
+                $html .= '<div class="slogan">Gadai Cepat Timika</div>';
+                $html .= '<div class="muted">' . $safe($storeName) . '</div>';
+                $html .= '<div class="muted">' . $safe($storeAddress) . '</div>';
+                $html .= '<div class="muted">WA: ' . $safe($storeWhatsapp) . '</div>';
+                $html .= '</td>';
+                $html .= '<td class="right meta" style="width:36%;">'
+                    . '<div><span class="muted">No. Registrasi</span><br><strong>' . $safe($reg) . '</strong></div>'
+                    . '<div style="margin-top:6px;"><span class="muted">Dicetak</span><br>' . $safe($printedAt) . '</div>'
+                    . '</td>';
+                $html .= '</tr></table>';
+
+                $html .= '<div class="divider"></div>';
+
+                // Info transaksi
+                $html .= '<table class="info">';
+                $html .= '<tr><td class="label">Nama</td><td>' . $safe($nama) . '</td></tr>';
+                if ($barang !== '') {
+                    $html .= '<tr><td class="label">Barang</td><td>' . $safe($barang) . '</td></tr>';
+                }
+                $html .= '<tr><td class="label">Tanggal Gadai</td><td>' . $safe($tglGadai) . '</td></tr>';
+                $html .= '<tr><td class="label">Jatuh Tempo</td><td>' . $safe($tglJt) . '</td></tr>';
+                $html .= '<tr><td class="label">Status</td><td>' . $safe($status) . '</td></tr>';
+                $html .= '</table>';
+
+                $html .= '<div class="divider"></div>';
+
+                // Rincian biaya
+                $html .= '<div style="font-weight:bold;margin-bottom:4px;">Rincian Biaya</div>';
+                $html .= '<table class="items">';
+                $html .= '<thead><tr><th>Deskripsi</th><th class="amount">Nominal</th></tr></thead><tbody>';
+                $html .= '<tr><td>Pokok</td><td class="amount">' . $safe($fmt($pokok)) . '</td></tr>';
+                $html .= '<tr><td>Bunga (' . $safe($bunga_pct) . '% x ' . $safe($lama) . ')</td><td class="amount">' . $safe($fmt($bunga_total)) . '</td></tr>';
+                $html .= '<tr><td>Admin Fee (1%)</td><td class="amount">' . $safe($fmt($admin_fee)) . '</td></tr>';
+                $html .= '<tr><td>Asuransi</td><td class="amount">' . $safe($fmt($biaya_asuransi)) . '</td></tr>';
+                if ($denda > 0) {
+                    $html .= '<tr><td>Denda</td><td class="amount">' . $safe($fmt($denda)) . '</td></tr>';
+                }
+                $html .= '<tr class="total-row"><td>Total Tebus</td><td class="amount">' . $safe($fmt($total_tebus)) . '</td></tr>';
+                $html .= '</tbody></table>';
+
+                $html .= '<div class="divider"></div>';
+
+                $html .= '<div class="footer">'
+                    . 'Cek status: ' . $safe($statusUrl) . '<br>'
+                    . 'Simpan nota ini sebagai bukti transaksi. Untuk bantuan silakan hubungi WhatsApp ' . $safe($storeWhatsapp) . '.'
+                    . '</div>';
+
+                $html .= '</div>';
+                $html .= '</body></html>';
+
+                // Generate PDF
+                $token = bin2hex(random_bytes(8));
+                $dir = __DIR__ . '/uploads/nota';
+                if (!is_dir($dir)) {
+                    @mkdir($dir, 0755, true);
+                }
+                if (!is_dir($dir)) {
+                    throw new RuntimeException('Gagal membuat folder uploads/nota');
+                }
+
+                $fileName = 'nota_' . (int)$row['id'] . '_' . $token . '.pdf';
+                $filePath = $dir . '/' . $fileName;
+
+                $dompdf = new \Dompdf\Dompdf();
+                $dompdf->setPaper('A4', 'portrait');
+                $dompdf->loadHtml($html, 'UTF-8');
+                $dompdf->render();
+                file_put_contents($filePath, $dompdf->output());
+
+                $pdfUrl = ($host !== '' ? ($scheme . '://' . $host) : '') . $basePath . '/uploads/nota/' . rawurlencode($fileName);
+
+                $waText = "Assalamualaikum. Berikut nota gadai Anda (PDF): " . $pdfUrl;
+
+                // Kirim otomatis via provider (Fonnte/Wablas). Jika provider 'manual', response berisi link (tidak terkirim otomatis).
+                $sendResp = null;
+                $sentOk = false;
+                $isManualMode = false;
+                try {
+                    if (!isset($whatsapp) || !is_object($whatsapp) || !method_exists($whatsapp, 'sendMessage')) {
+                        throw new RuntimeException('WhatsApp helper tidak tersedia.');
+                    }
+                    $sendResp = $whatsapp->sendMessage($row['no_wa'], $waText);
+                    $isManualMode = is_array($sendResp) && isset($sendResp['link']);
+                    $sentOk = is_array($sendResp) && (
+                        (!empty($sendResp['success']) && $sendResp['success'] === true && !$isManualMode)
+                        || (!empty($sendResp['status']) && $sendResp['status'] === true)
+                    );
+                } catch (Throwable $e) {
+                    $sendResp = ['success' => false, 'message' => $e->getMessage()];
+                }
+
+                $fallbackWaLink = 'https://wa.me/' . $phone . '?text=' . urlencode($waText);
+
+                if ($sentOk) {
+                    $message = 'Nota PDF berhasil dikirim otomatis. '
+                        . '<a href="' . htmlspecialchars($pdfUrl, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">Buka PDF</a>';
+                    $message_type = 'success';
+                } elseif ($isManualMode) {
+                    $message = 'Provider WhatsApp masih mode manual (tidak bisa kirim otomatis). '
+                        . '<a href="' . htmlspecialchars($pdfUrl, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">Buka PDF</a>'
+                        . ' | <a href="' . htmlspecialchars($fallbackWaLink, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">Buka WhatsApp</a>';
+                    $message_type = 'warning';
+                } else {
+                    $detail = '';
+                    if (is_array($sendResp) && isset($sendResp['message'])) {
+                        $detail = ' (' . htmlspecialchars((string)$sendResp['message'], ENT_QUOTES, 'UTF-8') . ')';
+                    }
+                    $message = 'Gagal kirim nota otomatis' . $detail . '. '
+                        . '<a href="' . htmlspecialchars($pdfUrl, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">Buka PDF</a>'
+                        . ' | <a href="' . htmlspecialchars($fallbackWaLink, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">Buka WhatsApp</a>'
+                        . ' (Cek log_wa.txt)';
+                    $message_type = 'warning';
+                }
+            }
+        }
+    } catch (Throwable $e) {
+        $message = 'Gagal membuat nota: ' . $e->getMessage();
+        $message_type = 'danger';
+    }
+}
+
 // --- Manual pelunasan oleh admin (lunas sebelum jatuh tempo) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'manual_lunas') {
     $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
@@ -104,6 +660,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 // Authentication handled by auth_check.php (included at top of file)
 
+// --- Auto: jika telat >7 hari, tandai sebagai Gagal Tebus (gagal bayar) ---
+// Ini menjaga konsistensi walau cron reminder tidak berjalan.
+try {
+    $sqlAutoFail = "SELECT id, jumlah_disetujui, jumlah_pinjaman, bunga, lama_gadai
+        FROM data_gadai
+        WHERE status IN ('Disetujui', 'Diperpanjang')
+          AND tanggal_jatuh_tempo IS NOT NULL
+          AND tanggal_jatuh_tempo < CURDATE()
+          AND DATEDIFF(CURDATE(), tanggal_jatuh_tempo) >= 8
+          AND (gagal_tebus_at IS NULL)";
+    $stmtAutoFail = $db->query($sqlAutoFail);
+    $rowsAutoFail = $stmtAutoFail->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($rowsAutoFail as $r) {
+        try {
+            $idFail = (int)$r['id'];
+            if ($idFail <= 0) continue;
+
+            $denda_harian = 30000;
+            $denda_total = $denda_harian * 7;
+
+            $pokok = !empty($r['jumlah_disetujui']) ? (float)$r['jumlah_disetujui'] : (float)$r['jumlah_pinjaman'];
+            $bunga_pct = isset($r['bunga']) ? (float)$r['bunga'] : 0.0;
+            $lama = isset($r['lama_gadai']) ? (int)$r['lama_gadai'] : 0;
+            $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
+            $admin_fee = round($pokok * 0.01);
+            $biaya_asuransi = 10000;
+            $total_tebus = $pokok + $bunga_total + $admin_fee + $biaya_asuransi + $denda_total;
+
+            $updFail = $db->prepare("UPDATE data_gadai SET status = 'Gagal Tebus', gagal_tebus_at = NOW(), denda_terakumulasi = ?, total_tebus = ?, updated_at = NOW() WHERE id = ?");
+            $updFail->execute([$denda_total, $total_tebus, $idFail]);
+        } catch (Throwable $e) {
+            // jangan ganggu render halaman
+            error_log('Auto fail update error: ' . $e->getMessage());
+        }
+    }
+} catch (Throwable $e) {
+    // ignore jika kolom/fitur belum tersedia
+}
+
 
 
 // Fetch pending submissions
@@ -173,6 +769,7 @@ try {
         WHERE dg.status IN ('Disetujui', 'Diperpanjang')
           AND dg.tanggal_jatuh_tempo IS NOT NULL
           AND dg.tanggal_jatuh_tempo < CURDATE()
+          AND DATEDIFF(CURDATE(), dg.tanggal_jatuh_tempo) BETWEEN 1 AND 7
         ORDER BY dg.tanggal_jatuh_tempo ASC";
     $reminder_stmt = $db->query($reminder_sql);
     $reminder_data = $reminder_stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -1342,10 +1939,6 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                             <label class="form-label">Nama <span class="text-danger">*</span></label>
                                             <input type="text" name="nama" class="form-control" required>
                                         </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label">NIK <span class="text-danger">*</span></label>
-                                            <input type="text" name="nik" class="form-control" required maxlength="16">
-                                        </div>
 
                                         <div class="col-md-6">
                                             <label class="form-label">No. WhatsApp <span class="text-danger">*</span></label>
@@ -1430,7 +2023,6 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                             <thead>
                                 <tr>
                                     <th>No</th>
-                                    <th>Nik</th>
                                     <th>Nama</th>
                                     <th>No Hp</th>
                                     <th>Merek Hp</th>
@@ -1442,6 +2034,7 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                     <th>Tanggal Gadai</th>
                                     <th>Tanggal Jatuh Tempo</th>
                                     <th>Status</th>
+                                    <th>Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1463,7 +2056,6 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                     ?>
                                     <tr>
                                         <td><?php echo $index + 1; ?></td>
-                                        <td><?php echo htmlspecialchars($row['nik']); ?></td>
                                         <td><?php echo htmlspecialchars($row['nama']); ?></td>
                                         <td><?php echo htmlspecialchars($row['no_wa']); ?></td>
                                         <td><?php echo htmlspecialchars($row['merk_barang']); ?></td>
@@ -1489,6 +2081,20 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                         <td><?php echo $row['tanggal_gadai'] ? date('d M Y', strtotime($row['tanggal_gadai'])) : '-'; ?></td>
                                         <td><?php echo $row['tanggal_jatuh_tempo'] ? date('d M Y', strtotime($row['tanggal_jatuh_tempo'])) : '-'; ?></td>
                                         <td><?php echo htmlspecialchars($row['status']); ?></td>
+                                        <td>
+                                            <form method="POST" style="display:inline;" onsubmit="return confirm('Kirim nota gadai untuk #' + <?php echo json_encode(str_pad($row['id'], 6, '0', STR_PAD_LEFT)); ?> + ' via WhatsApp?');">
+                                                <input type="hidden" name="action" value="manual_send_nota">
+                                                <input type="hidden" name="id" value="<?php echo (int)$row['id']; ?>">
+                                                <button type="submit" class="btn btn-sm btn-primary">Kirim Nota PDF</button>
+                                            </form>
+                                            <?php if (($row['status'] ?? '') === 'Gagal Tebus'): ?>
+                                                <form method="POST" style="display:inline; margin-left:4px;" onsubmit="return confirm('Kirim notifikasi Gagal Tebus untuk #' + <?php echo json_encode(str_pad($row['id'], 6, '0', STR_PAD_LEFT)); ?> + '?');">
+                                                    <input type="hidden" name="action" value="manual_notify_gagal_tebus">
+                                                    <input type="hidden" name="id" value="<?php echo (int)$row['id']; ?>">
+                                                    <button type="submit" class="btn btn-sm btn-danger">Kirim Notif</button>
+                                                </form>
+                                            <?php endif; ?>
+                                        </td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
