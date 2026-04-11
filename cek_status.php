@@ -1,6 +1,7 @@
 <?php
 require_once 'database.php';
 require_once 'whatsapp_helper.php';
+require_once 'gadai_helpers.php';
 
 $result = null;
 $error = null;
@@ -14,6 +15,7 @@ $payment_amount = null;
 $last_action_type = null;
 $briva_number = '305101007702502';
 $briva_name = 'Jerri Christian Gedeon Tungga';
+$allowed_active_status = gadai_get_active_statuses();
 
 if (isset($_GET['upload']) && $_GET['upload'] === 'success') {
     $message = 'Bukti pembayaran berhasil diunggah. Menunggu konfirmasi admin.';
@@ -190,15 +192,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['byrcicilan'])) {
 }
 
 function calculateTotalTebus($row, $denda_total) {
-    $pokok = !empty($row['jumlah_disetujui']) ? (float)$row['jumlah_disetujui'] : (float)$row['jumlah_pinjaman'];
-    $bunga = (float)$row['bunga'];
-    $lama = (int)$row['lama_gadai'];
-    $bunga_total = $pokok * ($bunga / 100) * $lama;
-    $admin_fee = round($pokok * 0.01);
-    $biaya_asuransi = 10000;
-    $total_tebus = $pokok + $bunga_total + $admin_fee + $biaya_asuransi + (float)$denda_total;
-
-    return [$pokok, $bunga_total, $total_tebus];
+    $calc = gadai_calculate_breakdown((array)$row, (float)$denda_total);
+    return [$calc['pokok'], $calc['bunga_total'], $calc['total_tebus']];
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type'], $_POST['no_registrasi']) && !isset($_POST['byrcicilan'])) {
@@ -215,8 +210,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type'], $_POST
         if (!$data) {
             $error = "Nomor registrasi tidak ditemukan!";
         } else {
-            $allowed_status = ['Disetujui', 'Diperpanjang'];
-            if (!in_array($data['status'], $allowed_status, true)) {
+            if (!gadai_is_active_status($data['status'] ?? '')) {
                 $error = "Tindakan tidak dapat diproses untuk status saat ini.";
             } else {
                 // Check if pelunasan pending by looking at transaksi records
@@ -264,17 +258,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type'], $_POST
                         }
             if ($action_type === 'perpanjangan') {
                 // Before allowing extension, require that bunga dan denda berjalan sudah dilunasi.
-                // Determine current denda (use capped calculation or stored) and bunga
                 $denda_for_check = isset($denda_total) ? $denda_total : 0;
                 $denda_stored_check = !empty($data['denda_terakumulasi']) ? (float)$data['denda_terakumulasi'] : 0;
                 $denda_display_check = max($denda_for_check, $denda_stored_check);
 
-                list($pokok_chk, $bunga_total_chk, $total_tebus_chk) = calculateTotalTebus($data, $denda_display_check);
-
-                // For extension we require bunga + denda + admin (1%) + asuransi (Rp 10,000)
-                $admin_fee = round($pokok_chk * 0.01); // 1% admin fee
-                $biaya_asuransi = 10000; // Rp 10,000 insurance
-                $required_for_extension = round($bunga_total_chk + $denda_display_check + $admin_fee + $biaya_asuransi);
+                $calc_extension = gadai_calculate_breakdown($data, $denda_display_check);
+                $required_for_extension = (float)$calc_extension['biaya_perpanjangan'];
 
                 // Sum payments already made for this barang/pelanggan
                 try {
@@ -363,8 +352,7 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
         if (!$result) {
             $error = "Nomor registrasi tidak ditemukan!";
         } else {
-            $status_check = ['Disetujui', 'Diperpanjang'];
-            if (in_array($result['status'], $status_check, true) && !empty($result['tanggal_jatuh_tempo'])) {
+            if (gadai_is_active_status($result['status'] ?? '') && !empty($result['tanggal_jatuh_tempo'])) {
                 $today = new DateTime(date('Y-m-d'));
                 $due_date = new DateTime($result['tanggal_jatuh_tempo']);
 
@@ -707,7 +695,7 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                 $days_overdue = 0;
                 $denda_total = 0;
 
-                if (!empty($result['tanggal_jatuh_tempo']) && in_array($result['status'], ['Disetujui', 'Diperpanjang'], true)) {
+                if (!empty($result['tanggal_jatuh_tempo']) && gadai_is_active_status($result['status'] ?? '')) {
                     $due_date = new DateTime($result['tanggal_jatuh_tempo']);
 
                     if ($today > $due_date) {
@@ -757,10 +745,11 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                         <p class="mb-0"><strong>Status:</strong> <?php echo $status_message; ?></p>
                     </div>
                     
-                    <?php if ($result['status'] == 'Ditolak' && $result['reject_reason']): ?>
+                    <?php $reject_reason_display = $result['reject_reason'] ?? ($result['alasan_penolakan'] ?? ''); ?>
+                    <?php if ($result['status'] == 'Ditolak' && $reject_reason_display): ?>
                         <div class="alert alert-danger alert-box">
                             <strong>📝 Alasan Penolakan:</strong><br>
-                            <?php echo htmlspecialchars($result['reject_reason']); ?>
+                            <?php echo htmlspecialchars($reject_reason_display); ?>
                         </div>
                     <?php endif; ?>
                     
@@ -818,7 +807,7 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                             <span class="info-label">Durasi:</span>
                             <span class="info-value"><?php echo $result['lama_gadai']; ?> bulan</span>
                         </div>
-                        <?php if (in_array($result['status'], ['Disetujui', 'Diperpanjang'], true)): ?>
+                        <?php if (gadai_is_active_status($result['status'] ?? '')): ?>
                             <div class="info-row">
                                 <span class="info-label">Tanggal Jatuh Tempo:</span>
                                 <span class="info-value text-danger"><strong><?php echo date('d F Y', strtotime($result['tanggal_jatuh_tempo'])); ?></strong></span>
@@ -903,14 +892,11 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                         </div>
                     <?php endif; ?>
 
-                    <?php if (!empty($result['tanggal_jatuh_tempo']) && in_array($result['status'], ['Disetujui', 'Diperpanjang'], true) && !$pelunasan_pending && !$perpanjangan_pending): ?>
+                    <?php if (!empty($result['tanggal_jatuh_tempo']) && gadai_is_active_status($result['status'] ?? '') && !$pelunasan_pending && !$perpanjangan_pending): ?>
                         <?php if ($today >= new DateTime($result['tanggal_jatuh_tempo'])): ?>
                             <?php
-                                // amount required for extension: bunga + denda + admin (1%) + asuransi (Rp 10,000)
-                                $pokok_for_ext = !empty($result['jumlah_disetujui']) ? (float)$result['jumlah_disetujui'] : (float)$result['jumlah_pinjaman'];
-                                $admin_fee_ext = round($pokok_for_ext * 0.01); // 1% admin fee
-                                $biaya_asuransi_ext = 10000; // Rp 10,000 insurance
-                                $required_for_extension = round($bunga_total_display + $denda_display + $admin_fee_ext + $biaya_asuransi_ext);
+                                $calc_extension_display = gadai_calculate_breakdown($result, $denda_display);
+                                $required_for_extension = (float)$calc_extension_display['biaya_perpanjangan'];
                             ?>
                             <div class="info-section">
                                 <h5>🧾 Pilih Tindakan Jatuh Tempo</h5>

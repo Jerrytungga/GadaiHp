@@ -307,9 +307,10 @@ class WhatsAppHelper {
         }
         $message .= "\n";
 
-        if (!empty($data['reject_reason'])) {
+        $reject_reason = $data['reject_reason'] ?? ($data['alasan_penolakan'] ?? '');
+        if (!empty($reject_reason)) {
             $message .= "📝 *Alasan Penolakan:*\n";
-            $message .= $data['reject_reason'] . "\n\n";
+            $message .= $reject_reason . "\n\n";
         }
 
         $message .= "Anda dapat mengajukan kembali setelah memenuhi persyaratan.\n\n";

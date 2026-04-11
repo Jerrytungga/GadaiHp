@@ -1,826 +1,26 @@
 <?php
 require_once 'database.php';
 require_once 'whatsapp_helper.php';
+require_once 'gadai_helpers.php';
+require_once 'admin_verifikasi_actions.php';
 
 // Global message for user feedback (initialize to avoid undefined variable warnings)
 $message = '';
 $message_type = '';
+$active_status_sql = gadai_active_status_sql_list();
 
-// --- Tambah data gadai manual oleh admin (tanpa input KTP/NIK) ---
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'manual_add_gadai') {
-    try {
-        $nama = trim((string)($_POST['nama'] ?? ''));
-        $no_wa = trim((string)($_POST['no_wa'] ?? ''));
-        $alamat = trim((string)($_POST['alamat'] ?? ''));
-        $jenis_barang = trim((string)($_POST['jenis_barang'] ?? ''));
-        $merk_barang = trim((string)($_POST['merk_barang'] ?? ''));
-        $spesifikasi_barang = trim((string)($_POST['spesifikasi_barang'] ?? ''));
-        $kondisi_barang = trim((string)($_POST['kondisi_barang'] ?? 'Bekas - Baik'));
-        $kelengkapan_barang = trim((string)($_POST['kelengkapan_barang'] ?? ''));
-
-        $nilai_taksiran = ($_POST['nilai_taksiran'] ?? null);
-        $nilai_taksiran = ($nilai_taksiran === '' || $nilai_taksiran === null) ? null : (float)$nilai_taksiran;
-
-        $jumlah_pinjaman = (float)($_POST['jumlah_pinjaman'] ?? 0);
-        $bunga = (float)($_POST['bunga'] ?? 5.00);
-        $lama_gadai = (int)($_POST['lama_gadai'] ?? 30);
-        $tanggal_gadai = trim((string)($_POST['tanggal_gadai'] ?? ''));
-        $tanggal_jatuh_tempo = trim((string)($_POST['tanggal_jatuh_tempo'] ?? ''));
-
-        if ($nama === '' || $no_wa === '' || $alamat === '' || $jenis_barang === '' || $jumlah_pinjaman <= 0 || $tanggal_gadai === '' || $tanggal_jatuh_tempo === '') {
-            $message = 'Lengkapi field wajib (Nama, No. WhatsApp, Alamat, Jenis Barang, Jumlah Pinjaman, Tanggal).';
-            $message_type = 'warning';
-        } else {
-            $catatan_admin = $kelengkapan_barang !== '' ? $kelengkapan_barang : null;
-            $kelengkapan_hp = $kelengkapan_barang !== '' ? $kelengkapan_barang : null;
-
-            $baseParams = [
-                $nama,
-                null, // nik placeholder
-                $no_wa,
-                $alamat,
-                $jenis_barang,
-                ($merk_barang !== '' ? $merk_barang : null),
-                ($spesifikasi_barang !== '' ? $spesifikasi_barang : null),
-                $kondisi_barang,
-                $nilai_taksiran,
-                $jumlah_pinjaman,
-                $bunga,
-                $lama_gadai,
-                $tanggal_gadai,
-                $tanggal_jatuh_tempo,
-            ];
-
-            $sqlFull = "INSERT INTO data_gadai (
-                nama, nik, no_wa, alamat, jenis_barang, merk_barang, spesifikasi_barang,
-                kondisi_barang, nilai_taksiran, jumlah_pinjaman, bunga, lama_gadai,
-                tanggal_gadai, tanggal_jatuh_tempo, status, catatan_admin, kelengkapan_hp
-            ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?,
-                ?, ?, 'Disetujui', ?, ?
-            )";
-
-            $sqlFallback = "INSERT INTO data_gadai (
-                nama, nik, no_wa, alamat, jenis_barang, merk_barang, spesifikasi_barang,
-                kondisi_barang, nilai_taksiran, jumlah_pinjaman, bunga, lama_gadai,
-                tanggal_gadai, tanggal_jatuh_tempo, status
-            ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?,
-                ?, ?, 'Disetujui'
-            )";
-
-            $attempts = 0;
-            $inserted = false;
-            while (!$inserted && $attempts < 3) {
-                $attempts++;
-
-                // Buat NIK 16-digit otomatis (tanpa input KTP)
-                // Format: yymmddHHMMSS + 4 digit random (total 16 digit)
-                $nik = date('ymdHis') . str_pad((string)random_int(0, 9999), 4, '0', STR_PAD_LEFT);
-
-                $paramsFull = $baseParams;
-                $paramsFull[1] = $nik;
-
-                try {
-                    $stmt = $db->prepare($sqlFull);
-                    $stmt->execute(array_merge($paramsFull, [$catatan_admin, $kelengkapan_hp]));
-                    $inserted = true;
-                } catch (PDOException $e) {
-                    // Unknown column? fallback to minimal insert.
-                    $msg = $e->getMessage();
-                    if (stripos($msg, 'Unknown column') !== false) {
-                        $stmt = $db->prepare($sqlFallback);
-                        $stmt->execute($paramsFull);
-                        $inserted = true;
-                    } elseif (stripos($msg, 'Duplicate') !== false || stripos($msg, 'duplicate') !== false) {
-                        // Jika suatu DB memasang UNIQUE di kolom nik, coba regenerate
-                        $inserted = false;
-                        continue;
-                    } else {
-                        throw $e;
-                    }
-                }
-            }
-
-            if (!$inserted) {
-                throw new RuntimeException('Gagal membuat NIK unik untuk input manual.');
-            }
-
-            $newId = $db->lastInsertId();
-
-            // Kirim notifikasi WhatsApp sebagai bukti gadai (otomatis, jika provider mendukung)
-            $reg = '#' . str_pad((string)$newId, 6, '0', STR_PAD_LEFT);
-            $waSentOk = false;
-            $waIsManualMode = false;
-            $waLink = '';
-            $waErr = '';
-
-            try {
-                if (!isset($whatsapp) || !is_object($whatsapp) || !method_exists($whatsapp, 'sendMessage')) {
-                    throw new RuntimeException('WhatsApp helper tidak tersedia.');
-                }
-
-                // Ambil data terbaru untuk isi pesan
-                $stmtNew = $db->prepare("SELECT * FROM data_gadai WHERE id = ?");
-                $stmtNew->execute([(int)$newId]);
-                $newRow = $stmtNew->fetch(PDO::FETCH_ASSOC);
-
-                // Build base URL + basePath (tanpa hardcode /GadaiHp)
-                $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
-                $host = $_SERVER['HTTP_HOST'] ?? '';
-                $basePath = '';
-                if (!empty($_SERVER['SCRIPT_NAME'])) {
-                    $basePath = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/');
-                    if ($basePath === '.') {
-                        $basePath = '';
-                    }
-                }
-                try {
-                    $docRoot = isset($_SERVER['DOCUMENT_ROOT']) ? realpath((string)$_SERVER['DOCUMENT_ROOT']) : null;
-                    $appRoot = realpath(__DIR__);
-                    if ($docRoot && $appRoot && strcasecmp(rtrim($docRoot, '\\\\/'), rtrim($appRoot, '\\\\/')) === 0) {
-                        $basePath = '';
-                    }
-                } catch (Throwable $e) {
-                    // ignore
-                }
-
-                $baseUrl = '';
-                if ($host !== '') {
-                    $baseUrl = $scheme . '://' . $host;
-                    if ($host === 'localhost' || $host === '127.0.0.1') {
-                        $localIp = gethostbyname(gethostname());
-                        if ($localIp && $localIp !== '127.0.0.1' && filter_var($localIp, FILTER_VALIDATE_IP)) {
-                            $baseUrl = $scheme . '://' . $localIp;
-                        }
-                    }
-                }
-
-                $statusUrl = $baseUrl . $basePath . '/cek_status.php?no_registrasi=' . rawurlencode((string)(int)$newId);
-
-                $namaUser = (string)($newRow['nama'] ?? $nama);
-                $barang = trim((string)(($newRow['jenis_barang'] ?? $jenis_barang) . ' ' . ($newRow['merk_barang'] ?? $merk_barang) . ' ' . ($newRow['spesifikasi_barang'] ?? $spesifikasi_barang)));
-                $barang = trim(preg_replace('/\s+/', ' ', $barang));
-                $tglGadaiFmt = !empty($newRow['tanggal_gadai']) ? date('d M Y', strtotime((string)$newRow['tanggal_gadai'])) : (!empty($tanggal_gadai) ? date('d M Y', strtotime($tanggal_gadai)) : '-');
-                $tglJtFmt = !empty($newRow['tanggal_jatuh_tempo']) ? date('d M Y', strtotime((string)$newRow['tanggal_jatuh_tempo'])) : (!empty($tanggal_jatuh_tempo) ? date('d M Y', strtotime($tanggal_jatuh_tempo)) : '-');
-                $pinjaman = !empty($newRow['jumlah_disetujui']) ? (float)$newRow['jumlah_disetujui'] : (float)($newRow['jumlah_pinjaman'] ?? $jumlah_pinjaman);
-                $fmt = function($v) { return 'Rp ' . number_format((float)$v, 0, ',', '.'); };
-
-                $storeName = 'Gadai Cepat Timika Papua';
-                $storeWhatsapp = '0858-2309-1908';
-
-                $waText  = "Assalamualaikum " . ($namaUser !== '' ? $namaUser : '') . ",\n\n";
-                $waText .= "Data gadai Anda sudah dibuat dan *Disetujui*.\n\n";
-                $waText .= "No. Registrasi: " . $reg . "\n";
-                if ($barang !== '') {
-                    $waText .= "Barang: " . $barang . "\n";
-                }
-                $waText .= "Tanggal Gadai: " . $tglGadaiFmt . "\n";
-                $waText .= "Jatuh Tempo: " . $tglJtFmt . "\n";
-                $waText .= "Pinjaman: " . $fmt($pinjaman) . "\n\n";
-                $waText .= "Cek status/riwayat di link berikut:\n";
-                $waText .= $statusUrl . "\n\n";
-                $waText .= "Simpan pesan ini sebagai bukti transaksi.\n";
-                $waText .= "Terima kasih.\n";
-                $waText .= $storeName . "\n";
-                $waText .= "WA: " . $storeWhatsapp;
-
-                $sendResp = $whatsapp->sendMessage($no_wa, $waText);
-                $waIsManualMode = is_array($sendResp) && isset($sendResp['link']);
-                if ($waIsManualMode) {
-                    $waLink = (string)$sendResp['link'];
-                }
-
-                $waSentOk = is_array($sendResp) && (
-                    (!empty($sendResp['success']) && $sendResp['success'] === true && !$waIsManualMode)
-                    || (!empty($sendResp['status']) && $sendResp['status'] === true)
-                );
-
-                if (!$waSentOk && is_array($sendResp) && isset($sendResp['message'])) {
-                    $waErr = (string)$sendResp['message'];
-                }
-
-                if (!$waSentOk && $waLink === '') {
-                    // Fallback wa.me link
-                    $phone = preg_replace('/[^0-9]/', '', (string)$no_wa);
-                    if (substr($phone, 0, 1) === '0') {
-                        $phone = '62' . substr($phone, 1);
-                    }
-                    if (substr($phone, 0, 2) !== '62') {
-                        $phone = '62' . $phone;
-                    }
-                    $waLink = 'https://wa.me/' . $phone . '?text=' . urlencode($waText);
-                }
-            } catch (Throwable $e) {
-                $waErr = $e->getMessage();
-                // Fallback wa.me link (kalau bisa)
-                $phone = preg_replace('/[^0-9]/', '', (string)$no_wa);
-                if (substr($phone, 0, 1) === '0') {
-                    $phone = '62' . substr($phone, 1);
-                }
-                if (substr($phone, 0, 2) !== '62') {
-                    $phone = '62' . $phone;
-                }
-                $waLink = $phone !== '' ? ('https://wa.me/' . $phone) : '';
-            }
-
-            if ($waSentOk) {
-                $message = 'Data gadai berhasil ditambahkan. Notif WhatsApp berhasil diproses. ID: ' . $reg;
-                $message_type = 'success';
-            } else {
-                $extra = $waErr !== '' ? (' (' . htmlspecialchars($waErr, ENT_QUOTES, 'UTF-8') . ')') : '';
-                $message = 'Data gadai berhasil ditambahkan, namun notif WhatsApp tidak terkirim otomatis' . $extra . '. ID: ' . $reg;
-                if ($waLink !== '') {
-                    $message .= ' <a href="' . htmlspecialchars($waLink, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">Buka WhatsApp</a>';
-                }
-                $message_type = 'warning';
-            }
-        }
-    } catch (Throwable $e) {
-        $message = 'Gagal menambahkan data gadai: ' . $e->getMessage();
-        $message_type = 'danger';
-    }
+function calculateGadaiBreakdown(array $row, ?float $overrideDenda = null): array {
+    return gadai_calculate_breakdown($row, $overrideDenda);
 }
 
-// --- Kirim reminder manual WhatsApp (overdue) ---
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'manual_reminder_overdue') {
-    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
-    try {
-        if ($id <= 0) {
-            $message = 'ID tidak valid.';
-            $message_type = 'warning';
-        } else {
-            $stmt = $db->prepare("SELECT dg.*, DATEDIFF(CURDATE(), dg.tanggal_jatuh_tempo) AS days_overdue FROM data_gadai dg WHERE dg.id = ?");
-            $stmt->execute([$id]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+// --- Aksi verifikasi admin dipindahkan ke file proses terpisah ---
+handleAdminStatusActions($db, $whatsapp, $message, $message_type);
 
-            if (!$row) {
-                $message = 'Data gadai tidak ditemukan.';
-                $message_type = 'danger';
-            } elseif (empty($row['no_wa'])) {
-                $message = 'Nomor WhatsApp kosong. Tidak dapat mengirim reminder.';
-                $message_type = 'warning';
-            } elseif (empty($row['tanggal_jatuh_tempo'])) {
-                $message = 'Tanggal jatuh tempo belum ada. Tidak dapat mengirim reminder.';
-                $message_type = 'warning';
-            } else {
-                $days_overdue = isset($row['days_overdue']) ? (int)$row['days_overdue'] : 0;
-                if ($days_overdue < 0) {
-                    $days_overdue = 0;
-                }
-                if ($days_overdue <= 0) {
-                    $message = 'Belum terlambat jatuh tempo. Reminder overdue tidak dikirim.';
-                    $message_type = 'info';
-                } else {
-                    if (!isset($whatsapp)) {
-                        throw new RuntimeException('WhatsApp helper tidak terinisialisasi.');
-                    }
+// --- Aksi admin pendukung (input manual, reminder, notifikasi, nota) dipindahkan ke file proses terpisah ---
+handleAdminUtilityActions($db, $whatsapp, $message, $message_type);
 
-                    // Jika lewat dari 7 hari (hari ke-8+), tandai sebagai Gagal Tebus / Gagal Bayar
-                    if ($days_overdue >= 8) {
-                        // Denda maksimal 7 hari
-                        $denda_harian = 30000;
-                        $denda_total = $denda_harian * 7;
-
-                        // Recalculate total tebus
-                        $pokok = !empty($row['jumlah_disetujui']) ? (float)$row['jumlah_disetujui'] : (float)$row['jumlah_pinjaman'];
-                        $bunga_pct = isset($row['bunga']) ? (float)$row['bunga'] : 0.0;
-                        $lama = isset($row['lama_gadai']) ? (int)$row['lama_gadai'] : 0;
-                        $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
-                        $admin_fee = round($pokok * 0.01);
-                        $biaya_asuransi = 10000;
-                        $total_tebus = $pokok + $bunga_total + $admin_fee + $biaya_asuransi + $denda_total;
-
-                        // Update status
-                        $updFail = $db->prepare("UPDATE data_gadai SET status = 'Gagal Tebus', gagal_tebus_at = NOW(), denda_terakumulasi = ?, total_tebus = ?, updated_at = NOW() WHERE id = ?");
-                        $updFail->execute([$denda_total, $total_tebus, $id]);
-
-                        // Refresh row then notify
-                        $stmtRef = $db->prepare("SELECT * FROM data_gadai WHERE id = ?");
-                        $stmtRef->execute([$id]);
-                        $fresh = $stmtRef->fetch(PDO::FETCH_ASSOC);
-
-                        try {
-                            $whatsapp->notifyUserGagalTebus($fresh);
-                            $whatsapp->notifyAdminGagalTebus($fresh);
-                        } catch (Throwable $e) {
-                            error_log('WhatsApp notify gagal tebus failed: ' . $e->getMessage());
-                        }
-
-                        $message = 'Telat lebih dari 7 hari. Status diubah menjadi Gagal Tebus (gagal bayar) untuk #' . str_pad((string)$id, 6, '0', STR_PAD_LEFT) . '.';
-                        $message_type = 'warning';
-                    }
-
-                    // Normal overdue reminder hanya untuk hari 1..7
-                    if ($days_overdue < 8) {
-                        $resp = null;
-                        try {
-                            $resp = $whatsapp->notifyUserOverdue($row, $days_overdue);
-                        } catch (Throwable $e) {
-                            // Fallback: generate wa.me link so admin can send manually
-                            $phone = preg_replace('/[^0-9]/', '', (string)$row['no_wa']);
-                            if (substr($phone, 0, 1) === '0') {
-                                $phone = '62' . substr($phone, 1);
-                            }
-                            if (substr($phone, 0, 2) !== '62') {
-                                $phone = '62' . $phone;
-                            }
-
-                            $reg = '#' . str_pad((string)$id, 6, '0', STR_PAD_LEFT);
-                            $text = "Reminder jatuh tempo: {$reg} telat {$days_overdue} hari. Mohon segera pelunasan/perpanjangan.\n";
-                            $text .= "Cek status: " . ((isset($_SERVER['HTTP_HOST']) ? ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] : '') . "/GadaiHp/cek_status.php?no_registrasi={$id}");
-                            $link = 'https://wa.me/' . $phone . '?text=' . urlencode($text);
-
-                            $message = 'Gagal kirim otomatis (' . $e->getMessage() . '). Silakan kirim manual: ';
-                            $message .= '<a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">Buka WhatsApp</a>';
-                            $message_type = 'warning';
-                            $resp = ['success' => false, 'message' => 'fallback_manual', 'link' => $link];
-                        }
-
-                        // Simpan jejak reminder (opsional, jika kolom ada)
-                        try {
-                            $upd = $db->prepare("UPDATE data_gadai SET reminder_telat_at = NOW(), reminder_telat_due_date = CURDATE(), updated_at = NOW() WHERE id = ?");
-                            $upd->execute([$id]);
-                        } catch (Throwable $e) {
-                            // ignore jika kolom tidak tersedia
-                        }
-
-                        $ok = false;
-                        $extra = '';
-                        if (is_array($resp)) {
-                            $ok = (!empty($resp['success']) && $resp['success'] === true) || (!empty($resp['status']) && $resp['status'] === true);
-                            if (!$ok && isset($resp['message'])) {
-                                $extra = ' (' . (string)$resp['message'] . ')';
-                            }
-                            if (!empty($resp['link'])) {
-                                $link = (string)$resp['link'];
-                                $extra .= ' <a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">Buka WhatsApp</a>';
-                            }
-                        }
-
-                        if ($ok) {
-                            $message = 'Reminder WhatsApp berhasil diproses untuk #' . str_pad((string)$id, 6, '0', STR_PAD_LEFT) . ' (telat ' . $days_overdue . ' hari).' . $extra;
-                            $message_type = 'success';
-                        } else {
-                            // Jika fallback sudah mengisi message_type, jangan timpa
-                            if ($message === '') {
-                                $message = 'Reminder WhatsApp gagal diproses untuk #' . str_pad((string)$id, 6, '0', STR_PAD_LEFT) . '.' . $extra . ' (Cek log_wa.txt)';
-                                $message_type = 'warning';
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    } catch (Throwable $e) {
-        $message = 'Gagal mengirim reminder WhatsApp: ' . $e->getMessage();
-        $message_type = 'danger';
-    }
-}
-
-// --- Kirim ulang notifikasi WhatsApp untuk status Gagal Tebus (manual) ---
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'manual_notify_gagal_tebus') {
-    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
-    try {
-        if ($id <= 0) {
-            $message = 'ID tidak valid.';
-            $message_type = 'warning';
-        } else {
-            $stmt = $db->prepare("SELECT * FROM data_gadai WHERE id = ?");
-            $stmt->execute([$id]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$row) {
-                $message = 'Data gadai tidak ditemukan.';
-                $message_type = 'danger';
-            } elseif (($row['status'] ?? '') !== 'Gagal Tebus') {
-                $message = 'Status belum Gagal Tebus. Notifikasi tidak dikirim.';
-                $message_type = 'info';
-            } else {
-                if (!isset($whatsapp)) {
-                    throw new RuntimeException('WhatsApp helper tidak terinisialisasi.');
-                }
-
-                $respUser = null;
-                $respAdmin = null;
-                try {
-                    $respUser = $whatsapp->notifyUserGagalTebus($row);
-                } catch (Throwable $e) {
-                    $respUser = ['success' => false, 'message' => $e->getMessage()];
-                }
-                try {
-                    $respAdmin = $whatsapp->notifyAdminGagalTebus($row);
-                } catch (Throwable $e) {
-                    $respAdmin = ['success' => false, 'message' => $e->getMessage()];
-                }
-
-                $okUser = is_array($respUser) && ((!empty($respUser['success']) && $respUser['success'] === true) || (!empty($respUser['status']) && $respUser['status'] === true));
-                $okAdmin = is_array($respAdmin) && ((!empty($respAdmin['success']) && $respAdmin['success'] === true) || (!empty($respAdmin['status']) && $respAdmin['status'] === true));
-
-                if ($okUser || $okAdmin) {
-                    $message = 'Notifikasi Gagal Tebus diproses untuk #' . str_pad((string)$id, 6, '0', STR_PAD_LEFT) . '.';
-                    $message_type = 'success';
-                } else {
-                    $detail = '';
-                    if (is_array($respUser) && isset($respUser['message'])) $detail .= ' User: ' . (string)$respUser['message'] . '.';
-                    if (is_array($respAdmin) && isset($respAdmin['message'])) $detail .= ' Admin: ' . (string)$respAdmin['message'] . '.';
-                    $message = 'Gagal memproses notifikasi Gagal Tebus untuk #' . str_pad((string)$id, 6, '0', STR_PAD_LEFT) . '.' . $detail . ' (Cek log_wa.txt)';
-                    $message_type = 'warning';
-                }
-            }
-        }
-    } catch (Throwable $e) {
-        $message = 'Gagal memproses notifikasi Gagal Tebus: ' . $e->getMessage();
-        $message_type = 'danger';
-    }
-}
-
-// --- Kirim Nota Gadai via WhatsApp (format PDF) ---
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'manual_send_nota') {
-    $idRaw = $_POST['id'] ?? ($_POST['id_btn'] ?? ($_POST['no_registrasi'] ?? 0));
-    $id = (int)preg_replace('/[^0-9]/', '', (string)$idRaw);
-    try {
-        if ($id <= 0) {
-            $message = 'ID tidak valid.';
-            $message_type = 'warning';
-        } else {
-            $stmt = $db->prepare("SELECT * FROM data_gadai WHERE id = ?");
-            $stmt->execute([$id]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$row) {
-                $message = 'Data gadai tidak ditemukan.';
-                $message_type = 'danger';
-            } elseif (empty($row['no_wa'])) {
-                $message = 'Nomor WhatsApp kosong. Nota tidak bisa dikirim.';
-                $message_type = 'warning';
-            } else {
-                $autoload = __DIR__ . '/vendor/autoload.php';
-                if (!file_exists($autoload)) {
-                    throw new RuntimeException('vendor/autoload.php tidak ditemukan. Jalankan composer install.');
-                }
-                require_once $autoload;
-
-                // Format nomor -> 62xxxx
-                $phone = preg_replace('/[^0-9]/', '', (string)$row['no_wa']);
-                if (substr($phone, 0, 1) === '0') {
-                    $phone = '62' . substr($phone, 1);
-                }
-                if (substr($phone, 0, 2) !== '62') {
-                    $phone = '62' . $phone;
-                }
-
-                // Hitung rincian (mengikuti pola yang ada di halaman admin)
-                $pokok = !empty($row['jumlah_disetujui']) ? (float)$row['jumlah_disetujui'] : (float)$row['jumlah_pinjaman'];
-                $bunga_pct = isset($row['bunga']) ? (float)$row['bunga'] : 0.0;
-                $lama = isset($row['lama_gadai']) ? (int)$row['lama_gadai'] : 0;
-                $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
-                $admin_fee = round($pokok * 0.01);
-                $biaya_asuransi = 10000;
-                $denda = !empty($row['denda_terakumulasi']) ? (float)$row['denda_terakumulasi'] : 0.0;
-
-                $total_tebus = (!empty($row['total_tebus']) && (float)$row['total_tebus'] > 0)
-                    ? (float)$row['total_tebus']
-                    : ($pokok + $bunga_total + $admin_fee + $biaya_asuransi + $denda);
-
-                $reg = '#' . str_pad((string)$row['id'], 6, '0', STR_PAD_LEFT);
-                $nama = (string)($row['nama'] ?? '-');
-                $barang = trim((string)(($row['jenis_barang'] ?? '') . ' ' . ($row['merk_barang'] ?? '') . ' ' . ($row['spesifikasi_barang'] ?? '')));
-                $barang = trim(preg_replace('/\s+/', ' ', $barang));
-
-                $tglGadai = !empty($row['tanggal_gadai']) ? date('d M Y', strtotime($row['tanggal_gadai'])) : '-';
-                $tglJt = !empty($row['tanggal_jatuh_tempo']) ? date('d M Y', strtotime($row['tanggal_jatuh_tempo'])) : '-';
-                $status = (string)($row['status'] ?? '-');
-                $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
-                $host = $_SERVER['HTTP_HOST'] ?? '';
-                $basePath = '';
-                if (!empty($_SERVER['SCRIPT_NAME'])) {
-                    $basePath = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/');
-                    if ($basePath === '.') {
-                        $basePath = '';
-                    }
-                }
-
-                // Jika folder project ini adalah document root (mis. vhost mengarah langsung ke GadaiHp),
-                // maka basePath tidak perlu memakai prefix seperti /GadaiHp.
-                try {
-                    $docRoot = isset($_SERVER['DOCUMENT_ROOT']) ? realpath((string)$_SERVER['DOCUMENT_ROOT']) : null;
-                    $appRoot = realpath(__DIR__);
-                    if ($docRoot && $appRoot && strcasecmp(rtrim($docRoot, '\\/'), rtrim($appRoot, '\\/')) === 0) {
-                        $basePath = '';
-                    }
-                } catch (Throwable $e) {
-                    // ignore
-                }
-
-                // Base URL: jika localhost, coba pakai IP lokal (supaya link bisa dibuka dari HP)
-                $baseUrl = '';
-                if ($host !== '') {
-                    $baseUrl = $scheme . '://' . $host;
-                    if ($host === 'localhost' || $host === '127.0.0.1') {
-                        $localIp = gethostbyname(gethostname());
-                        if ($localIp && $localIp !== '127.0.0.1' && filter_var($localIp, FILTER_VALIDATE_IP)) {
-                            $baseUrl = 'http://' . $localIp;
-                        }
-                    }
-                }
-
-                $noRegParam = str_pad((string)$row['id'], 6, '0', STR_PAD_LEFT);
-                $statusUrl = $baseUrl . $basePath . '/cek_status.php?no_registrasi=' . rawurlencode($noRegParam);
-
-                // Build HTML Nota (tanpa NIK/KTP)
-                $fmt = function($v) { return 'Rp ' . number_format((float)$v, 0, ',', '.'); };
-                $safe = function($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); };
-
-                // Embed logo as data URI (lebih aman untuk Dompdf)
-                $logoDataUri = null;
-                $logoCandidates = [
-                    __DIR__ . '/image/logo_baru.png',
-                    __DIR__ . '/image/GC.png',
-                ];
-                foreach ($logoCandidates as $candidate) {
-                    if (is_file($candidate)) {
-                        $ext = strtolower(pathinfo($candidate, PATHINFO_EXTENSION));
-                        $mime = ($ext === 'jpg' || $ext === 'jpeg') ? 'image/jpeg' : (($ext === 'png') ? 'image/png' : null);
-                        if ($mime) {
-                            $bin = @file_get_contents($candidate);
-                            if ($bin !== false && $bin !== '') {
-                                $logoDataUri = 'data:' . $mime . ';base64,' . base64_encode($bin);
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                // Identitas usaha (untuk nota)
-                $storeName = 'Gadai Cepat Timika Papua';
-                $storeAddress = 'Timika, Papua';
-                $storeWhatsapp = '0858-2309-1908';
-                $printedAt = date('d M Y H:i');
-
-                $html = '<html><head><meta charset="utf-8">'
-                    . '<style>'
-                    . 'body{font-family:DejaVu Sans, Arial, sans-serif;font-size:12px;color:#111;margin:0;padding:18px;}'
-                    . '.card{border:1px solid #ddd;padding:14px;}'
-                    . '.muted{color:#555;}'
-                    . '.right{text-align:right;}'
-                    . '.header{width:100%;border-collapse:collapse;margin:0 0 10px 0;}'
-                    . '.header td{padding:0;vertical-align:top;}'
-                    . '.logo{height:44px;}'
-                    . '.title{font-size:16px;font-weight:bold;margin:0;line-height:1.2;}'
-                    . '.slogan{font-size:12px;font-weight:bold;margin-top:2px;line-height:1.2;}'
-                    . '.meta{font-size:11px;line-height:1.35;}'
-                    . '.divider{border-top:1px solid #ddd;margin:10px 0;}'
-                    . '.info{width:100%;border-collapse:collapse;margin:0;}'
-                    . '.info td{padding:2px 0;vertical-align:top;}'
-                    . '.label{width:34%;color:#555;}'
-                    . '.items{width:100%;border-collapse:collapse;margin-top:6px;}'
-                    . '.items th{font-weight:bold;text-align:left;padding:6px 0;border-bottom:1px solid #ddd;}'
-                    . '.items td{padding:6px 0;border-bottom:1px solid #ddd;vertical-align:top;}'
-                    . '.items .amount{text-align:right;white-space:nowrap;}'
-                    . '.total-row td{border-bottom:none;border-top:1px solid #111;padding-top:8px;font-weight:bold;font-size:13px;}'
-                    . '.footer{margin-top:12px;font-size:10.5px;line-height:1.4;color:#555;}'
-                    . '</style></head><body>';
-
-                $html .= '<div class="card">';
-
-                // Header
-                $html .= '<table class="header"><tr>';
-                if ($logoDataUri) {
-                    $html .= '<td style="width:1%;white-space:nowrap;padding-right:12px;"><img class="logo" src="' . $safe($logoDataUri) . '" alt="Logo"></td>';
-                }
-                $html .= '<td>';
-                $html .= '<div class="title">NOTA GADAI</div>';
-                $html .= '<div class="slogan">Gadai Cepat Timika</div>';
-                $html .= '<div class="muted">' . $safe($storeName) . '</div>';
-                $html .= '<div class="muted">' . $safe($storeAddress) . '</div>';
-                $html .= '<div class="muted">WA: ' . $safe($storeWhatsapp) . '</div>';
-                $html .= '</td>';
-                $html .= '<td class="right meta" style="width:36%;">'
-                    . '<div><span class="muted">No. Registrasi</span><br><strong>' . $safe($reg) . '</strong></div>'
-                    . '<div style="margin-top:6px;"><span class="muted">Dicetak</span><br>' . $safe($printedAt) . '</div>'
-                    . '</td>';
-                $html .= '</tr></table>';
-
-                $html .= '<div class="divider"></div>';
-
-                // Info transaksi
-                $html .= '<table class="info">';
-                $html .= '<tr><td class="label">Nama</td><td>' . $safe($nama) . '</td></tr>';
-                if ($barang !== '') {
-                    $html .= '<tr><td class="label">Barang</td><td>' . $safe($barang) . '</td></tr>';
-                }
-                $html .= '<tr><td class="label">Tanggal Gadai</td><td>' . $safe($tglGadai) . '</td></tr>';
-                $html .= '<tr><td class="label">Jatuh Tempo</td><td>' . $safe($tglJt) . '</td></tr>';
-                $html .= '<tr><td class="label">Status</td><td>' . $safe($status) . '</td></tr>';
-                $html .= '</table>';
-
-                $html .= '<div class="divider"></div>';
-
-                // Rincian biaya
-                $html .= '<div style="font-weight:bold;margin-bottom:4px;">Rincian Biaya</div>';
-                $html .= '<table class="items">';
-                $html .= '<thead><tr><th>Deskripsi</th><th class="amount">Nominal</th></tr></thead><tbody>';
-                $html .= '<tr><td>Pokok</td><td class="amount">' . $safe($fmt($pokok)) . '</td></tr>';
-                $html .= '<tr><td>Bunga (' . $safe($bunga_pct) . '% x ' . $safe($lama) . ')</td><td class="amount">' . $safe($fmt($bunga_total)) . '</td></tr>';
-                $html .= '<tr><td>Admin Fee (1%)</td><td class="amount">' . $safe($fmt($admin_fee)) . '</td></tr>';
-                $html .= '<tr><td>Asuransi</td><td class="amount">' . $safe($fmt($biaya_asuransi)) . '</td></tr>';
-                if ($denda > 0) {
-                    $html .= '<tr><td>Denda</td><td class="amount">' . $safe($fmt($denda)) . '</td></tr>';
-                }
-                $html .= '<tr class="total-row"><td>Total Tebus</td><td class="amount">' . $safe($fmt($total_tebus)) . '</td></tr>';
-                $html .= '</tbody></table>';
-
-                $html .= '<div class="divider"></div>';
-
-                $html .= '<div class="footer">'
-                    . 'Cek status: ' . $safe($statusUrl) . '<br>'
-                    . 'Simpan nota ini sebagai bukti transaksi. Untuk bantuan silakan hubungi WhatsApp ' . $safe($storeWhatsapp) . '.'
-                    . '</div>';
-
-                $html .= '</div>';
-                $html .= '</body></html>';
-
-                // Generate PDF
-                $token = bin2hex(random_bytes(8));
-                $dir = __DIR__ . '/uploads/nota';
-                if (!is_dir($dir)) {
-                    @mkdir($dir, 0755, true);
-                }
-                if (!is_dir($dir)) {
-                    throw new RuntimeException('Gagal membuat folder uploads/nota');
-                }
-
-                $fileName = 'nota_' . (int)$row['id'] . '_' . $token . '.pdf';
-                $filePath = $dir . '/' . $fileName;
-
-                $dompdf = new \Dompdf\Dompdf();
-                $dompdf->setPaper('A4', 'portrait');
-                $dompdf->loadHtml($html, 'UTF-8');
-                $dompdf->render();
-                file_put_contents($filePath, $dompdf->output());
-
-                $pdfUrl = $baseUrl . $basePath . '/uploads/nota/' . rawurlencode($fileName);
-
-                $waText  = "Assalamualaikum " . ($nama !== '' ? $nama : '') . ",\n\n";
-                $waText .= "Berikut *Nota Gadai* Anda dari *Gadai Cepat Timika*.\n\n";
-                $waText .= "No. Registrasi: " . $reg . "\n";
-                if ($barang !== '') {
-                    $waText .= "Barang: " . $barang . "\n";
-                }
-                $waText .= "Jatuh Tempo: " . $tglJt . "\n";
-                $waText .= "Total Tebus: " . $fmt($total_tebus) . "\n\n";
-                $waText .= "Silakan buka/unduh PDF nota di link berikut:\n";
-                $waText .= $pdfUrl . "\n\n";
-                $waText .= "Terima kasih.\n";
-                $waText .= $storeName . "\n";
-                $waText .= "WA: " . $storeWhatsapp;
-
-                // Kirim otomatis via provider (Fonnte/Wablas). Jika provider 'manual', response berisi link (tidak terkirim otomatis).
-                $sendResp = null;
-                $sentOk = false;
-                $isManualMode = false;
-                try {
-                    if (!isset($whatsapp) || !is_object($whatsapp) || !method_exists($whatsapp, 'sendMessage')) {
-                        throw new RuntimeException('WhatsApp helper tidak tersedia.');
-                    }
-                    $sendResp = $whatsapp->sendMessage($row['no_wa'], $waText);
-                    $isManualMode = is_array($sendResp) && isset($sendResp['link']);
-                    $sentOk = is_array($sendResp) && (
-                        (!empty($sendResp['success']) && $sendResp['success'] === true && !$isManualMode)
-                        || (!empty($sendResp['status']) && $sendResp['status'] === true)
-                    );
-                } catch (Throwable $e) {
-                    $sendResp = ['success' => false, 'message' => $e->getMessage()];
-                }
-
-                $fallbackWaLink = 'https://wa.me/' . $phone . '?text=' . urlencode($waText);
-
-                if ($sentOk) {
-                    $message = 'Nota PDF berhasil dikirim otomatis. '
-                        . '<a href="' . htmlspecialchars($pdfUrl, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">Buka PDF</a>';
-                    $message_type = 'success';
-                } elseif ($isManualMode) {
-                    $message = 'Provider WhatsApp masih mode manual (tidak bisa kirim otomatis). '
-                        . '<a href="' . htmlspecialchars($pdfUrl, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">Buka PDF</a>'
-                        . ' | <a href="' . htmlspecialchars($fallbackWaLink, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">Buka WhatsApp</a>';
-                    $message_type = 'warning';
-                } else {
-                    $detail = '';
-                    if (is_array($sendResp) && isset($sendResp['message'])) {
-                        $detail = ' (' . htmlspecialchars((string)$sendResp['message'], ENT_QUOTES, 'UTF-8') . ')';
-                    }
-                    $message = 'Gagal kirim nota otomatis' . $detail . '. '
-                        . '<a href="' . htmlspecialchars($pdfUrl, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">Buka PDF</a>'
-                        . ' | <a href="' . htmlspecialchars($fallbackWaLink, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">Buka WhatsApp</a>'
-                        . ' (Cek log_wa.txt)';
-                    $message_type = 'warning';
-                }
-            }
-        }
-    } catch (Throwable $e) {
-        $message = 'Gagal membuat nota: ' . $e->getMessage();
-        $message_type = 'danger';
-    }
-}
-
-// --- Manual pelunasan oleh admin (lunas sebelum jatuh tempo) ---
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'manual_lunas') {
-    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
-    try {
-        $stmt = $db->prepare("SELECT * FROM data_gadai WHERE id = ?");
-        $stmt->execute([$id]);
-        $data_row = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$data_row) {
-            $message = 'Data gadai tidak ditemukan.';
-            $message_type = 'danger';
-        } elseif (!in_array($data_row['status'], ['Disetujui', 'Diperpanjang'], true)) {
-            $message = 'Pelunasan manual hanya dapat dilakukan untuk status Disetujui atau Diperpanjang.';
-            $message_type = 'warning';
-        } else {
-            // Hitung total tebus (pokok + bunga penuh + denda sudah tercatat)
-            $pokok = !empty($data_row['jumlah_disetujui']) ? (float)$data_row['jumlah_disetujui'] : (float)$data_row['jumlah_pinjaman'];
-            $bunga_pct = isset($data_row['bunga']) ? (float)$data_row['bunga'] : 0.0;
-            $lama = isset($data_row['lama_gadai']) ? (int)$data_row['lama_gadai'] : 0;
-            $denda_existing = !empty($data_row['denda_terakumulasi']) ? (float)$data_row['denda_terakumulasi'] : 0.0;
-
-            $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
-            $admin_fee = round($pokok * 0.01);
-            $biaya_asuransi = 10000;
-            $total_tebus = $pokok + $bunga_total + $admin_fee + $biaya_asuransi + $denda_existing;
-
-            // Ambil optional metode dan catatan dari form
-            $metode_input = !empty($_POST['metode']) ? trim($_POST['metode']) : 'tunai_admin';
-            $keterangan_admin_input = !empty($_POST['keterangan_admin']) ? trim($_POST['keterangan_admin']) : null;
-
-            // Simpan perubahan dan catat transaksi pelunasan (tunai oleh admin)
-            try {
-                $db->beginTransaction();
-                $update = $db->prepare("UPDATE data_gadai SET status = 'Lunas', total_tebus = ?, catatan_admin = ?, updated_at = NOW() WHERE id = ?");
-                $update->execute([$total_tebus, $keterangan_admin_input, $id]);
-
-                // Insert transaksi (kolom sesuai penggunaan di cek_status.php)
-                // Jika tabel `transaksi` tidak ada, lewati insert agar proses pelunasan tetap berhasil.
-                $skippedTransaksi = false;
-                $checkTbl = $db->prepare("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'transaksi'");
-                try {
-                    $checkTbl->execute();
-                    $tblExists = (int)$checkTbl->fetchColumn() > 0;
-                } catch (Exception $e) {
-                    $tblExists = false;
-                }
-
-                if ($tblExists) {
-                    $insert = $db->prepare("INSERT INTO transaksi (imei, serial_number, jenis_barang, merk, tipe, pelanggan_nik, barang_id, jumlah_bayar, keterangan, metode_pembayaran, bukti) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                    $insert->execute([
-                        null, // imei tidak ada kolom terpisah di data_gadai
-                        null, // serial_number tidak ada kolom terpisah
-                        $data_row['jenis_barang'] ?? null,
-                        $data_row['merk_barang'] ?? null,
-                        $data_row['spesifikasi_barang'] ?? null,
-                        $data_row['nik'],
-                        $id,
-                        $total_tebus,
-                        'pelunasan_admin',
-                        $metode_input,
-                        null
-                    ]);
-                } else {
-                    // tidak ada tabel transaksi; lewati perekaman transaksi
-                    $skippedTransaksi = true;
-                }
-
-                $db->commit();
-
-                // Re-fetch updated row for notifications
-                $stmt2 = $db->prepare("SELECT * FROM data_gadai WHERE id = ?");
-                $stmt2->execute([$id]);
-                $fresh = $stmt2->fetch(PDO::FETCH_ASSOC);
-                try {
-                    if (isset($whatsapp)) {
-                        $whatsapp->notifyUserPelunasanVerified($fresh);
-                    }
-                } catch (Exception $e) {
-                    error_log('WhatsApp notify failed: ' . $e->getMessage());
-                }
-
-                $message = 'Pelunasan manual berhasil. Total tebus: Rp ' . number_format($total_tebus, 0, ',', '.') . '.';
-                $message_type = 'success';
-            } catch (Exception $e) {
-                if ($db->inTransaction()) {
-                    $db->rollBack();
-                }
-                $message = 'Gagal memproses pelunasan: ' . $e->getMessage();
-                $message_type = 'danger';
-            }
-        }
-    } catch (Exception $e) {
-        $message = 'Gagal memproses permintaan: ' . $e->getMessage();
-        $message_type = 'danger';
-    }
-}
+// --- Manual pelunasan oleh admin dipindahkan ke file proses terpisah ---
+handleAdminManualLunasAction($db, $whatsapp, $message, $message_type);
 
 // Authentication handled by auth_check.php (included at top of file)
 
@@ -829,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 try {
     $sqlAutoFail = "SELECT id, jumlah_disetujui, jumlah_pinjaman, bunga, lama_gadai
         FROM data_gadai
-        WHERE status IN ('Disetujui', 'Diperpanjang')
+        WHERE status IN ($active_status_sql)
           AND tanggal_jatuh_tempo IS NOT NULL
           AND tanggal_jatuh_tempo < CURDATE()
           AND DATEDIFF(CURDATE(), tanggal_jatuh_tempo) >= 8
@@ -845,13 +45,8 @@ try {
             $denda_harian = 30000;
             $denda_total = $denda_harian * 7;
 
-            $pokok = !empty($r['jumlah_disetujui']) ? (float)$r['jumlah_disetujui'] : (float)$r['jumlah_pinjaman'];
-            $bunga_pct = isset($r['bunga']) ? (float)$r['bunga'] : 0.0;
-            $lama = isset($r['lama_gadai']) ? (int)$r['lama_gadai'] : 0;
-            $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
-            $admin_fee = round($pokok * 0.01);
-            $biaya_asuransi = 10000;
-            $total_tebus = $pokok + $bunga_total + $admin_fee + $biaya_asuransi + $denda_total;
+            $calcAutoFail = calculateGadaiBreakdown($r, $denda_total);
+            $total_tebus = (float)$calcAutoFail['total_tebus'];
 
             $updFail = $db->prepare("UPDATE data_gadai SET status = 'Gagal Tebus', gagal_tebus_at = NOW(), denda_terakumulasi = ?, total_tebus = ?, updated_at = NOW() WHERE id = ?");
             $updFail->execute([$denda_total, $total_tebus, $idFail]);
@@ -871,8 +66,8 @@ $pending_sql = "SELECT * FROM data_gadai WHERE status = 'Pending' ORDER BY creat
 $pending_stmt = $db->query($pending_sql);
 $pending_data = $pending_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Fetch approved submissions
-$approved_sql = "SELECT * FROM data_gadai WHERE status = 'Disetujui' ORDER BY updated_at DESC LIMIT 10";
+// Fetch active approved/extended submissions
+$approved_sql = "SELECT * FROM data_gadai WHERE status IN ($active_status_sql) ORDER BY updated_at DESC LIMIT 10";
 $approved_stmt = $db->query($approved_sql);
 $approved_data = $approved_stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -896,7 +91,7 @@ try {
         (SELECT SUM(t.jumlah_bayar) FROM transaksi t WHERE t.barang_id = dg.id AND t.pelanggan_nik = dg.nik AND t.keterangan = 'pelunasan') AS bukti_total,
         (SELECT t.bukti FROM transaksi t WHERE t.barang_id = dg.id AND t.pelanggan_nik = dg.nik AND t.keterangan = 'pelunasan' ORDER BY t.id DESC LIMIT 1) AS bukti_latest
         FROM data_gadai dg
-        WHERE dg.status IN ('Disetujui', 'Diperpanjang')
+        WHERE dg.status IN ($active_status_sql)
         AND EXISTS (SELECT 1 FROM transaksi t WHERE t.barang_id = dg.id AND t.pelanggan_nik = dg.nik AND t.keterangan = 'pelunasan')
         ORDER BY dg.updated_at DESC";
     $pelunasan_stmt = $db->query($pelunasan_sql);
@@ -915,7 +110,7 @@ try {
             (SELECT SUM(t.jumlah_bayar) FROM transaksi t WHERE t.barang_id = dg.id AND t.pelanggan_nik = dg.nik AND t.keterangan = 'perpanjangan') AS bukti_total,
             (SELECT t.bukti FROM transaksi t WHERE t.barang_id = dg.id AND t.pelanggan_nik = dg.nik AND t.keterangan = 'perpanjangan' ORDER BY t.id DESC LIMIT 1) AS bukti_latest
             FROM data_gadai dg
-            WHERE dg.status IN ('Disetujui', 'Diperpanjang')
+            WHERE dg.status IN ($active_status_sql)
             AND EXISTS (SELECT 1 FROM transaksi t WHERE t.barang_id = dg.id AND t.pelanggan_nik = dg.nik AND t.keterangan = 'perpanjangan')
             ORDER BY dg.updated_at DESC";
         $perpanjangan_stmt = $db->query($perpanjangan_sql);
@@ -930,7 +125,7 @@ $reminder_error = null;
 try {
     $reminder_sql = "SELECT dg.*, DATEDIFF(CURDATE(), dg.tanggal_jatuh_tempo) AS days_overdue
         FROM data_gadai dg
-        WHERE dg.status IN ('Disetujui', 'Diperpanjang')
+        WHERE dg.status IN ($active_status_sql)
           AND dg.tanggal_jatuh_tempo IS NOT NULL
           AND dg.tanggal_jatuh_tempo < CURDATE()
           AND DATEDIFF(CURDATE(), dg.tanggal_jatuh_tempo) BETWEEN 1 AND 7
@@ -1048,7 +243,7 @@ try {
 $stats_sql = "SELECT 
     COUNT(*) as total,
     SUM(CASE WHEN status = 'Pending' THEN 1 ELSE 0 END) as pending,
-    SUM(CASE WHEN status = 'Disetujui' THEN 1 ELSE 0 END) as approved,
+    SUM(CASE WHEN status IN ($active_status_sql) THEN 1 ELSE 0 END) as approved,
     SUM(CASE WHEN status = 'Ditolak' THEN 1 ELSE 0 END) as rejected
 FROM data_gadai";
 $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
@@ -1070,43 +265,135 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
         
         body {
             font-family: 'Poppins', sans-serif;
-            background: linear-gradient(135deg, #e3f2fd 0%, #f0f8ff 100%);
+            background:
+                radial-gradient(circle at top left, rgba(0, 123, 255, 0.12), transparent 0, transparent 35%),
+                linear-gradient(135deg, #eef6ff 0%, #f8fbff 48%, #f1f8ff 100%);
+            color: #1f2a37;
             min-height: 100vh;
-            padding: 20px 0;
+            padding: 0 0 40px;
         }
         
         .header {
-            background: linear-gradient(135deg, #0056b3, #007bff);
+            background: linear-gradient(135deg, #0056b3, #007bff 55%, #3aa0ff 100%);
             color: white;
-            padding: 30px 0;
-            margin-bottom: 30px;
-            box-shadow: 0 5px 20px rgba(0, 86, 179, 0.2);
+            padding: 32px 0;
+            margin-top: 0;
+            margin-bottom: 26px;
+            box-shadow: 0 10px 30px rgba(0, 86, 179, 0.22);
+            border-radius: 0 0 24px 24px;
+        }
+        
+        .header-wrap {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
         }
         
         .header h1 {
             font-family: 'Raleway', sans-serif;
             font-weight: 800;
+            margin: 0 0 8px 0;
+        }
+
+        .header-subtitle {
             margin: 0;
+            max-width: 720px;
+            color: rgba(255, 255, 255, 0.92);
+            font-size: 0.98rem;
+        }
+
+        .header-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .quick-chip {
+            border: 1px solid rgba(255, 255, 255, 0.28);
+            background: rgba(255, 255, 255, 0.14);
+            color: white;
+            border-radius: 999px;
+            padding: 10px 14px;
+            font-size: 0.92rem;
+            font-weight: 600;
+            backdrop-filter: blur(4px);
+            transition: all 0.2s ease;
+        }
+
+        .quick-chip:hover {
+            transform: translateY(-1px);
+            background: rgba(255, 255, 255, 0.24);
+            color: white;
+        }
+
+        .quick-chip.light {
+            background: white;
+            color: #0056b3;
+            border-color: white;
+        }
+
+        .quick-chip.light:hover {
+            color: #004494;
+            background: #f6fbff;
         }
         
         .stats-card {
             background: white;
-            border-radius: 15px;
+            border-radius: 18px;
             padding: 20px;
             margin-bottom: 20px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
             border-left: 5px solid #007bff;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .stats-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
         }
         
         .stats-number {
-            font-size: 2.5rem;
+            font-size: 2.35rem;
             font-weight: 800;
             color: #0056b3;
         }
         
         .stats-label {
-            color: #666;
+            color: #5f6b7a;
             font-weight: 600;
+        }
+
+        .dashboard-intro {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid rgba(0, 123, 255, 0.08);
+            border-radius: 18px;
+            padding: 18px 20px;
+            margin-bottom: 18px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+        }
+
+        .dashboard-intro h5 {
+            margin: 0 0 4px 0;
+            color: #0f315f;
+            font-weight: 700;
+        }
+
+        .dashboard-intro p {
+            margin: 0;
+            color: #607086;
+        }
+
+        .quick-action-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
         }
         
         .data-card {
@@ -1209,22 +496,44 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
         
         .nav-tabs {
             border: none;
-            margin-bottom: 25px;
+            margin-bottom: 0;
+            padding: 10px;
+            gap: 8px;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
         }
         
         .nav-tabs .nav-link {
             border: none;
-            border-radius: 15px 15px 0 0;
+            border-radius: 12px;
             font-weight: 600;
-            color: #666;
-            padding: 15px 30px;
-            margin-right: 5px;
+            color: #5f6b7a;
+            padding: 12px 18px;
+            margin-right: 0;
+            transition: all 0.2s ease;
+        }
+
+        .nav-tabs .nav-link:hover {
+            background: #edf5ff;
+            color: #0056b3;
         }
         
         .nav-tabs .nav-link.active {
-            background: white;
+            background: linear-gradient(135deg, #ffffff, #f1f8ff);
             color: #0056b3;
-            box-shadow: 0 -5px 15px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 6px 16px rgba(0, 86, 179, 0.12);
+        }
+
+        .tab-content {
+            margin-top: 18px;
+        }
+
+        .tab-pane {
+            background: rgba(255, 255, 255, 0.78);
+            border-radius: 18px;
+            padding: 20px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
         }
         
         .image-preview {
@@ -1241,6 +550,55 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
             font-size: 1.3rem;
             color: #0056b3;
         }
+
+        .alert {
+            border: none;
+            border-radius: 14px;
+            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+        }
+
+        .table {
+            overflow: hidden;
+            border-radius: 14px;
+        }
+
+        .table thead th {
+            background: #f0f6ff;
+            border-bottom-width: 1px;
+            color: #214a7a;
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                border-radius: 0 0 18px 18px;
+                padding: 24px 0;
+            }
+
+            .header-actions,
+            .quick-action-group {
+                width: 100%;
+            }
+
+            .dashboard-intro {
+                padding: 14px 16px;
+            }
+
+            .quick-chip {
+                width: 100%;
+                text-align: center;
+            }
+
+            .tab-pane,
+            .data-card {
+                padding: 16px;
+            }
+
+            .info-row {
+                flex-direction: column;
+                gap: 4px;
+            }
+        }
+
         /* Ensure modals appear above transformed/animated elements (stacking context fixes) */
         .modal {
             z-index: 20000 !important;
@@ -1253,7 +611,18 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
 <body>
     <div class="header">
         <div class="container">
-            <h1>🔍 Panel Verifikasi Admin</h1>
+            <div class="header-wrap">
+                <div>
+                    <h1>🔍 Panel Verifikasi Admin</h1>
+                    <p class="header-subtitle">Kelola pengajuan gadai, pelunasan, perpanjangan, reminder WhatsApp, dan transaksi dengan tampilan yang lebih nyaman dibaca.</p>
+                </div>
+                <div class="header-actions">
+                    <span class="quick-chip">📅 <?php echo date('d M Y'); ?></span>
+                    <button type="button" class="quick-chip light" data-bs-toggle="modal" data-bs-target="#addGadaiModal">➕ Input Gadai</button>
+                    <button type="button" class="quick-chip" data-bs-toggle="tab" data-bs-target="#pending">⏳ Lihat Pending</button>
+                    <button type="button" class="quick-chip" data-bs-toggle="tab" data-bs-target="#profit">📈 Cek Profit</button>
+                </div>
+            </div>
         </div>
     </div>
     
@@ -1293,6 +662,19 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
             </div>
         </div>
         
+        <div class="dashboard-intro">
+            <div>
+                <h5>✨ Menu cepat admin</h5>
+                <p>Pilih tab sesuai pekerjaan: verifikasi baru, cek bukti bayar, kirim reminder, atau lihat daftar gadai lengkap.</p>
+            </div>
+            <div class="quick-action-group">
+                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill" data-bs-toggle="tab" data-bs-target="#approved">Gadai Aktif</button>
+                <button type="button" class="btn btn-sm btn-outline-success rounded-pill" data-bs-toggle="tab" data-bs-target="#pelunasan">Pelunasan</button>
+                <button type="button" class="btn btn-sm btn-outline-warning rounded-pill" data-bs-toggle="tab" data-bs-target="#reminder">Reminder</button>
+                <button type="button" class="btn btn-sm btn-outline-dark rounded-pill" data-bs-toggle="tab" data-bs-target="#list">Daftar Lengkap</button>
+            </div>
+        </div>
+
         <!-- Tabs -->
         <ul class="nav nav-tabs" id="myTab" role="tablist">
             <li class="nav-item" role="presentation">
@@ -1618,42 +1000,29 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                 <?php else: ?>
                     <?php foreach ($approved_data as $row): ?>
                         <?php
-                        $pokok_admin = !empty($row['jumlah_disetujui']) ? (float)$row['jumlah_disetujui'] : (float)$row['jumlah_pinjaman'];
-                        $bunga_admin = (float)$row['bunga'];
-                        $lama_admin = (int)$row['lama_gadai'];
-                        $bunga_total_admin = $pokok_admin * ($bunga_admin / 100) * $lama_admin;
-                        $denda_admin = !empty($row['denda_terakumulasi']) ? (float)$row['denda_terakumulasi'] : 0;
+                        $denda_info_admin = gadai_calculate_denda($row['tanggal_jatuh_tempo'] ?? null, $row['denda_terakumulasi'] ?? 0);
+                        $days_late = $denda_info_admin['days_late'];
+                        $daily_penalty = $denda_info_admin['daily_rate'];
+                        $denda_display = $denda_info_admin['denda'];
 
-                        // Compute days late and penalty display (Rp30.000 per hari, cap 7 hari)
-                        $days_late = 0;
-                        if (!empty($row['tanggal_jatuh_tempo'])) {
-                            $due_ts = strtotime($row['tanggal_jatuh_tempo']);
-                            if ($due_ts !== false) {
-                                $now_ts = time();
-                                $diff_days = floor(($now_ts - $due_ts) / 86400);
-                                if ($diff_days > 0) {
-                                    $days_late = (int)$diff_days;
-                                }
-                            }
-                        }
-                        $daily_penalty = 30000;
-                        $denda_calc = min($days_late, 7) * $daily_penalty; // only up to 7 days counted
-
-                        // Prefer persisted denda_terakumulasi if present, otherwise show calculated value
-                        $denda_display = $denda_admin > 0 ? $denda_admin : $denda_calc;
-
-                        // Recompute visible total tebus for admin UI (pokok + bunga + admin fee + biaya asuransi + denda)
-                        $admin_fee = round($pokok_admin * 0.01);
-                        $biaya_asuransi = 10000;
-                        $total_tebus_admin = !empty($row['total_tebus']) ? (float)$row['total_tebus'] : ($pokok_admin + $bunga_total_admin + $admin_fee + $biaya_asuransi + $denda_display);
+                        $calcAdmin = calculateGadaiBreakdown($row, $denda_display);
+                        $pokok_admin = $calcAdmin['pokok'];
+                        $bunga_admin = $calcAdmin['bunga_pct'];
+                        $lama_admin = $calcAdmin['lama'];
+                        $bunga_total_admin = $calcAdmin['bunga_total'];
+                        $admin_fee = $calcAdmin['admin_fee'];
+                        $biaya_asuransi = $calcAdmin['biaya_asuransi'];
+                        $total_tebus_admin = !empty($row['total_tebus']) ? (float)$row['total_tebus'] : (float)$calcAdmin['total_tebus'];
+                        $biaya_perpanjangan_manual = (float)$calcAdmin['biaya_perpanjangan'];
+                        $tanggal_jt_baru_preview = !empty($row['tanggal_jatuh_tempo']) ? date('d M Y', strtotime($row['tanggal_jatuh_tempo'] . ' +30 days')) : date('d M Y', strtotime('+30 days'));
                         ?>
                         <div class="data-card approved">
                             <div class="d-flex justify-content-between align-items-start mb-3">
                                 <div>
                                     <div class="no-transaksi">#<?php echo str_pad($row['id'], 6, '0', STR_PAD_LEFT); ?></div>
-                                    <small class="text-muted">Disetujui: <?php echo !empty($row['verified_at']) ? date('d M Y H:i', strtotime($row['verified_at'])) : date('d M Y H:i', strtotime($row['created_at'])); ?></small>
+                                    <small class="text-muted"><?php echo ($row['status'] === 'Diperpanjang' ? 'Diperpanjang' : 'Disetujui'); ?>: <?php echo !empty($row['verified_at']) ? date('d M Y H:i', strtotime($row['verified_at'])) : date('d M Y H:i', strtotime($row['created_at'])); ?></small>
                                 </div>
-                                <span class="badge-approved">✅ DISETUJUI</span>
+                                <span class="badge-approved"><?php echo $row['status'] === 'Diperpanjang' ? '🔁 DIPERPANJANG' : '✅ DISETUJUI'; ?></span>
                             </div>
                             
                             <div class="row">
@@ -1711,10 +1080,65 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                     <strong>📝 Catatan Admin:</strong> <?php echo nl2br(htmlspecialchars($row['catatan_admin'])); ?>
                                 </div>
                             <?php endif; ?>
-                            <div class="d-flex gap-2 justify-content-end mt-3">
+                            <div class="d-flex gap-2 justify-content-end mt-3 flex-wrap">
+                                <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#perpanjangManualModal<?php echo $row['id']; ?>">
+                                    🔁 Perpanjang Manual
+                                </button>
                                 <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#lunaskanModal<?php echo $row['id']; ?>">
                                     💸 Lunaskan Sekarang
                                 </button>
+                            </div>
+
+                            <!-- Modal: Perpanjang Manual -->
+                            <div class="modal fade" id="perpanjangManualModal<?php echo $row['id']; ?>" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered">
+                                    <div class="modal-content">
+                                        <div class="modal-header" style="background: linear-gradient(135deg, #f39c12, #f1c40f); color: #212529;">
+                                            <h5 class="modal-title">🔁 Konfirmasi Perpanjangan Manual</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <form method="POST">
+                                            <div class="modal-body">
+                                                <input type="hidden" name="id" value="<?php echo $row['id']; ?>">
+                                                <input type="hidden" name="action" value="manual_perpanjang">
+
+                                                <div class="alert alert-warning mb-3">
+                                                    <strong>Pastikan pembayaran perpanjangan sudah diterima.</strong><br>
+                                                    Proses ini akan menambah masa gadai <strong>30 hari</strong> dan mencatat transaksi admin.
+                                                </div>
+
+                                                <div class="p-3 mb-3" style="background:#fff8e1; border:1px solid #f6d365; border-radius:10px;">
+                                                    <div><strong>Nasabah:</strong> <?php echo htmlspecialchars($row['nama']); ?></div>
+                                                    <div><strong>Barang:</strong> <?php echo htmlspecialchars(trim(($row['jenis_barang'] ?? '') . ': ' . ($row['merk_barang'] ?? '') . ' ' . ($row['spesifikasi_barang'] ?? ''))); ?></div>
+                                                    <div><strong>Perpanjangan ke:</strong> <?php echo (int)($row['perpanjangan_ke'] ?? 0) + 1; ?></div>
+                                                    <hr style="margin:8px 0;">
+                                                    <div><strong>Jatuh tempo saat ini:</strong> <?php echo date('d M Y', strtotime($row['tanggal_jatuh_tempo'])); ?></div>
+                                                    <div><strong>Jatuh tempo baru:</strong> <?php echo $tanggal_jt_baru_preview; ?></div>
+                                                    <div class="mt-2"><strong>Biaya perpanjangan:</strong> Rp <?php echo number_format($biaya_perpanjangan_manual, 0, ',', '.'); ?></div>
+                                                    <small class="text-muted">Bunga + Admin 1% + Asuransi + Denda (jika ada)</small>
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <label class="form-label">Metode Pembayaran</label>
+                                                    <select name="metode" class="form-control">
+                                                        <option value="tunai_admin">Tunai - Admin</option>
+                                                        <option value="transfer_admin">Transfer - Admin</option>
+                                                        <option value="manual_admin">Input Manual - Admin</option>
+                                                    </select>
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <label class="form-label">Catatan Admin (opsional)</label>
+                                                    <textarea name="keterangan_admin" class="form-control" rows="2" placeholder="Contoh: nasabah datang langsung ke toko dan sudah bayar biaya perpanjangan."></textarea>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                                                <button type="submit" class="btn btn-warning">✅ Ya, Perpanjang Sekarang</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
                             </div>
 
                             <!-- Modal: Lunaskan Sekarang -->
@@ -2363,7 +1787,7 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                     <th>Merek Hp</th>
                                     <th>Kelengkapan</th>
                                     <th>Kondisi hp</th>
-                                    <th>Jumlah Gadai</th>
+                                    <th>Pengajuan / Disetujui</th>
                                     <th>Bunga</th>
                                     <th>Total Yang Balik</th>
                                     <th>Tanggal Gadai</th>
@@ -2376,17 +1800,16 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                 <?php foreach ($all_data as $index => $row): ?>
                                     <?php
                                         // Determine principal: approved amount if present, otherwise requested
-                                        $pokok = !empty($row['jumlah_disetujui']) ? (float)$row['jumlah_disetujui'] : (float)$row['jumlah_pinjaman'];
-                                        $bunga_pct = isset($row['bunga']) ? (float)$row['bunga'] : 0.0;
-                                        $lama = isset($row['lama_gadai']) ? (int)$row['lama_gadai'] : 0;
-                                        $denda = isset($row['denda_terakumulasi']) ? (float)$row['denda_terakumulasi'] : 0.0;
+                                        $pengajuan_list = (float)($row['jumlah_pinjaman'] ?? 0);
+                                        $disetujui_list = !empty($row['jumlah_disetujui']) ? (float)$row['jumlah_disetujui'] : null;
+                                        $denda_info_list = gadai_calculate_denda($row['tanggal_jatuh_tempo'] ?? null, $row['denda_terakumulasi'] ?? 0);
+                                        $calcList = calculateGadaiBreakdown($row, $denda_info_list['denda']);
+                                        $pokok = $calcList['pokok'];
+                                        $bunga_pct = $calcList['bunga_pct'];
                                         if (!empty($row['total_tebus']) && (float)$row['total_tebus'] > 0) {
                                             $total_kembali = (float)$row['total_tebus'];
                                         } else {
-                                            $bunga_total_list = $pokok * ($bunga_pct / 100) * $lama;
-                                            $admin_fee_list = round($pokok * 0.01);
-                                            $biaya_asuransi_list = 10000;
-                                            $total_kembali = $pokok + $bunga_total_list + $admin_fee_list + $biaya_asuransi_list + $denda;
+                                            $total_kembali = (float)$calcList['total_tebus'];
                                         }
                                     ?>
                                     <tr>
@@ -2410,7 +1833,17 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                             ?>
                                         </td>
                                         <td><?php echo htmlspecialchars($row['kondisi_barang']); ?></td>
-                                        <td>Rp <?php echo number_format((float)$row['jumlah_pinjaman'], 0, ',', '.'); ?></td>
+                                        <td>
+                                            <?php if ($disetujui_list !== null): ?>
+                                                <small class="text-muted d-block">Diajukan: Rp <?php echo number_format($pengajuan_list, 0, ',', '.'); ?></small>
+                                                <strong class="text-success d-block">Disetujui: Rp <?php echo number_format($disetujui_list, 0, ',', '.'); ?></strong>
+                                                <?php if (abs($disetujui_list - $pengajuan_list) > 0.009): ?>
+                                                    <span class="badge bg-warning text-dark">Disesuaikan</span>
+                                                <?php endif; ?>
+                                            <?php else: ?>
+                                                Rp <?php echo number_format($pengajuan_list, 0, ',', '.'); ?>
+                                            <?php endif; ?>
+                                        </td>
                                         <td><?php echo htmlspecialchars($bunga_pct) . '%'; ?></td>
                                         <td>Rp <?php echo number_format($total_kembali, 0, ',', '.'); ?></td>
                                         <td><?php echo $row['tanggal_gadai'] ? date('d M Y', strtotime($row['tanggal_gadai'])) : '-'; ?></td>
@@ -2442,16 +1875,17 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Move lunaskan modals to document.body when opened to avoid stacking-context issues
+        // Move modals to document.body when opened to avoid stacking-context/z-index issues inside cards/tabs
         (function () {
             try {
-                document.querySelectorAll('button[data-bs-target^="#lunaskanModal"]').forEach(function (btn) {
+                document.querySelectorAll('button[data-bs-toggle="modal"]').forEach(function (btn) {
                     btn.addEventListener('click', function () {
                         var targetSelector = btn.getAttribute('data-bs-target');
                         if (!targetSelector) return;
+
                         var modalEl = document.querySelector(targetSelector);
                         if (!modalEl) return;
-                        // If modal is nested inside transformed container, move it to body before showing
+
                         if (modalEl.parentNode !== document.body) {
                             document.body.appendChild(modalEl);
                         }

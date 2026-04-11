@@ -4701,3 +4701,190 @@ Gadai Cepat Timika Papua
 📞 0858-2309-1908
 Response: 
 
+[2026-04-07 16:31:21] To: 6281241994370
+Message: 🔁 *PERPANJANGAN GADAI BERHASIL*
+
+Halo Gaily,
+
+Permintaan perpanjangan gadai Anda telah kami terima.
+
+📋 No. Registrasi: #000007
+📱 Barang: Laptop Laptop Asus ROG
+📅 Jatuh Tempo Baru: 24 April 2026
+
+Kami akan menghubungi Anda bila ada informasi tambahan.
+
+📞 WA: 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[150663322],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":853,"remaining":852,"used":1}},"requestid":439980677,"status":true,"target":["6281241994370"]}
+
+[2026-04-07 16:31:22] To: 6285823091908
+Message: 🔁 *PERPANJANGAN GADAI*
+
+📋 No. Registrasi: #000007
+👤 Nama: Gaily
+📱 Barang: Laptop Laptop Asus ROG
+📅 Jatuh Tempo Baru: 24 April 2026
+
+Buka detail di:
+http://172.20.10.13/GadaiHp/admin_verifikasi.php
+Response: {"detail":"success! message in queue","id":[150663323],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":852,"remaining":851,"used":1}},"requestid":439980678,"status":true,"target":["6285823091908"]}
+
+[2026-04-07 16:39:33] To: 6282320618292
+Message: ✅ *PEMBAYARAN TERVERIFIKASI*
+
+Yth. Bapak/Ibu Yohanis Yestifatubun,
+
+Pembayaran Anda telah kami terima dan diverifikasi. Status pengajuan: *Ditebus*.
+
+📋 *No. Registrasi:* #000050
+📱 *Barang:* Laptop - Laptop Lenovo
+- *Kelengkapan:* Laptop, cas dan tas
+- *Kemulusan/Kondisi:* Bekas - Baik
+- *Tanggal Gadai:* 24 March 2026
+- *Tanggal Jatuh Tempo:* 24 April 2026
+
+*Rincian Pembayaran:*
+- *Pokok:* Rp 1.000.000
+- *Bunga:* Rp 300.000 (30% x 1 bulan)
+- *Biaya administrasi (1%):* Rp 10.000
+- *Biaya asuransi:* Rp 10.000
+
+*Total Tebus:* Rp 1.320.000
+
+Terima kasih atas kepercayaan Anda.
+
+Hormat kami,
+Gadai Cepat Timika Papua
+📞 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[150663664],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":851,"remaining":850,"used":1}},"requestid":439983848,"status":true,"target":["6282320618292"]}
+
+[2026-04-07 16:40:21] To: 6285244963821
+Message: 🔁 *PERPANJANGAN GADAI BERHASIL*
+
+Halo Angelico,
+
+Permintaan perpanjangan gadai Anda telah kami terima.
+
+📋 No. Registrasi: #000005
+📱 Barang: Laptop Laptop Acer
+📅 Jatuh Tempo Baru: 01 May 2026
+
+Kami akan menghubungi Anda bila ada informasi tambahan.
+
+📞 WA: 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[150663684],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":850,"remaining":849,"used":1}},"requestid":439984589,"status":true,"target":["6285244963821"]}
+
+[2026-04-07 16:40:22] To: 6285823091908
+Message: 🔁 *PERPANJANGAN GADAI*
+
+📋 No. Registrasi: #000005
+👤 Nama: Angelico
+📱 Barang: Laptop Laptop Acer
+📅 Jatuh Tempo Baru: 01 May 2026
+
+Buka detail di:
+http://172.20.10.13/GadaiHp/admin_verifikasi.php
+Response: {"detail":"success! message in queue","id":[150663685],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":849,"remaining":848,"used":1}},"requestid":439984592,"status":true,"target":["6285823091908"]}
+
+[2026-04-11 07:55:26] To: 6281234567890
+Message: Assalamualaikum TEST-UTIL-20260411075525,
+
+Data gadai Anda sudah dibuat dan *Disetujui*.
+
+No. Registrasi: #000060
+Barang: HP Refactor Utility Test
+Tanggal Gadai: 11 Apr 2026
+Jatuh Tempo: 11 May 2026
+Pinjaman: Rp 1.500.000
+
+Cek status/riwayat di link berikut:
+http://172.20.10.5/cek_status.php?no_registrasi=60
+
+Simpan pesan ini sebagai bukti transaksi.
+Terima kasih.
+Gadai Cepat Timika Papua
+WA: 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[151271159],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":837,"remaining":836,"used":1}},"requestid":443615425,"status":true,"target":["6281234567890"]}
+
+[2026-04-11 07:55:32] To: 6281234567890
+Message: Assalamualaikum TEST-UTIL-20260411075525,
+
+Berikut *Nota Gadai* Anda dari *Gadai Cepat Timika*.
+
+No. Registrasi: #000060
+Barang: HP Refactor Utility Test
+Jatuh Tempo: 11 May 2026
+Total Tebus: Rp 3.775.000
+
+Silakan buka/unduh PDF nota di link berikut:
+http://172.20.10.5/uploads/nota/nota_60_9d89673fdbf055e2.pdf
+
+Terima kasih.
+Gadai Cepat Timika Papua
+WA: 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[151271165],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":836,"remaining":835,"used":1}},"requestid":443615453,"status":true,"target":["6281234567890"]}
+
+[2026-04-11 07:55:33] To: 6281234567890
+Message: ⚠️ *PENGINGAT: JATUH TEMPO TERLEWAT*
+
+Yth. Bapak/Ibu TEST-UTIL-20260411075525,
+
+Kami mencatat bahwa gadai Anda telah melewati tanggal jatuh tempo sebesar *3 hari*. Mohon segera mengambil tindakan untuk menghindari konsekuensi lebih lanjut.
+
+📋 *No. Registrasi:* #000060
+📱 *Barang:* HP - Refactor Utility Test
+- *Kemulusan/Kondisi:* Bekas - Baik
+- *Tanggal Gadai:* 11 April 2026
+- *Tanggal Jatuh Tempo:* 08 April 2026
+
+*Rincian Tebus:*
+- *Pokok:* Rp 1.500.000
+- *Bunga:* Rp 2.250.000 (5% x 30 bulan)
+- *Biaya administrasi (1%):* Rp 15.000
+- *Biaya asuransi:* Rp 10.000
+- *Denda Harian:* Rp 30.000 x 3 hari = Rp 90.000
+
+*Total Tebus:* Rp 3.865.000
+
+Mohon segera melakukan pelunasan atau menghubungi kami untuk mendiskusikan opsi perpanjangan.
+
+Catatan: denda dihitung hingga maksimal 7 hari; jika tidak ada pelunasan hingga hari ke-8, pengajuan akan dinyatakan Gagal Tebus.
+
+Cek status di:
+http://172.20.10.5/GadaiHp/cek_status.php?no_registrasi=60
+
+Hormat kami,
+Gadai Cepat Timika Papua
+📞 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[151271166],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":835,"remaining":834,"used":1}},"requestid":443615459,"status":true,"target":["6281234567890"]}
+
+[2026-04-11 07:55:34] To: 6281234567890
+Message: ❗ *PENGUMUMAN: GAGAL TEBUS*
+
+Yth. Bapak/Ibu TEST-UTIL-20260411075525,
+
+Mohon maaf, pengajuan gadai Anda dinyatakan *Gagal Tebus* karena melewati batas tenggang. Barang akan diproses sesuai ketentuan.
+
+📋 *No. Registrasi:* #000060
+📱 *Barang:* HP - Refactor Utility Test
+
+- *Tanggal Jatuh Tempo:* 08 April 2026
+Silakan hubungi kami untuk informasi lebih lanjut.
+
+Hormat kami,
+Gadai Cepat Timika Papua
+📞 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[151271167],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":834,"remaining":833,"used":1}},"requestid":443615468,"status":true,"target":["6281234567890"]}
+
+[2026-04-11 07:55:35] To: 6285823091908
+Message: ⚠️ *PENGUMUMAN: GAGAL TEBUS*
+
+📋 No. Registrasi: #000060
+👤 Nama: TEST-UTIL-20260411075525
+📱 Barang: HP Refactor Utility Test
+📅 Tgl Jatuh Tempo: 08 April 2026
+
+Buka detail di:
+http://172.20.10.5/GadaiHp/admin_verifikasi.php
+Response: {"detail":"success! message in queue","id":[151271168],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":833,"remaining":832,"used":1}},"requestid":443615471,"status":true,"target":["6285823091908"]}
+
