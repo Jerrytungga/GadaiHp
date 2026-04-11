@@ -8,6 +8,8 @@ require_once 'admin_verifikasi_actions.php';
 $message = '';
 $message_type = '';
 $active_status_sql = gadai_active_status_sql_list();
+$sale_status_sql = gadai_sale_status_sql_list();
+$list_search = trim((string)($_GET['list_search'] ?? ''));
 
 function calculateGadaiBreakdown(array $row, ?float $overrideDenda = null): array {
     return gadai_calculate_breakdown($row, $overrideDenda);
@@ -66,20 +68,41 @@ $pending_sql = "SELECT * FROM data_gadai WHERE status = 'Pending' ORDER BY creat
 $pending_stmt = $db->query($pending_sql);
 $pending_data = $pending_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Fetch active approved/extended submissions
-$approved_sql = "SELECT * FROM data_gadai WHERE status IN ($active_status_sql) ORDER BY updated_at DESC LIMIT 10";
+// Fetch all active approved/extended submissions so the result stays consistent with the list table
+$approved_sql = "SELECT * FROM data_gadai WHERE status IN ($active_status_sql) ORDER BY updated_at DESC";
 $approved_stmt = $db->query($approved_sql);
 $approved_data = $approved_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Fetch rejected submissions
-$rejected_sql = "SELECT * FROM data_gadai WHERE status = 'Ditolak' ORDER BY updated_at DESC LIMIT 10";
+$rejected_sql = "SELECT * FROM data_gadai WHERE status = 'Ditolak' ORDER BY updated_at DESC";
 $rejected_stmt = $db->query($rejected_sql);
 $rejected_data = $rejected_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Fetch all submissions (for list table) - include fields needed for the new list columns
-$all_sql = "SELECT id, nama, nik, no_wa, merk_barang, spesifikasi_barang, kondisi_barang, jumlah_pinjaman, jumlah_disetujui, bunga, lama_gadai, denda_terakumulasi, total_tebus, tanggal_gadai, tanggal_jatuh_tempo, status, catatan_admin, created_at FROM data_gadai ORDER BY created_at DESC";
+// Fetch all submissions (for list table) - include fields needed for search and detail view
+$all_sql = "SELECT id, nama, nik, no_wa, alamat, jenis_barang, merk_barang, spesifikasi_barang, kondisi_barang, nilai_taksiran, jumlah_pinjaman, jumlah_disetujui, bunga, lama_gadai, denda_terakumulasi, total_tebus, tanggal_gadai, tanggal_jatuh_tempo, status, catatan_admin, perpanjangan_ke, created_at, updated_at FROM data_gadai ORDER BY created_at DESC";
 $all_stmt = $db->query($all_sql);
 $all_data = $all_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+if ($list_search !== '') {
+    $needle = function_exists('mb_strtolower') ? mb_strtolower($list_search, 'UTF-8') : strtolower($list_search);
+    $all_data = array_values(array_filter($all_data, static function (array $row) use ($needle): bool {
+        $haystack = implode(' ', [
+            (string)($row['id'] ?? ''),
+            (string)($row['nama'] ?? ''),
+            (string)($row['nik'] ?? ''),
+            (string)($row['no_wa'] ?? ''),
+            (string)($row['alamat'] ?? ''),
+            (string)($row['jenis_barang'] ?? ''),
+            (string)($row['merk_barang'] ?? ''),
+            (string)($row['spesifikasi_barang'] ?? ''),
+            (string)($row['kondisi_barang'] ?? ''),
+            (string)($row['status'] ?? ''),
+            (string)($row['catatan_admin'] ?? ''),
+        ]);
+        $haystack = function_exists('mb_strtolower') ? mb_strtolower($haystack, 'UTF-8') : strtolower($haystack);
+        return strpos($haystack, $needle) !== false;
+    }));
+}
 
 // Fetch pelunasan pending submissions
 $pelunasan_data = [];
@@ -136,6 +159,22 @@ try {
     $reminder_error = 'Data reminder belum tersedia.';
 }
 
+// Fetch internal sale pipeline data
+$sale_data = [];
+$sale_error = null;
+try {
+    $sale_sql = "SELECT dg.*,
+        (SELECT t.jumlah_bayar FROM transaksi t WHERE t.barang_id = dg.id AND t.keterangan = 'penjualan_barang' ORDER BY t.id DESC LIMIT 1) AS harga_jual_terakhir,
+        (SELECT t.created_at FROM transaksi t WHERE t.barang_id = dg.id AND t.keterangan = 'penjualan_barang' ORDER BY t.id DESC LIMIT 1) AS tanggal_terjual
+        FROM data_gadai dg
+        WHERE dg.status IN ($sale_status_sql)
+        ORDER BY dg.updated_at DESC";
+    $sale_stmt = $db->query($sale_sql);
+    $sale_data = $sale_stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $sale_error = 'Data penjualan internal belum tersedia.';
+}
+
 // --- Fetch transaksi records (used for admin view of bukti perpanjangan / pelunasan) ---
 $transaksi_data = [];
 $transaksi_error = null;
@@ -152,6 +191,7 @@ try {
 // Definisi:
 // - Lunas: keuntungan = bunga_total + admin_fee(1%) + asuransi(10.000) + denda
 // - Perpanjangan: keuntungan = total pembayaran perpanjangan (keterangan LIKE 'perpanjangan%')
+// - Penjualan Barang: estimasi laba/rugi = harga_jual - pokok pinjaman
 $profit_error = null;
 $profit_year = (int)($_GET['profit_year'] ?? date('Y'));
 if ($profit_year < 2000 || $profit_year > 2100) {
@@ -165,6 +205,8 @@ for ($m = 1; $m <= 12; $m++) {
         'lunas_profit' => 0.0,
         'perp_count' => 0,
         'perp_profit' => 0.0,
+        'jual_count' => 0,
+        'jual_profit' => 0.0,
     ];
 }
 
@@ -232,6 +274,28 @@ try {
             if ($mm >= 1 && $mm <= 12) {
                 $profit_months[$mm]['perp_count'] = (int)($r['perp_count'] ?? 0);
                 $profit_months[$mm]['perp_profit'] = (float)($r['perp_profit'] ?? 0);
+            }
+        }
+
+        // 3) Penjualan barang per bulan (harga jual - pokok pinjaman)
+        $sqlJual = "
+            SELECT MONTH(t.created_at) AS mm,
+                   COUNT(*) AS jual_count,
+                   SUM(IFNULL(t.jumlah_bayar, 0) - IFNULL(NULLIF(dg.jumlah_disetujui, 0), dg.jumlah_pinjaman)) AS jual_profit
+            FROM transaksi t
+            INNER JOIN data_gadai dg ON dg.id = t.barang_id
+            WHERE YEAR(t.created_at) = ?
+              AND t.keterangan = 'penjualan_barang'
+            GROUP BY MONTH(t.created_at)
+        ";
+        $stmtJual = $db->prepare($sqlJual);
+        $stmtJual->execute([$profit_year]);
+        $rowsJual = $stmtJual->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rowsJual as $r) {
+            $mm = (int)($r['mm'] ?? 0);
+            if ($mm >= 1 && $mm <= 12) {
+                $profit_months[$mm]['jual_count'] = (int)($r['jual_count'] ?? 0);
+                $profit_months[$mm]['jual_profit'] = (float)($r['jual_profit'] ?? 0);
             }
         }
     }
@@ -568,6 +632,48 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
             color: #214a7a;
         }
 
+        .search-toolbar {
+            background: #f8fbff;
+            border: 1px solid #d9e9ff;
+            border-radius: 16px;
+            padding: 14px 16px;
+            margin-bottom: 16px;
+        }
+
+        .table-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+        }
+
+        .detail-item {
+            background: #f8fbff;
+            border: 1px solid #e3eefc;
+            border-radius: 12px;
+            padding: 12px 14px;
+        }
+
+        .detail-label {
+            display: block;
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #537096;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .detail-value {
+            color: #1f2a37;
+            word-break: break-word;
+        }
+
         @media (max-width: 768px) {
             .header {
                 border-radius: 0 0 18px 18px;
@@ -684,7 +790,7 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="approved-tab" data-bs-toggle="tab" data-bs-target="#approved" type="button">
-                    ✅ Disetujui (<?php echo count($approved_data); ?>)
+                    ✅ Disetujui / Aktif (<?php echo count($approved_data); ?>)
                 </button>
             </li>
             <li class="nav-item" role="presentation">
@@ -705,6 +811,11 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="reminder-tab" data-bs-toggle="tab" data-bs-target="#reminder" type="button">
                     ⏰ Reminder Manual (<?php echo count($reminder_data); ?>)
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="sale-tab" data-bs-toggle="tab" data-bs-target="#sale" type="button">
+                    🏷️ Penjualan Barang (<?php echo count($sale_data); ?>)
                 </button>
             </li>
             <li class="nav-item" role="presentation">
@@ -995,6 +1106,7 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
             
             <!-- Approved Tab -->
             <div class="tab-pane fade" id="approved" role="tabpanel">
+                <div class="alert alert-info mb-3">Tab ini sekarang menampilkan <strong>semua data aktif</strong> agar konsisten dengan data pada tabel daftar gadai.</div>
                 <?php if (empty($approved_data)): ?>
                     <div class="alert alert-info">Belum ada pengajuan yang disetujui.</div>
                 <?php else: ?>
@@ -1457,6 +1569,129 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                 <?php endif; ?>
             </div>
 
+            <!-- Penjualan Barang Tab -->
+            <div class="tab-pane fade" id="sale" role="tabpanel">
+                <?php if ($sale_error): ?>
+                    <div class="alert alert-warning"><?php echo htmlspecialchars($sale_error); ?></div>
+                <?php elseif (empty($sale_data)): ?>
+                    <div class="alert alert-info">Belum ada barang dalam alur penjualan internal.</div>
+                <?php else: ?>
+                    <?php foreach ($sale_data as $row): ?>
+                        <?php
+                            $pokok_sale = gadai_get_pokok($row);
+                            $harga_jual_terakhir = isset($row['harga_jual_terakhir']) && $row['harga_jual_terakhir'] !== null ? (float)$row['harga_jual_terakhir'] : null;
+                            $hasil_sale = $harga_jual_terakhir !== null ? ($harga_jual_terakhir - $pokok_sale) : null;
+                            $barangSale = trim(($row['jenis_barang'] ?? '') . ': ' . ($row['merk_barang'] ?? '') . ' ' . ($row['spesifikasi_barang'] ?? ''));
+                            $barangSale = trim(preg_replace('/\s+/', ' ', $barangSale));
+                        ?>
+                        <div class="data-card <?php echo in_array(($row['status'] ?? ''), ['Terjual', 'Barang Dijual'], true) ? 'approved' : 'rejected'; ?>">
+                            <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+                                <div>
+                                    <div class="no-transaksi">#<?php echo str_pad($row['id'], 6, '0', STR_PAD_LEFT); ?></div>
+                                    <small class="text-muted"><?php echo htmlspecialchars($row['nama'] ?? ''); ?> • <?php echo htmlspecialchars($barangSale !== '' ? $barangSale : '-'); ?></small>
+                                </div>
+                                <?php if (($row['status'] ?? '') === 'Gagal Tebus'): ?>
+                                    <span class="badge-rejected">⚠️ GAGAL TEBUS</span>
+                                <?php elseif (($row['status'] ?? '') === 'Siap Dijual'): ?>
+                                    <span class="badge bg-warning text-dark">🏷️ SIAP DIJUAL</span>
+                                <?php else: ?>
+                                    <span class="badge-approved">✅ TERJUAL</span>
+                                <?php endif; ?>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <div class="info-row"><span class="info-label">Nasabah</span><span class="info-value"><?php echo htmlspecialchars($row['nama'] ?? '-'); ?></span></div>
+                                    <div class="info-row"><span class="info-label">No. HP</span><span class="info-value"><?php echo htmlspecialchars($row['no_wa'] ?? '-'); ?></span></div>
+                                    <div class="info-row"><span class="info-label">Barang</span><span class="info-value"><?php echo htmlspecialchars($barangSale !== '' ? $barangSale : '-'); ?></span></div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="info-row"><span class="info-label">Pokok</span><span class="info-value"><strong>Rp <?php echo number_format($pokok_sale, 0, ',', '.'); ?></strong></span></div>
+                                    <div class="info-row"><span class="info-label">Total Tebus</span><span class="info-value">Rp <?php echo number_format((float)($row['total_tebus'] ?? 0), 0, ',', '.'); ?></span></div>
+                                    <div class="info-row"><span class="info-label">Status</span><span class="info-value"><?php echo htmlspecialchars($row['status'] ?? '-'); ?></span></div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="info-row"><span class="info-label">Harga Jual</span><span class="info-value"><?php echo $harga_jual_terakhir !== null ? ('Rp ' . number_format($harga_jual_terakhir, 0, ',', '.')) : '-'; ?></span></div>
+                                    <div class="info-row"><span class="info-label">Hasil</span><span class="info-value <?php echo $hasil_sale !== null && $hasil_sale < 0 ? 'text-danger' : 'text-success'; ?>"><?php echo $hasil_sale !== null ? ('Rp ' . number_format($hasil_sale, 0, ',', '.')) : '-'; ?></span></div>
+                                    <div class="info-row"><span class="info-label">Tanggal</span><span class="info-value"><?php echo !empty($row['tanggal_terjual']) ? date('d M Y H:i', strtotime($row['tanggal_terjual'])) : '-'; ?></span></div>
+                                </div>
+                            </div>
+
+                            <?php if (!empty($row['catatan_admin'])): ?>
+                                <div class="alert alert-info mt-3 mb-0" style="padding:10px; font-size:0.92rem;">
+                                    <strong>📝 Catatan Internal:</strong> <?php echo nl2br(htmlspecialchars($row['catatan_admin'])); ?>
+                                </div>
+                            <?php endif; ?>
+
+                            <div class="d-flex gap-2 justify-content-end mt-3 flex-wrap">
+                                <?php if (($row['status'] ?? '') === 'Gagal Tebus'): ?>
+                                    <form method="POST" style="display:inline;" onsubmit="return confirm('Pindahkan barang #' + <?php echo json_encode(str_pad($row['id'], 6, '0', STR_PAD_LEFT)); ?> + ' ke status Siap Dijual?');">
+                                        <input type="hidden" name="action" value="mark_siap_jual">
+                                        <input type="hidden" name="id" value="<?php echo (int)$row['id']; ?>">
+                                        <button type="submit" class="btn btn-warning">🏷️ Masukkan ke Penjualan</button>
+                                    </form>
+                                <?php endif; ?>
+
+                                <?php if (in_array(($row['status'] ?? ''), ['Gagal Tebus', 'Siap Dijual'], true)): ?>
+                                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#saleModal<?php echo $row['id']; ?>">
+                                        💵 Tandai Terjual
+                                    </button>
+                                <?php endif; ?>
+                            </div>
+
+                            <?php if (in_array(($row['status'] ?? ''), ['Gagal Tebus', 'Siap Dijual'], true)): ?>
+                                <div class="modal fade" id="saleModal<?php echo $row['id']; ?>" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog modal-dialog-centered">
+                                        <div class="modal-content">
+                                            <div class="modal-header" style="background: linear-gradient(135deg, #198754, #20c997); color: white;">
+                                                <h5 class="modal-title">💵 Tandai Barang Terjual</h5>
+                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <form method="POST">
+                                                <div class="modal-body">
+                                                    <input type="hidden" name="action" value="mark_terjual">
+                                                    <input type="hidden" name="id" value="<?php echo (int)$row['id']; ?>">
+
+                                                    <div class="alert alert-success">
+                                                        Proses ini hanya mencatat penjualan internal. <strong>Tidak ada broadcast WhatsApp tambahan</strong> dari aksi ini.
+                                                    </div>
+
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Harga Jual <span class="text-danger">*</span></label>
+                                                        <div class="input-group">
+                                                            <span class="input-group-text">Rp</span>
+                                                            <input type="number" name="harga_jual" class="form-control" min="0" step="0.01" required>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Metode</label>
+                                                        <select name="metode" class="form-control">
+                                                            <option value="penjualan_toko">Penjualan Toko</option>
+                                                            <option value="penjualan_online">Penjualan Online</option>
+                                                            <option value="penjualan_internal">Penjualan Internal</option>
+                                                        </select>
+                                                    </div>
+
+                                                    <div class="mb-0">
+                                                        <label class="form-label">Catatan Admin (opsional)</label>
+                                                        <textarea name="keterangan_admin" class="form-control" rows="2" placeholder="Contoh: barang laku di etalase toko."></textarea>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                                                    <button type="submit" class="btn btn-success">Simpan Penjualan</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+
             <!-- Transaksi Tab -->
             <div class="tab-pane fade" id="transaksi" role="tabpanel">
                 <?php if ($transaksi_error): ?>
@@ -1601,7 +1836,7 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                     <div>
                         <h5 class="mb-1">📈 Keuntungan Bulanan</h5>
                         <div class="text-muted" style="font-size: 0.95rem;">
-                            Lunas = bunga + admin 1% + asuransi 10.000 + denda. Perpanjangan = total pembayaran perpanjangan.
+                            Lunas = bunga + admin 1% + asuransi 10.000 + denda. Perpanjangan = total pembayaran perpanjangan. Penjualan = harga jual - pokok pinjaman.
                         </div>
                     </div>
                     <form class="d-flex align-items-center gap-2" method="GET">
@@ -1621,6 +1856,7 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                         ];
                         $sumLunas = 0.0;
                         $sumPerp = 0.0;
+                        $sumJual = 0.0;
                     ?>
                     <div class="table-responsive mt-3">
                         <table class="table table-striped table-hover align-middle">
@@ -1631,6 +1867,8 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                     <th class="text-end">Keuntungan Lunas</th>
                                     <th class="text-center">Perpanjangan (trx)</th>
                                     <th class="text-end">Keuntungan Perpanjangan</th>
+                                    <th class="text-center">Penjualan (trx)</th>
+                                    <th class="text-end">Hasil Penjualan</th>
                                     <th class="text-end">Total Keuntungan</th>
                                 </tr>
                             </thead>
@@ -1641,9 +1879,12 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                         $lunasProfit = (float)$profit_months[$m]['lunas_profit'];
                                         $perpCount = (int)$profit_months[$m]['perp_count'];
                                         $perpProfit = (float)$profit_months[$m]['perp_profit'];
-                                        $totalProfit = $lunasProfit + $perpProfit;
+                                        $jualCount = (int)$profit_months[$m]['jual_count'];
+                                        $jualProfit = (float)$profit_months[$m]['jual_profit'];
+                                        $totalProfit = $lunasProfit + $perpProfit + $jualProfit;
                                         $sumLunas += $lunasProfit;
                                         $sumPerp += $perpProfit;
+                                        $sumJual += $jualProfit;
                                     ?>
                                     <tr>
                                         <td><?php echo $bulanNama[$m]; ?></td>
@@ -1651,6 +1892,8 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                         <td class="text-end">Rp <?php echo number_format($lunasProfit, 0, ',', '.'); ?></td>
                                         <td class="text-center"><?php echo $perpCount; ?></td>
                                         <td class="text-end">Rp <?php echo number_format($perpProfit, 0, ',', '.'); ?></td>
+                                        <td class="text-center"><?php echo $jualCount; ?></td>
+                                        <td class="text-end <?php echo $jualProfit < 0 ? 'text-danger' : 'text-success'; ?>">Rp <?php echo number_format($jualProfit, 0, ',', '.'); ?></td>
                                         <td class="text-end"><strong>Rp <?php echo number_format($totalProfit, 0, ',', '.'); ?></strong></td>
                                     </tr>
                                 <?php endfor; ?>
@@ -1662,7 +1905,9 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                     <th class="text-end">Rp <?php echo number_format($sumLunas, 0, ',', '.'); ?></th>
                                     <th class="text-center">-</th>
                                     <th class="text-end">Rp <?php echo number_format($sumPerp, 0, ',', '.'); ?></th>
-                                    <th class="text-end"><strong>Rp <?php echo number_format($sumLunas + $sumPerp, 0, ',', '.'); ?></strong></th>
+                                    <th class="text-center">-</th>
+                                    <th class="text-end <?php echo $sumJual < 0 ? 'text-danger' : 'text-success'; ?>">Rp <?php echo number_format($sumJual, 0, ',', '.'); ?></th>
+                                    <th class="text-end"><strong>Rp <?php echo number_format($sumLunas + $sumPerp + $sumJual, 0, ',', '.'); ?></strong></th>
                                 </tr>
                             </tfoot>
                         </table>
@@ -1774,8 +2019,27 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                     </div>
                 </div>
 
+                <div class="search-toolbar">
+                    <form method="GET" class="row g-2 align-items-center">
+                        <input type="hidden" name="tab" value="list">
+                        <?php if (!empty($profit_year)): ?>
+                            <input type="hidden" name="profit_year" value="<?php echo (int)$profit_year; ?>">
+                        <?php endif; ?>
+                        <div class="col-lg-6 col-md-7">
+                            <input type="text" name="list_search" class="form-control" value="<?php echo htmlspecialchars($list_search, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Cari nama, NIK, no HP, barang, atau status...">
+                        </div>
+                        <div class="col-md-auto d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">🔎 Cari</button>
+                            <a href="admin_verifikasi.php?tab=list" class="btn btn-outline-secondary">Reset</a>
+                        </div>
+                        <div class="col text-md-end">
+                            <small class="text-muted">Menampilkan <strong><?php echo count($all_data); ?></strong> data<?php echo $list_search !== '' ? ' untuk pencarian “' . htmlspecialchars($list_search, ENT_QUOTES, 'UTF-8') . '”' : ''; ?>.</small>
+                        </div>
+                    </form>
+                </div>
+
                 <?php if (empty($all_data)): ?>
-                    <div class="alert alert-info">Belum ada data gadai.</div>
+                    <div class="alert alert-info">Belum ada data gadai<?php echo $list_search !== '' ? ' yang cocok dengan pencarian.' : '.'; ?></div>
                 <?php else: ?>
                     <div class="table-responsive">
                         <table class="table table-striped table-hover align-middle">
@@ -1811,27 +2075,43 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                         } else {
                                             $total_kembali = (float)$calcList['total_tebus'];
                                         }
+
+                                        $barang_detail_label = trim((string)(($row['jenis_barang'] ?? '') . ': ' . ($row['merk_barang'] ?? '') . ' ' . ($row['spesifikasi_barang'] ?? '')));
+                                        $barang_detail_label = trim((string)preg_replace('/\s+/', ' ', $barang_detail_label));
+
+                                        $kelengkapan = '';
+                                        if (!empty($row['catatan_admin'])) {
+                                            $note = (string)$row['catatan_admin'];
+                                            $prefix = 'Kelengkapan Barang:';
+                                            if (stripos($note, $prefix) === 0) {
+                                                $kelengkapan = trim(substr($note, strlen($prefix)));
+                                            } else {
+                                                $kelengkapan = $note;
+                                            }
+                                        }
+
+                                        $status_value = (string)($row['status'] ?? '-');
+                                        $status_badge = 'bg-secondary';
+                                        if ($status_value === 'Pending') {
+                                            $status_badge = 'bg-warning text-dark';
+                                        } elseif (in_array($status_value, ['Disetujui', 'Diperpanjang', 'Lunas'], true)) {
+                                            $status_badge = 'bg-success';
+                                        } elseif ($status_value === 'Ditolak') {
+                                            $status_badge = 'bg-danger';
+                                        } elseif ($status_value === 'Gagal Tebus') {
+                                            $status_badge = 'bg-dark';
+                                        } elseif ($status_value === 'Siap Dijual') {
+                                            $status_badge = 'bg-warning text-dark';
+                                        } elseif (in_array($status_value, ['Terjual', 'Barang Dijual'], true)) {
+                                            $status_badge = 'bg-primary';
+                                        }
                                     ?>
                                     <tr>
                                         <td><?php echo $index + 1; ?></td>
                                         <td><?php echo htmlspecialchars($row['nama']); ?></td>
                                         <td><?php echo htmlspecialchars($row['no_wa']); ?></td>
                                         <td><?php echo htmlspecialchars($row['merk_barang']); ?></td>
-                                        <td>
-                                            <?php
-                                                $kelengkapan = '';
-                                                if (!empty($row['catatan_admin'])) {
-                                                    $note = (string)$row['catatan_admin'];
-                                                    $prefix = 'Kelengkapan Barang:';
-                                                    if (stripos($note, $prefix) === 0) {
-                                                        $kelengkapan = trim(substr($note, strlen($prefix)));
-                                                    } else {
-                                                        $kelengkapan = $note;
-                                                    }
-                                                }
-                                                echo htmlspecialchars($kelengkapan !== '' ? $kelengkapan : '-');
-                                            ?>
-                                        </td>
+                                        <td><?php echo htmlspecialchars($kelengkapan !== '' ? $kelengkapan : '-'); ?></td>
                                         <td><?php echo htmlspecialchars($row['kondisi_barang']); ?></td>
                                         <td>
                                             <?php if ($disetujui_list !== null): ?>
@@ -1848,20 +2128,70 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                         <td>Rp <?php echo number_format($total_kembali, 0, ',', '.'); ?></td>
                                         <td><?php echo $row['tanggal_gadai'] ? date('d M Y', strtotime($row['tanggal_gadai'])) : '-'; ?></td>
                                         <td><?php echo $row['tanggal_jatuh_tempo'] ? date('d M Y', strtotime($row['tanggal_jatuh_tempo'])) : '-'; ?></td>
-                                        <td><?php echo htmlspecialchars($row['status']); ?></td>
+                                        <td><span class="badge <?php echo $status_badge; ?>"><?php echo htmlspecialchars($status_value); ?></span></td>
                                         <td>
-                                            <form method="POST" style="display:inline;" onsubmit="return confirm('Kirim nota gadai untuk #' + <?php echo json_encode(str_pad($row['id'], 6, '0', STR_PAD_LEFT)); ?> + ' via WhatsApp?');">
-                                                <input type="hidden" name="action" value="manual_send_nota">
-                                                <input type="hidden" name="id" value="<?php echo (int)$row['id']; ?>">
-                                                <button type="submit" name="id_btn" value="<?php echo (int)$row['id']; ?>" class="btn btn-sm btn-primary">Kirim Nota PDF</button>
-                                            </form>
-                                            <?php if (($row['status'] ?? '') === 'Gagal Tebus'): ?>
-                                                <form method="POST" style="display:inline; margin-left:4px;" onsubmit="return confirm('Kirim notifikasi Gagal Tebus untuk #' + <?php echo json_encode(str_pad($row['id'], 6, '0', STR_PAD_LEFT)); ?> + '?');">
-                                                    <input type="hidden" name="action" value="manual_notify_gagal_tebus">
+                                            <div class="table-actions">
+                                                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#detailGadaiModal<?php echo (int)$row['id']; ?>">Detail</button>
+
+                                                <form method="POST" style="display:inline;" onsubmit="return confirm('Kirim nota gadai untuk #' + <?php echo json_encode(str_pad($row['id'], 6, '0', STR_PAD_LEFT)); ?> + ' via WhatsApp?');">
+                                                    <input type="hidden" name="action" value="manual_send_nota">
                                                     <input type="hidden" name="id" value="<?php echo (int)$row['id']; ?>">
-                                                    <button type="submit" class="btn btn-sm btn-danger">Kirim Notif</button>
+                                                    <button type="submit" name="id_btn" value="<?php echo (int)$row['id']; ?>" class="btn btn-sm btn-primary">Kirim Nota PDF</button>
                                                 </form>
-                                            <?php endif; ?>
+
+                                                <?php if (($row['status'] ?? '') === 'Gagal Tebus'): ?>
+                                                    <form method="POST" style="display:inline;" onsubmit="return confirm('Kirim notifikasi Gagal Tebus untuk #' + <?php echo json_encode(str_pad($row['id'], 6, '0', STR_PAD_LEFT)); ?> + '?');">
+                                                        <input type="hidden" name="action" value="manual_notify_gagal_tebus">
+                                                        <input type="hidden" name="id" value="<?php echo (int)$row['id']; ?>">
+                                                        <button type="submit" class="btn btn-sm btn-danger">Kirim Notif</button>
+                                                    </form>
+                                                    <form method="POST" style="display:inline;" onsubmit="return confirm('Pindahkan #' + <?php echo json_encode(str_pad($row['id'], 6, '0', STR_PAD_LEFT)); ?> + ' ke status Siap Dijual?');">
+                                                        <input type="hidden" name="action" value="mark_siap_jual">
+                                                        <input type="hidden" name="id" value="<?php echo (int)$row['id']; ?>">
+                                                        <button type="submit" class="btn btn-sm btn-warning">Siap Jual</button>
+                                                    </form>
+                                                <?php elseif (($row['status'] ?? '') === 'Siap Dijual'): ?>
+                                                    <span class="badge bg-info text-dark">Lanjutkan di tab Penjualan</span>
+                                                <?php endif; ?>
+                                            </div>
+
+                                            <div class="modal fade" id="detailGadaiModal<?php echo (int)$row['id']; ?>" tabindex="-1" aria-hidden="true">
+                                                <div class="modal-dialog modal-lg modal-dialog-centered">
+                                                    <div class="modal-content">
+                                                        <div class="modal-header" style="background: linear-gradient(135deg, #0d6efd, #4dabf7); color: white;">
+                                                            <h5 class="modal-title">📄 Detail Gadai #<?php echo str_pad((string)$row['id'], 6, '0', STR_PAD_LEFT); ?></h5>
+                                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                                        </div>
+                                                        <div class="modal-body">
+                                                            <div class="detail-grid">
+                                                                <div class="detail-item"><span class="detail-label">Nama</span><div class="detail-value"><?php echo htmlspecialchars($row['nama'] ?? '-'); ?></div></div>
+                                                                <div class="detail-item"><span class="detail-label">NIK</span><div class="detail-value"><?php echo htmlspecialchars($row['nik'] ?? '-'); ?></div></div>
+                                                                <div class="detail-item"><span class="detail-label">No. WhatsApp</span><div class="detail-value"><?php echo htmlspecialchars($row['no_wa'] ?? '-'); ?></div></div>
+                                                                <div class="detail-item"><span class="detail-label">Alamat</span><div class="detail-value"><?php echo htmlspecialchars($row['alamat'] ?? '-'); ?></div></div>
+                                                                <div class="detail-item"><span class="detail-label">Barang</span><div class="detail-value"><?php echo htmlspecialchars($barang_detail_label !== '' ? $barang_detail_label : '-'); ?></div></div>
+                                                                <div class="detail-item"><span class="detail-label">Kondisi</span><div class="detail-value"><?php echo htmlspecialchars($row['kondisi_barang'] ?? '-'); ?></div></div>
+                                                                <div class="detail-item"><span class="detail-label">Nilai Taksiran</span><div class="detail-value">Rp <?php echo number_format((float)($row['nilai_taksiran'] ?? 0), 0, ',', '.'); ?></div></div>
+                                                                <div class="detail-item"><span class="detail-label">Pinjaman Diajukan</span><div class="detail-value">Rp <?php echo number_format($pengajuan_list, 0, ',', '.'); ?></div></div>
+                                                                <div class="detail-item"><span class="detail-label">Pinjaman Disetujui</span><div class="detail-value"><?php echo $disetujui_list !== null ? ('Rp ' . number_format($disetujui_list, 0, ',', '.')) : '-'; ?></div></div>
+                                                                <div class="detail-item"><span class="detail-label">Bunga</span><div class="detail-value"><?php echo htmlspecialchars((string)$bunga_pct); ?>%</div></div>
+                                                                <div class="detail-item"><span class="detail-label">Total Tebus</span><div class="detail-value">Rp <?php echo number_format($total_kembali, 0, ',', '.'); ?></div></div>
+                                                                <div class="detail-item"><span class="detail-label">Status</span><div class="detail-value"><?php echo htmlspecialchars($status_value); ?></div></div>
+                                                                <div class="detail-item"><span class="detail-label">Perpanjangan Ke</span><div class="detail-value"><?php echo (int)($row['perpanjangan_ke'] ?? 0); ?></div></div>
+                                                                <div class="detail-item"><span class="detail-label">Tanggal Gadai</span><div class="detail-value"><?php echo !empty($row['tanggal_gadai']) ? date('d M Y', strtotime($row['tanggal_gadai'])) : '-'; ?></div></div>
+                                                                <div class="detail-item"><span class="detail-label">Jatuh Tempo</span><div class="detail-value"><?php echo !empty($row['tanggal_jatuh_tempo']) ? date('d M Y', strtotime($row['tanggal_jatuh_tempo'])) : '-'; ?></div></div>
+                                                            </div>
+
+                                                            <div class="detail-item mt-3">
+                                                                <span class="detail-label">Catatan Admin / Kelengkapan</span>
+                                                                <div class="detail-value"><?php echo nl2br(htmlspecialchars($row['catatan_admin'] ?? '-')); ?></div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -1893,6 +2223,21 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                 });
             } catch (e) {
                 console.error('Error moving modals to body', e);
+            }
+        })();
+
+        (function () {
+            try {
+                var params = new URLSearchParams(window.location.search);
+                var tabName = params.get('tab');
+                if (!tabName) return;
+
+                var trigger = document.querySelector('button[data-bs-target="#' + tabName + '"]');
+                if (!trigger || typeof bootstrap === 'undefined') return;
+
+                bootstrap.Tab.getOrCreateInstance(trigger).show();
+            } catch (e) {
+                console.error('Error restoring active tab', e);
             }
         })();
     </script>

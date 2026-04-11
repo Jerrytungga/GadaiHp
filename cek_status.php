@@ -668,12 +668,21 @@ if (isset($_GET['no_registrasi']) || isset($_POST['no_registrasi'])) {
                         $status_text = 'DITEBUS';
                         $status_message = 'Pelunasan telah diproses. Terima kasih.';
                         break;
+                    case 'Siap Dijual':
+                        $status_class = 'status-rejected';
+                        $badge_class = 'badge-rejected';
+                        $status_icon = '🏷️';
+                        $status_text = 'SIAP DIJUAL';
+                        $status_message = 'Status gadai telah masuk penanganan internal lanjutan. Untuk informasi lebih detail silakan hubungi admin.';
+                        break;
+                    case 'Terjual':
+                    case 'Barang Dijual':
                     case 'Dijual':
                         $status_class = 'status-rejected';
                         $badge_class = 'badge-rejected';
                         $status_icon = '📦';
-                        $status_text = 'DIJUAL';
-                        $status_message = 'Barang telah masuk proses penjualan.';
+                        $status_text = 'TERJUAL';
+                        $status_message = 'Barang telah ditangani sesuai proses internal. Jika membutuhkan informasi lebih lanjut, silakan hubungi admin.';
                         break;
                     case 'Gagal Tebus':
                         $status_class = 'status-rejected';

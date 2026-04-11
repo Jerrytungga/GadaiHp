@@ -443,6 +443,26 @@ if (!function_exists('adminBuildWhatsAppLink')) {
     }
 }
 
+if (!function_exists('adminAppendCatatanAdmin')) {
+    function adminAppendCatatanAdmin(?string $existingNote, array $notes): ?string {
+        $parts = [];
+        $existing = trim((string)$existingNote);
+        if ($existing !== '') {
+            $parts[] = $existing;
+        }
+
+        foreach ($notes as $note) {
+            $note = trim((string)$note);
+            if ($note !== '') {
+                $parts[] = $note;
+            }
+        }
+
+        $final = trim(implode("\n", $parts));
+        return $final !== '' ? $final : null;
+    }
+}
+
 if (!function_exists('adminHandleManualAddGadaiAction')) {
     function adminHandleManualAddGadaiAction(PDO $db, $whatsapp, string &$message, string &$message_type): void {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['action']) || $_POST['action'] !== 'manual_add_gadai') {
@@ -1047,6 +1067,140 @@ if (!function_exists('adminHandleSendNotaAction')) {
     }
 }
 
+if (!function_exists('adminHandleMarkSiapJualAction')) {
+    function adminHandleMarkSiapJualAction(PDO $db, string &$message, string &$message_type): void {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['action']) || $_POST['action'] !== 'mark_siap_jual') {
+            return;
+        }
+
+        $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+        $keterangan = trim((string)($_POST['keterangan_admin'] ?? ''));
+
+        try {
+            if ($id <= 0) {
+                throw new RuntimeException('ID data gadai tidak valid.');
+            }
+
+            $stmt = $db->prepare("SELECT * FROM data_gadai WHERE id = ? LIMIT 1");
+            $stmt->execute([$id]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$row) {
+                throw new RuntimeException('Data gadai tidak ditemukan.');
+            }
+
+            if (!gadai_can_transition($row['status'] ?? '', 'Siap Dijual')) {
+                throw new RuntimeException('Hanya data dengan status Gagal Tebus yang dapat dipindahkan ke Siap Dijual.');
+            }
+
+            $catatan = adminAppendCatatanAdmin(
+                $row['catatan_admin'] ?? null,
+                [
+                    'Masuk status Siap Dijual pada ' . date('d M Y H:i') . '.',
+                    $keterangan,
+                ]
+            );
+
+            $update = $db->prepare("UPDATE data_gadai SET status = 'Siap Dijual', catatan_admin = ?, updated_at = NOW() WHERE id = ?");
+            $update->execute([$catatan, $id]);
+
+            $message = 'Barang untuk #' . str_pad((string)$id, 6, '0', STR_PAD_LEFT) . ' dipindahkan ke status Siap Dijual.';
+            $message_type = 'success';
+        } catch (Throwable $e) {
+            $message = 'Gagal memindahkan barang ke Siap Dijual: ' . $e->getMessage();
+            $message_type = 'danger';
+        }
+    }
+}
+
+if (!function_exists('adminHandleMarkTerjualAction')) {
+    function adminHandleMarkTerjualAction(PDO $db, string &$message, string &$message_type): void {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['action']) || $_POST['action'] !== 'mark_terjual') {
+            return;
+        }
+
+        $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+        $hargaJual = (float)($_POST['harga_jual'] ?? 0);
+        $metode = trim((string)($_POST['metode'] ?? 'penjualan_internal'));
+        $keterangan = trim((string)($_POST['keterangan_admin'] ?? ''));
+
+        try {
+            if ($id <= 0) {
+                throw new RuntimeException('ID data gadai tidak valid.');
+            }
+            if ($hargaJual <= 0) {
+                throw new RuntimeException('Harga jual wajib diisi.');
+            }
+
+            $stmt = $db->prepare("SELECT * FROM data_gadai WHERE id = ? LIMIT 1");
+            $stmt->execute([$id]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$row) {
+                throw new RuntimeException('Data gadai tidak ditemukan.');
+            }
+
+            if (!gadai_can_transition($row['status'] ?? '', 'Terjual')) {
+                throw new RuntimeException('Status ini belum bisa ditandai Terjual.');
+            }
+
+            $pokok = gadai_get_pokok($row);
+            $estimasiProfit = $hargaJual - $pokok;
+            $profitLabel = $estimasiProfit >= 0 ? 'estimasi laba' : 'estimasi rugi';
+            $profitFormatted = 'Rp ' . number_format(abs($estimasiProfit), 0, ',', '.');
+
+            $catatan = adminAppendCatatanAdmin(
+                $row['catatan_admin'] ?? null,
+                [
+                    'Barang ditandai Terjual pada ' . date('d M Y H:i') . ' dengan harga Rp ' . number_format($hargaJual, 0, ',', '.') . ' (' . $profitLabel . ': ' . $profitFormatted . ').',
+                    $keterangan,
+                ]
+            );
+
+            $db->beginTransaction();
+            $update = $db->prepare("UPDATE data_gadai SET status = 'Terjual', catatan_admin = ?, updated_at = NOW() WHERE id = ?");
+            $update->execute([$catatan, $id]);
+
+            $tblExists = false;
+            try {
+                $checkTbl = $db->prepare("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'transaksi'");
+                $checkTbl->execute();
+                $tblExists = (int)$checkTbl->fetchColumn() > 0;
+            } catch (Throwable $e) {
+                $tblExists = false;
+            }
+
+            if ($tblExists) {
+                $insert = $db->prepare("INSERT INTO transaksi (imei, serial_number, jenis_barang, merk, tipe, pelanggan_nik, barang_id, jumlah_bayar, keterangan, metode_pembayaran, bukti) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $insert->execute([
+                    $row['imei_serial'] ?? null,
+                    $row['imei_serial'] ?? null,
+                    $row['jenis_barang'] ?? null,
+                    $row['merk_barang'] ?? null,
+                    $row['spesifikasi_barang'] ?? null,
+                    $row['nik'] ?? null,
+                    $id,
+                    $hargaJual,
+                    'penjualan_barang',
+                    $metode !== '' ? $metode : 'penjualan_internal',
+                    null,
+                ]);
+            }
+
+            $db->commit();
+
+            $message = 'Barang #' . str_pad((string)$id, 6, '0', STR_PAD_LEFT) . ' ditandai Terjual secara internal. Harga jual: Rp ' . number_format($hargaJual, 0, ',', '.') . ' (' . $profitLabel . ': ' . $profitFormatted . ').';
+            $message_type = 'success';
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            $message = 'Gagal menandai barang sebagai Terjual: ' . $e->getMessage();
+            $message_type = 'danger';
+        }
+    }
+}
+
 if (!function_exists('handleAdminUtilityActions')) {
     function handleAdminUtilityActions(PDO $db, $whatsapp, string &$message, string &$message_type): void {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['action'])) {
@@ -1054,7 +1208,7 @@ if (!function_exists('handleAdminUtilityActions')) {
         }
 
         $action = (string)$_POST['action'];
-        if (!in_array($action, ['manual_add_gadai', 'manual_reminder_overdue', 'manual_notify_gagal_tebus', 'manual_send_nota'], true)) {
+        if (!in_array($action, ['manual_add_gadai', 'manual_reminder_overdue', 'manual_notify_gagal_tebus', 'manual_send_nota', 'mark_siap_jual', 'mark_terjual'], true)) {
             return;
         }
 
@@ -1070,6 +1224,12 @@ if (!function_exists('handleAdminUtilityActions')) {
                 return;
             case 'manual_send_nota':
                 adminHandleSendNotaAction($db, $whatsapp, $message, $message_type);
+                return;
+            case 'mark_siap_jual':
+                adminHandleMarkSiapJualAction($db, $message, $message_type);
+                return;
+            case 'mark_terjual':
+                adminHandleMarkTerjualAction($db, $message, $message_type);
                 return;
         }
     }

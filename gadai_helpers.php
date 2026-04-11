@@ -14,15 +14,33 @@ if (!function_exists('gadai_get_active_statuses')) {
     }
 }
 
+if (!function_exists('gadai_get_sale_statuses')) {
+    function gadai_get_sale_statuses(): array {
+        return ['Gagal Tebus', 'Siap Dijual', 'Terjual', 'Barang Dijual'];
+    }
+}
+
 if (!function_exists('gadai_active_status_sql_list')) {
     function gadai_active_status_sql_list(): string {
         return "'" . implode("','", gadai_get_active_statuses()) . "'";
     }
 }
 
+if (!function_exists('gadai_sale_status_sql_list')) {
+    function gadai_sale_status_sql_list(): string {
+        return "'" . implode("','", gadai_get_sale_statuses()) . "'";
+    }
+}
+
 if (!function_exists('gadai_is_active_status')) {
     function gadai_is_active_status($status): bool {
         return in_array((string)$status, gadai_get_active_statuses(), true);
+    }
+}
+
+if (!function_exists('gadai_is_sale_status')) {
+    function gadai_is_sale_status($status): bool {
+        return in_array((string)$status, gadai_get_sale_statuses(), true);
     }
 }
 
@@ -38,6 +56,10 @@ if (!function_exists('gadai_can_transition')) {
             case 'Lunas':
             case 'Gagal Tebus':
                 return gadai_is_active_status($currentStatus);
+            case 'Siap Dijual':
+                return $currentStatus === 'Gagal Tebus';
+            case 'Terjual':
+                return in_array($currentStatus, ['Gagal Tebus', 'Siap Dijual'], true);
             default:
                 return false;
         }
@@ -99,5 +121,21 @@ if (!function_exists('gadai_calculate_breakdown')) {
             'biaya_perpanjangan' => round($bungaTotal + $adminFee + $biayaAsuransi + $denda),
             'total_tebus' => $totalTebus,
         ];
+    }
+}
+
+if (!function_exists('gadai_get_harga_jual_rekomendasi')) {
+    function gadai_get_harga_jual_rekomendasi(array $row): float {
+        $nilaiTaksiran = isset($row['nilai_taksiran']) ? (float)$row['nilai_taksiran'] : 0.0;
+        if ($nilaiTaksiran > 0) {
+            return round($nilaiTaksiran);
+        }
+
+        $pokok = gadai_get_pokok($row);
+        if ($pokok <= 0) {
+            return 0.0;
+        }
+
+        return round($pokok);
     }
 }
