@@ -15,6 +15,107 @@ function calculateGadaiBreakdown(array $row, ?float $overrideDenda = null): arra
     return gadai_calculate_breakdown($row, $overrideDenda);
 }
 
+function formatExcelExportText($value): string {
+    $text = trim((string)$value);
+    if ($text === '') {
+        return '-';
+    }
+
+    return htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+}
+
+function getExcelRupiahStyle(): string {
+    return 'mso-number-format:"\\0022Rp\\0022\\ #,##0";';
+}
+
+function exportTotalGadaiExcel(array $rows, string $listSearch): void {
+    $filename = 'total_gadai_' . date('Ymd_His') . '.xls';
+    $totalPengajuan = 0.0;
+    $totalDisetujui = 0.0;
+    $totalTebus = 0.0;
+
+    header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+
+    echo "\xEF\xBB\xBF";
+    echo '<html><head><meta charset="UTF-8"></head><body>';
+    echo '<table border="1">';
+    echo '<tr><th colspan="16" style="background:#d9e8fb;font-weight:bold;font-size:14pt;">Laporan Total Gadai</th></tr>';
+    echo '<tr><td colspan="16">Tanggal Export</td><td colspan="6">' . htmlspecialchars(date('d-m-Y H:i:s'), ENT_QUOTES, 'UTF-8') . '</td></tr>';
+    echo '<tr><td colspan="16">Filter Pencarian</td><td colspan="6">' . ($listSearch !== '' ? htmlspecialchars($listSearch, ENT_QUOTES, 'UTF-8') : 'Semua Data') . '</td></tr>';
+    echo '<tr>';
+    echo '<th>No</th>';
+    echo '<th>ID</th>';
+    echo '<th>Nama</th>';
+    echo '<th>NIK</th>';
+    echo '<th>No WA</th>';
+    echo '<th>Alamat</th>';
+    echo '<th>Jenis Barang</th>';
+    echo '<th>Merek</th>';
+    echo '<th>Spesifikasi</th>';
+    echo '<th>Kondisi</th>';
+    echo '<th>Pinjaman Diajukan</th>';
+    echo '<th>Pinjaman Disetujui</th>';
+    echo '<th>Bunga (%)</th>';
+    echo '<th>Total Tebus</th>';
+    echo '<th>Tanggal Gadai</th>';
+    echo '<th>Jatuh Tempo</th>';
+    echo '<th>Status</th>';
+    echo '<th>Perpanjangan Ke</th>';
+    echo '<th>Catatan Admin</th>';
+    echo '</tr>';
+
+    foreach ($rows as $index => $row) {
+        $pengajuan = (float)($row['jumlah_pinjaman'] ?? 0);
+        $disetujui = !empty($row['jumlah_disetujui']) ? (float)$row['jumlah_disetujui'] : 0.0;
+        $dendaInfo = gadai_calculate_denda($row['tanggal_jatuh_tempo'] ?? null, $row['denda_terakumulasi'] ?? 0);
+        $calcList = calculateGadaiBreakdown($row, $dendaInfo['denda']);
+        $totalKembali = !empty($row['total_tebus']) && (float)$row['total_tebus'] > 0
+            ? (float)$row['total_tebus']
+            : (float)$calcList['total_tebus'];
+
+        $totalPengajuan += $pengajuan;
+        $totalDisetujui += $disetujui;
+        $totalTebus += $totalKembali;
+
+        echo '<tr>';
+        echo '<td>' . ($index + 1) . '</td>';
+        echo '<td>' . (int)($row['id'] ?? 0) . '</td>';
+        echo '<td>' . formatExcelExportText($row['nama'] ?? '') . '</td>';
+        echo '<td style="mso-number-format:\'@\';">' . formatExcelExportText($row['nik'] ?? '') . '</td>';
+        echo '<td style="mso-number-format:\'@\';">' . formatExcelExportText($row['no_wa'] ?? '') . '</td>';
+        echo '<td>' . formatExcelExportText($row['alamat'] ?? '') . '</td>';
+        echo '<td>' . formatExcelExportText($row['jenis_barang'] ?? '') . '</td>';
+        echo '<td>' . formatExcelExportText($row['merk_barang'] ?? '') . '</td>';
+        echo '<td>' . formatExcelExportText($row['spesifikasi_barang'] ?? '') . '</td>';
+        echo '<td>' . formatExcelExportText($row['kondisi_barang'] ?? '') . '</td>';
+        echo '<td style="' . getExcelRupiahStyle() . '">' . round($pengajuan) . '</td>';
+        echo '<td style="' . getExcelRupiahStyle() . '">' . round($disetujui) . '</td>';
+        echo '<td>' . rtrim(rtrim(number_format((float)($calcList['bunga_pct'] ?? 0), 2, '.', ''), '0'), '.') . '</td>';
+        echo '<td style="' . getExcelRupiahStyle() . '">' . round($totalKembali) . '</td>';
+        echo '<td>' . (!empty($row['tanggal_gadai']) ? htmlspecialchars(date('d-m-Y', strtotime($row['tanggal_gadai'])), ENT_QUOTES, 'UTF-8') : '-') . '</td>';
+        echo '<td>' . (!empty($row['tanggal_jatuh_tempo']) ? htmlspecialchars(date('d-m-Y', strtotime($row['tanggal_jatuh_tempo'])), ENT_QUOTES, 'UTF-8') : '-') . '</td>';
+        echo '<td>' . formatExcelExportText($row['status'] ?? '') . '</td>';
+        echo '<td>' . (int)($row['perpanjangan_ke'] ?? 0) . '</td>';
+        echo '<td>' . formatExcelExportText($row['catatan_admin'] ?? '') . '</td>';
+        echo '</tr>';
+    }
+
+    echo '<tr style="font-weight:bold;background:#eef4ff;">';
+    echo '<td colspan="10">Total</td>';
+    echo '<td style="' . getExcelRupiahStyle() . '">' . round($totalPengajuan) . '</td>';
+    echo '<td style="' . getExcelRupiahStyle() . '">' . round($totalDisetujui) . '</td>';
+    echo '<td>-</td>';
+    echo '<td style="' . getExcelRupiahStyle() . '">' . round($totalTebus) . '</td>';
+    echo '<td colspan="5">Jumlah Data: ' . count($rows) . '</td>';
+    echo '</tr>';
+    echo '</table>';
+    echo '</body></html>';
+    exit;
+}
+
 // --- Aksi verifikasi admin dipindahkan ke file proses terpisah ---
 handleAdminStatusActions($db, $whatsapp, $message, $message_type);
 
@@ -102,6 +203,10 @@ if ($list_search !== '') {
         $haystack = function_exists('mb_strtolower') ? mb_strtolower($haystack, 'UTF-8') : strtolower($haystack);
         return strpos($haystack, $needle) !== false;
     }));
+}
+
+if (isset($_GET['export']) && $_GET['export'] === 'excel_total_gadai') {
+    exportTotalGadaiExcel($all_data, $list_search);
 }
 
 // Fetch pelunasan pending submissions
@@ -2031,6 +2136,7 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                         <div class="col-md-auto d-flex gap-2">
                             <button type="submit" class="btn btn-primary">🔎 Cari</button>
                             <a href="admin_verifikasi.php?tab=list" class="btn btn-outline-secondary">Reset</a>
+                            <a href="admin_verifikasi.php?tab=list&amp;export=excel_total_gadai<?php echo $list_search !== '' ? '&amp;list_search=' . urlencode($list_search) : ''; ?><?php echo !empty($profit_year) ? '&amp;profit_year=' . (int)$profit_year : ''; ?>" class="btn btn-success">⬇ Download Excel</a>
                         </div>
                         <div class="col text-md-end">
                             <small class="text-muted">Menampilkan <strong><?php echo count($all_data); ?></strong> data<?php echo $list_search !== '' ? ' untuk pencarian “' . htmlspecialchars($list_search, ENT_QUOTES, 'UTF-8') . '”' : ''; ?>.</small>
