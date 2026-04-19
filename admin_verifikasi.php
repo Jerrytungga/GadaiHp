@@ -32,7 +32,7 @@ function exportTotalGadaiExcel(array $rows, string $listSearch): void {
     $filename = 'total_gadai_' . date('Ymd_His') . '.xls';
     $totalPengajuan = 0.0;
     $totalDisetujui = 0.0;
-    $totalProfitBunga = 0.0;
+    $totalProfitAktual = 0.0;
     $totalTebus = 0.0;
     $columnCount = 20;
 
@@ -96,7 +96,7 @@ function exportTotalGadaiExcel(array $rows, string $listSearch): void {
     echo '<th style="' . $headerStyle . '">Pinjaman Diajukan</th>';
     echo '<th style="' . $headerStyle . '">Pinjaman Disetujui</th>';
     echo '<th style="' . $headerStyle . '">Bunga (%)</th>';
-    echo '<th style="' . $headerStyle . '">Profit Bunga</th>';
+    echo '<th style="' . $headerStyle . '">Profit Aktual</th>';
     echo '<th style="' . $headerStyle . '">Total Tebus</th>';
     echo '<th style="' . $headerStyle . '">Tanggal Gadai</th>';
     echo '<th style="' . $headerStyle . '">Jatuh Tempo</th>';
@@ -111,13 +111,15 @@ function exportTotalGadaiExcel(array $rows, string $listSearch): void {
         $dendaInfo = gadai_calculate_denda($row['tanggal_jatuh_tempo'] ?? null, $row['denda_terakumulasi'] ?? 0);
         $calcList = calculateGadaiBreakdown($row, $dendaInfo['denda']);
         $profitBunga = (float)($calcList['bunga_total'] ?? 0);
+        $profitPerpanjangan = (float)($row['total_profit_perpanjangan'] ?? 0);
+        $profitAktual = $profitBunga + $profitPerpanjangan;
         $totalKembali = !empty($row['total_tebus']) && (float)$row['total_tebus'] > 0
             ? (float)$row['total_tebus']
             : (float)$calcList['total_tebus'];
 
         $totalPengajuan += $pengajuan;
         $totalDisetujui += $disetujui;
-        $totalProfitBunga += $profitBunga;
+        $totalProfitAktual += $profitAktual;
         $totalTebus += $totalKembali;
 
         $rowBackground = $index % 2 === 0 ? '#ffffff' : '#f8fbff';
@@ -140,7 +142,7 @@ function exportTotalGadaiExcel(array $rows, string $listSearch): void {
         echo '<td style="' . $rowCellStyle . getExcelRupiahStyle() . '">' . round($pengajuan) . '</td>';
         echo '<td style="' . $rowCellStyle . getExcelRupiahStyle() . '">' . round($disetujui) . '</td>';
         echo '<td style="' . $rowCenterStyle . '">' . rtrim(rtrim(number_format((float)($calcList['bunga_pct'] ?? 0), 2, '.', ''), '0'), '.') . '</td>';
-        echo '<td style="' . $rowCellStyle . getExcelRupiahStyle() . '">' . round($profitBunga) . '</td>';
+        echo '<td style="' . $rowCellStyle . getExcelRupiahStyle() . '">' . round($profitAktual) . '</td>';
         echo '<td style="' . $rowCellStyle . getExcelRupiahStyle() . '">' . round($totalKembali) . '</td>';
         echo '<td style="' . $rowCenterStyle . '">' . (!empty($row['tanggal_gadai']) ? htmlspecialchars(date('d-m-Y', strtotime($row['tanggal_gadai'])), ENT_QUOTES, 'UTF-8') : '-') . '</td>';
         echo '<td style="' . $rowCenterStyle . '">' . (!empty($row['tanggal_jatuh_tempo']) ? htmlspecialchars(date('d-m-Y', strtotime($row['tanggal_jatuh_tempo'])), ENT_QUOTES, 'UTF-8') : '-') . '</td>';
@@ -155,7 +157,7 @@ function exportTotalGadaiExcel(array $rows, string $listSearch): void {
     echo '<td style="' . $totalValueStyle . getExcelRupiahStyle() . '">' . round($totalPengajuan) . '</td>';
     echo '<td style="' . $totalValueStyle . getExcelRupiahStyle() . '">' . round($totalDisetujui) . '</td>';
     echo '<td style="' . $totalValueStyle . 'text-align:center;">-</td>';
-    echo '<td style="' . $totalValueStyle . getExcelRupiahStyle() . '">' . round($totalProfitBunga) . '</td>';
+    echo '<td style="' . $totalValueStyle . getExcelRupiahStyle() . '">' . round($totalProfitAktual) . '</td>';
     echo '<td style="' . $totalValueStyle . getExcelRupiahStyle() . '">' . round($totalTebus) . '</td>';
     echo '<td colspan="5" style="' . $totalValueStyle . '">Jumlah Data: ' . count($rows) . '</td>';
     echo '</tr>';
@@ -227,8 +229,20 @@ $rejected_sql = "SELECT * FROM data_gadai WHERE status = 'Ditolak' ORDER BY upda
 $rejected_stmt = $db->query($rejected_sql);
 $rejected_data = $rejected_stmt->fetchAll(PDO::FETCH_ASSOC);
 
+$transaksi_table_exists = false;
+try {
+    $checkTransaksiTableStmt = $db->prepare("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'transaksi'");
+    $checkTransaksiTableStmt->execute();
+    $transaksi_table_exists = (int)$checkTransaksiTableStmt->fetchColumn() > 0;
+} catch (Throwable $e) {
+    $transaksi_table_exists = false;
+}
+
 // Fetch all submissions (for list table) - include fields needed for search and detail view
-$all_sql = "SELECT id, nama, nik, no_wa, alamat, jenis_barang, merk_barang, spesifikasi_barang, kondisi_barang, nilai_taksiran, jumlah_pinjaman, jumlah_disetujui, bunga, lama_gadai, denda_terakumulasi, total_tebus, tanggal_gadai, tanggal_jatuh_tempo, status, catatan_admin, perpanjangan_ke, created_at, updated_at FROM data_gadai ORDER BY created_at DESC";
+$all_profit_select = $transaksi_table_exists
+    ? ", (SELECT COALESCE(SUM(t.jumlah_bayar), 0) FROM transaksi t WHERE t.barang_id = data_gadai.id AND t.keterangan LIKE 'perpanjangan%') AS total_profit_perpanjangan"
+    : ", 0 AS total_profit_perpanjangan";
+$all_sql = "SELECT id, nama, nik, no_wa, alamat, jenis_barang, merk_barang, spesifikasi_barang, kondisi_barang, nilai_taksiran, jumlah_pinjaman, jumlah_disetujui, bunga, lama_gadai, denda_terakumulasi, total_tebus, tanggal_gadai, tanggal_jatuh_tempo, status, catatan_admin, perpanjangan_ke, created_at, updated_at" . $all_profit_select . " FROM data_gadai ORDER BY created_at DESC";
 $all_stmt = $db->query($all_sql);
 $all_data = $all_stmt->fetchAll(PDO::FETCH_ASSOC);
 
