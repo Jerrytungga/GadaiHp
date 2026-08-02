@@ -238,6 +238,62 @@ class WhatsAppHelper {
 
         return $this->sendMessage($data['no_wa'], $message);
     }
+
+    /**
+     * Notifikasi ke customer saat akun berhasil dibuat / diperbarui
+     */
+    public function notifyUserRegistration($data, $isUpdate = false) {
+        $title = $isUpdate ? 'AKUN CUSTOMER DIPERBARUI' : 'AKUN CUSTOMER BERHASIL DIBUAT';
+
+        $message = "✅ *{$title}*\n\n";
+        $message .= "Halo " . ($data['nama'] ?? '-') . ",\n\n";
+        if ($isUpdate) {
+            $message .= "Data akun customer Anda berhasil diperbarui dan sudah aktif digunakan.\n\n";
+        } else {
+            $message .= "Akun customer Anda berhasil dibuat dan sudah aktif digunakan.\n\n";
+        }
+
+        $message .= "👤 *Nama:* " . ($data['nama'] ?? '-') . "\n";
+        $message .= "🪪 *NIK:* " . ($data['nik'] ?? '-') . "\n";
+        if (!empty($data['no_wa'])) {
+            $message .= "📞 *No. WA:* " . $data['no_wa'] . "\n";
+        }
+        if (!empty($data['email'])) {
+            $message .= "✉️ *Email:* " . $data['email'] . "\n";
+        }
+
+        $message .= "\nSilakan login melalui:\n";
+        $message .= $this->getBaseUrl() . "/GadaiHp/customer_login.php\n\n";
+        $message .= "Jika ada kendala, hubungi admin: 0858-2309-1908";
+
+        return $this->sendMessage($data['no_wa'], $message);
+    }
+
+    /**
+     * Notifikasi ke admin saat ada pendaftaran customer baru / update akun customer
+     */
+    public function notifyAdminCustomerRegistration($data, $isUpdate = false) {
+        $label = $isUpdate ? 'UPDATE AKUN CUSTOMER' : 'PENDAFTARAN CUSTOMER BARU';
+
+        $message = "🔔 *{$label}*\n\n";
+        if (!empty($data['customer_id'])) {
+            $message .= "🆔 Customer ID: #" . (int)$data['customer_id'] . "\n";
+        }
+        $message .= "👤 Nama: " . ($data['nama'] ?? '-') . "\n";
+        $message .= "🪪 NIK: " . ($data['nik'] ?? '-') . "\n";
+        $message .= "📞 No. WA: " . ($data['no_wa'] ?? '-') . "\n";
+        if (!empty($data['email'])) {
+            $message .= "✉️ Email: " . $data['email'] . "\n";
+        }
+        if (!empty($data['alamat'])) {
+            $message .= "🏠 Alamat: " . $data['alamat'] . "\n";
+        }
+
+        $message .= "\nLihat data customer di panel admin:\n";
+        $message .= $this->getBaseUrl() . "/GadaiHp/customer_list.php";
+
+        return $this->sendMessage($this->sender_number, $message);
+    }
     
     /**
      * Template pesan untuk pengajuan disetujui (ke User)

@@ -2,6 +2,7 @@
 session_start();
 require_once 'database.php';
 require_once 'gadai_helpers.php';
+require_once 'whatsapp_helper.php';
 
 if (!empty($_SESSION['customer_logged_in'])) {
     header('Location: customer_dashboard.php');
@@ -36,14 +37,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $db->prepare("UPDATE customers SET nama = ?, no_wa = ?, alamat = ?, email = ?, password = ?, is_active = 1, updated_at = NOW() WHERE nik = ?");
                 $stmt->execute([$nama, $no_wa, $alamat, $email !== '' ? $email : null, $passwordHash, $nik]);
                 $customerId = (int)$customer['id'];
+                $isUpdate = true;
                 $message = 'Akun customer berhasil diperbarui. Silakan login.';
                 $message_type = 'success';
             } else {
                 $stmt = $db->prepare("INSERT INTO customers (nama, nik, no_wa, alamat, email, password, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)");
                 $stmt->execute([$nama, $nik, $no_wa, $alamat, $email !== '' ? $email : null, $passwordHash]);
                 $customerId = (int)$db->lastInsertId();
+                $isUpdate = false;
                 $message = 'Akun customer berhasil dibuat. Silakan login.';
                 $message_type = 'success';
+            }
+
+            // Best-effort: kirim notifikasi WA tanpa menggagalkan proses registrasi.
+            try {
+                if (isset($whatsapp)) {
+                    $notifyPayload = [
+                        'customer_id' => $customerId,
+                        'nama' => $nama,
+                        'nik' => $nik,
+                        'no_wa' => $no_wa,
+                        'alamat' => $alamat,
+                        'email' => $email,
+                    ];
+
+                    if (method_exists($whatsapp, 'notifyUserRegistration')) {
+                        $whatsapp->notifyUserRegistration($notifyPayload, $isUpdate);
+                    }
+                    if (method_exists($whatsapp, 'notifyAdminCustomerRegistration')) {
+                        $whatsapp->notifyAdminCustomerRegistration($notifyPayload, $isUpdate);
+                    }
+                }
+            } catch (Throwable $waError) {
+                error_log('WA customer registration notification failed: ' . $waError->getMessage());
             }
 
             $customer = gadai_get_customer_by_id($db, $customerId);
