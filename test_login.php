@@ -39,6 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'nik' => (string)$row['nik'],
                     'nama' => (string)$row['nama'],
                     'status' => 'valid',
+                    
                 ];
             } else {
                 $message = 'Password admin tidak cocok.';
