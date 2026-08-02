@@ -31,6 +31,19 @@ function getExcelRupiahStyle(): string {
     return 'mso-number-format:"\\0022Rp\\0022\\ #,##0";';
 }
 
+function buildAdminTransferProofUrl(string $nik, string $storedPath): string {
+    $storedPath = trim($storedPath);
+    if ($storedPath === '') {
+        return '';
+    }
+
+    if (strpos($storedPath, 'admin_transfer/') === 0) {
+        return 'payment/' . ltrim($storedPath, '/');
+    }
+
+    return 'payment/' . rawurlencode($nik) . '/' . ltrim($storedPath, '/');
+}
+
 function exportTotalGadaiExcel(array $rows, string $listSearch): void {
     $filename = 'total_gadai_' . date('Ymd_His') . '.xls';
     $totalPengajuan = 0.0;
@@ -225,10 +238,62 @@ $pending_sql = "SELECT * FROM data_gadai WHERE status = 'Pending' ORDER BY creat
 $pending_stmt = $db->query($pending_sql);
 $pending_data = $pending_stmt->fetchAll(PDO::FETCH_ASSOC);
 
+$transaksi_table_exists = false;
+try {
+    $checkTransaksiTableStmt = $db->prepare("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'transaksi'");
+    $checkTransaksiTableStmt->execute();
+    $transaksi_table_exists = (int)$checkTransaksiTableStmt->fetchColumn() > 0;
+} catch (Throwable $e) {
+    $transaksi_table_exists = false;
+}
+
 // Fetch all active approved/extended submissions so the result stays consistent with the list table
-$approved_sql = "SELECT * FROM data_gadai WHERE status IN ($active_status_sql) ORDER BY updated_at DESC";
+$approved_transfer_select = $transaksi_table_exists
+    ? ", (SELECT t.bukti FROM transaksi t WHERE t.barang_id = dg.id AND t.keterangan = 'transfer_pinjaman_admin' ORDER BY t.id DESC LIMIT 1) AS transfer_bukti_admin,
+        (SELECT t.jumlah_bayar FROM transaksi t WHERE t.barang_id = dg.id AND t.keterangan = 'transfer_pinjaman_admin' ORDER BY t.id DESC LIMIT 1) AS transfer_nominal_admin,
+        (SELECT t.created_at FROM transaksi t WHERE t.barang_id = dg.id AND t.keterangan = 'transfer_pinjaman_admin' ORDER BY t.id DESC LIMIT 1) AS transfer_created_admin"
+    : ", NULL AS transfer_bukti_admin, NULL AS transfer_nominal_admin, NULL AS transfer_created_admin";
+$approved_sql = "SELECT dg.*" . $approved_transfer_select . " FROM data_gadai dg WHERE dg.status IN ($active_status_sql) ORDER BY dg.updated_at DESC";
 $approved_stmt = $db->query($approved_sql);
 $approved_data = $approved_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+$admin_transfer_history = [];
+if ($transaksi_table_exists && !empty($approved_data)) {
+    $approvedIds = array_values(array_unique(array_map(static function (array $row): int {
+        return (int)($row['id'] ?? 0);
+    }, $approved_data)));
+    $approvedIds = array_values(array_filter($approvedIds, static function (int $id): bool {
+        return $id > 0;
+    }));
+
+    if (!empty($approvedIds)) {
+        $placeholders = implode(',', array_fill(0, count($approvedIds), '?'));
+        $transferSql = "SELECT barang_id, jumlah_bayar, metode_pembayaran, bukti, created_at
+            FROM transaksi
+            WHERE keterangan = 'transfer_pinjaman_admin'
+              AND barang_id IN ($placeholders)
+            ORDER BY created_at DESC, id DESC";
+
+        try {
+            $transferStmt = $db->prepare($transferSql);
+            $transferStmt->execute($approvedIds);
+            $transferRows = $transferStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($transferRows as $trxRow) {
+                $gadaiId = (int)($trxRow['barang_id'] ?? 0);
+                if ($gadaiId <= 0) {
+                    continue;
+                }
+                if (!isset($admin_transfer_history[$gadaiId])) {
+                    $admin_transfer_history[$gadaiId] = [];
+                }
+                $admin_transfer_history[$gadaiId][] = $trxRow;
+            }
+        } catch (Throwable $e) {
+            $admin_transfer_history = [];
+        }
+    }
+}
 
 // Fetch rejected submissions
 $rejected_sql = "SELECT * FROM data_gadai WHERE status = 'Ditolak' ORDER BY updated_at DESC";
@@ -240,15 +305,6 @@ try {
     $pinjaman_request_pending = gadai_get_pending_pinjaman_requests($db);
 } catch (Throwable $e) {
     $pinjaman_request_pending = [];
-}
-
-$transaksi_table_exists = false;
-try {
-    $checkTransaksiTableStmt = $db->prepare("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'transaksi'");
-    $checkTransaksiTableStmt->execute();
-    $transaksi_table_exists = (int)$checkTransaksiTableStmt->fetchColumn() > 0;
-} catch (Throwable $e) {
-    $transaksi_table_exists = false;
 }
 
 // Fetch all submissions (for list table) - include fields needed for search, detail view, and customer master
@@ -1317,6 +1373,30 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                         $biaya_asuransi = $calcAdmin['biaya_asuransi'];
                         $total_tebus_admin = !empty($row['total_tebus']) ? (float)$row['total_tebus'] : (float)$calcAdmin['total_tebus'];
                         $biaya_perpanjangan_manual = (float)$calcAdmin['biaya_perpanjangan'];
+                        $transfer_nominal_admin = !empty($row['transfer_nominal_admin']) ? (float)$row['transfer_nominal_admin'] : (!empty($row['jumlah_disetujui']) ? (float)$row['jumlah_disetujui'] : (float)$row['jumlah_pinjaman']);
+                        $transfer_bukti_admin = trim((string)($row['transfer_bukti_admin'] ?? ''));
+                        $transfer_created_admin = !empty($row['transfer_created_admin']) ? date('d M Y H:i', strtotime((string)$row['transfer_created_admin'])) : '';
+                        $transfer_bukti_url = $transfer_bukti_admin !== '' ? buildAdminTransferProofUrl((string)($row['nik'] ?? ''), $transfer_bukti_admin) : '';
+                        $transfer_history_rows = $admin_transfer_history[(int)($row['id'] ?? 0)] ?? [];
+                        $transfer_total_sent = 0.0;
+                        foreach ($transfer_history_rows as $transferRow) {
+                            $transfer_total_sent += (float)($transferRow['jumlah_bayar'] ?? 0);
+                        }
+                        $target_transfer = !empty($row['jumlah_disetujui']) ? (float)$row['jumlah_disetujui'] : (float)($row['jumlah_pinjaman'] ?? 0);
+                        $transfer_remaining = max(0.0, $target_transfer - $transfer_total_sent);
+                        $transfer_diff = $transfer_total_sent - $target_transfer;
+                        $transfer_status_text = 'Belum ada transfer';
+                        $transfer_status_class = 'text-secondary';
+                        if ($transfer_total_sent > 0 && $transfer_diff < -0.01) {
+                            $transfer_status_text = 'Transfer bertahap (kurang Rp ' . number_format($transfer_remaining, 0, ',', '.') . ')';
+                            $transfer_status_class = 'text-warning';
+                        } elseif ($transfer_total_sent > 0 && abs($transfer_diff) <= 0.01) {
+                            $transfer_status_text = 'Transfer sudah penuh';
+                            $transfer_status_class = 'text-success';
+                        } elseif ($transfer_total_sent > 0 && $transfer_diff > 0.01) {
+                            $transfer_status_text = 'Transfer melebihi target (lebih Rp ' . number_format($transfer_diff, 0, ',', '.') . ')';
+                            $transfer_status_class = 'text-danger';
+                        }
                         $tanggal_jt_baru_preview = !empty($row['tanggal_jatuh_tempo']) ? date('d M Y', strtotime($row['tanggal_jatuh_tempo'] . ' +30 days')) : date('d M Y', strtotime('+30 days'));
                                         $notesAdmin = gadai_parse_catatan_admin($row['catatan_admin'] ?? null);
                                         $kelengkapan_admin = $notesAdmin['kelengkapan'] !== '' ? $notesAdmin['kelengkapan'] : '-';
@@ -1378,7 +1458,61 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                 </div>
                                 <div class="col-md-3">
                                     <small>No. HP: <?php echo $row['no_wa']; ?></small>
+                                    <?php if ($transfer_bukti_url !== ''): ?>
+                                        <div class="mt-2">
+                                            <small class="text-success d-block">Bukti transfer terakhir: <?php echo htmlspecialchars($transfer_created_admin !== '' ? $transfer_created_admin : '-'); ?></small>
+                                            <a class="btn btn-sm btn-outline-success mt-1" href="<?php echo htmlspecialchars($transfer_bukti_url); ?>" target="_blank" rel="noopener noreferrer">Lihat Bukti Transfer</a>
+                                        </div>
+                                    <?php endif; ?>
+                                    <div class="mt-3 p-2" style="background:#f8fbff; border:1px solid #dbeafe; border-radius:10px;">
+                                        <small class="text-muted d-block">Target transfer: <strong>Rp <?php echo number_format($target_transfer, 0, ',', '.'); ?></strong></small>
+                                        <small class="text-muted d-block">Total terkirim: <strong>Rp <?php echo number_format($transfer_total_sent, 0, ',', '.'); ?></strong></small>
+                                        <small class="<?php echo $transfer_status_class; ?> d-block fw-semibold"><?php echo htmlspecialchars($transfer_status_text); ?></small>
+                                    </div>
                                 </div>
+                            </div>
+
+                            <div class="mt-3 p-3" style="background:#ffffff; border:1px solid #dbeafe; border-radius:12px;">
+                                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                                    <strong>Histori Transfer Pinjaman Admin</strong>
+                                    <span class="badge bg-primary"><?php echo count($transfer_history_rows); ?> transfer</span>
+                                </div>
+                                <?php if (empty($transfer_history_rows)): ?>
+                                    <small class="text-muted">Belum ada histori transfer pinjaman untuk data ini.</small>
+                                <?php else: ?>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-striped align-middle mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th style="min-width:140px;">Waktu</th>
+                                                    <th style="min-width:140px;">Nominal</th>
+                                                    <th style="min-width:150px;">Metode</th>
+                                                    <th style="min-width:120px;">Bukti</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php foreach ($transfer_history_rows as $transferRow): ?>
+                                                    <?php
+                                                        $historyBukti = trim((string)($transferRow['bukti'] ?? ''));
+                                                        $historyBuktiUrl = $historyBukti !== '' ? buildAdminTransferProofUrl((string)($row['nik'] ?? ''), $historyBukti) : '';
+                                                    ?>
+                                                    <tr>
+                                                        <td><?php echo !empty($transferRow['created_at']) ? date('d M Y H:i', strtotime((string)$transferRow['created_at'])) : '-'; ?></td>
+                                                        <td>Rp <?php echo number_format((float)($transferRow['jumlah_bayar'] ?? 0), 0, ',', '.'); ?></td>
+                                                        <td><?php echo htmlspecialchars((string)($transferRow['metode_pembayaran'] ?? '-')); ?></td>
+                                                        <td>
+                                                            <?php if ($historyBuktiUrl !== ''): ?>
+                                                                <a class="btn btn-sm btn-outline-primary" href="<?php echo htmlspecialchars($historyBuktiUrl); ?>" target="_blank" rel="noopener noreferrer">Lihat</a>
+                                                            <?php else: ?>
+                                                                <span class="text-muted">-</span>
+                                                            <?php endif; ?>
+                                                        </td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                             
                             <?php if ($row['catatan_admin']): ?>
@@ -1392,6 +1526,9 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                 </button>
                                 <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#lunaskanModal<?php echo $row['id']; ?>">
                                     💸 Lunaskan Sekarang
+                                </button>
+                                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadTransferModal<?php echo $row['id']; ?>">
+                                    📎 Upload Bukti Transfer
                                 </button>
                             </div>
 
@@ -1478,6 +1615,70 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                             <div class="modal-footer">
                                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
                                                 <button type="submit" class="btn btn-approve">✅ Lunaskan Sekarang</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Modal: Upload Bukti Transfer ke Nasabah -->
+                            <div class="modal fade" id="uploadTransferModal<?php echo $row['id']; ?>" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered">
+                                    <div class="modal-content">
+                                        <div class="modal-header" style="background: linear-gradient(135deg, #0d6efd, #3aa0ff); color: #fff;">
+                                            <h5 class="modal-title">📎 Upload Bukti Transfer</h5>
+                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <form method="POST" enctype="multipart/form-data">
+                                            <div class="modal-body">
+                                                <input type="hidden" name="id" value="<?php echo (int)$row['id']; ?>">
+                                                <input type="hidden" name="action" value="upload_bukti_transfer_admin">
+
+                                                <div class="alert alert-primary">
+                                                    Upload bukti transfer pinjaman untuk nasabah <strong><?php echo htmlspecialchars((string)$row['nama']); ?></strong>.
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <label class="form-label">Nominal Transfer</label>
+                                                    <input type="number" name="transfer_amount" class="form-control" min="1" step="0.01" value="<?php echo htmlspecialchars((string)$transfer_nominal_admin); ?>" required>
+                                                    <small class="text-muted">Default diisi dari pinjaman disetujui.</small>
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <label class="form-label">Metode Transfer</label>
+                                                    <select name="metode" class="form-control">
+                                                        <option value="transfer_bank_admin">Transfer Bank - Admin</option>
+                                                        <option value="transfer_ewallet_admin">Transfer E-Wallet - Admin</option>
+                                                        <option value="transfer_tunai_admin">Transfer/Tunai Manual - Admin</option>
+                                                    </select>
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <label class="form-label">File Bukti Transfer</label>
+                                                    <input type="file" name="bukti_transfer" class="form-control" accept="image/jpeg,image/png,image/gif,image/webp" required>
+                                                    <small class="text-muted">Format: JPG, PNG, GIF, WEBP. Maksimal 5MB.</small>
+                                                    <div class="mt-2" data-transfer-preview-empty>
+                                                        <small class="text-muted">Preview gambar akan tampil di sini setelah file dipilih.</small>
+                                                    </div>
+                                                    <div class="mt-2 d-none" data-transfer-preview-wrap>
+                                                        <img
+                                                            src=""
+                                                            alt="Preview Bukti Transfer"
+                                                            data-transfer-preview-image
+                                                            style="max-width: 100%; max-height: 220px; border-radius: 10px; border: 1px solid #dbeafe; box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);"
+                                                        >
+                                                        <div class="small text-muted mt-1" data-transfer-preview-name></div>
+                                                    </div>
+                                                </div>
+
+                                                <div class="mb-0">
+                                                    <label class="form-label">Catatan Admin (opsional)</label>
+                                                    <textarea name="keterangan_admin" class="form-control" rows="2" placeholder="Contoh: transfer tahap 1 sudah dikirim sesuai nominal disetujui."></textarea>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                                                <button type="submit" class="btn btn-primary">Upload Sekarang</button>
                                             </div>
                                         </form>
                                     </div>
@@ -2507,6 +2708,122 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
             } catch (e) {
                 console.error('Error restoring active tab', e);
             }
+        })();
+
+        (function () {
+            var transferInputs = document.querySelectorAll('input[type="file"][name="bukti_transfer"]');
+            if (!transferInputs.length) {
+                return;
+            }
+
+            var MAX_FILE_SIZE = 5 * 1024 * 1024;
+            var ALLOWED_TYPES = {
+                'image/jpeg': true,
+                'image/png': true,
+                'image/gif': true,
+                'image/webp': true
+            };
+
+            function showUploadAlert(message) {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'File Tidak Valid',
+                        text: message,
+                        confirmButtonText: 'OK'
+                    });
+                    return;
+                }
+                alert(message);
+            }
+
+            function resetPreview(formEl) {
+                var previewWrap = formEl.querySelector('[data-transfer-preview-wrap]');
+                var previewImg = formEl.querySelector('[data-transfer-preview-image]');
+                var previewName = formEl.querySelector('[data-transfer-preview-name]');
+                var previewEmpty = formEl.querySelector('[data-transfer-preview-empty]');
+
+                if (!previewWrap || !previewImg || !previewName || !previewEmpty) {
+                    return;
+                }
+
+                previewImg.src = '';
+                previewName.textContent = '';
+                previewWrap.classList.add('d-none');
+                previewEmpty.classList.remove('d-none');
+            }
+
+            function validateTransferFile(file) {
+                if (!file) {
+                    return 'File bukti transfer wajib dipilih.';
+                }
+                if (!ALLOWED_TYPES[file.type]) {
+                    return 'Format file tidak didukung. Gunakan JPG, PNG, GIF, atau WEBP.';
+                }
+                if (file.size > MAX_FILE_SIZE) {
+                    return 'Ukuran file terlalu besar. Maksimal 5MB.';
+                }
+                return '';
+            }
+
+            transferInputs.forEach(function (inputEl) {
+                var formElForSubmit = inputEl.closest('form');
+                if (formElForSubmit) {
+                    formElForSubmit.addEventListener('submit', function (event) {
+                        var selectedFile = inputEl.files && inputEl.files[0] ? inputEl.files[0] : null;
+                        var validationError = validateTransferFile(selectedFile);
+                        if (validationError) {
+                            event.preventDefault();
+                            inputEl.value = '';
+                            resetPreview(formElForSubmit);
+                            showUploadAlert(validationError);
+                            inputEl.focus();
+                        }
+                    });
+                }
+
+                inputEl.addEventListener('change', function () {
+                    var formEl = inputEl.closest('form');
+                    if (!formEl) {
+                        return;
+                    }
+
+                    var previewWrap = formEl.querySelector('[data-transfer-preview-wrap]');
+                    var previewImg = formEl.querySelector('[data-transfer-preview-image]');
+                    var previewName = formEl.querySelector('[data-transfer-preview-name]');
+                    var previewEmpty = formEl.querySelector('[data-transfer-preview-empty]');
+
+                    if (!previewWrap || !previewImg || !previewName || !previewEmpty) {
+                        return;
+                    }
+
+                    var file = inputEl.files && inputEl.files[0] ? inputEl.files[0] : null;
+                    if (!file) {
+                        resetPreview(formEl);
+                        return;
+                    }
+
+                    var validationError = validateTransferFile(file);
+                    if (validationError) {
+                        inputEl.value = '';
+                        resetPreview(formEl);
+                        showUploadAlert(validationError);
+                        return;
+                    }
+
+                    var reader = new FileReader();
+                    reader.onload = function (event) {
+                        previewImg.src = String(event.target && event.target.result ? event.target.result : '');
+                        previewName.textContent = file.name + ' (' + Math.round(file.size / 1024) + ' KB)';
+                        previewWrap.classList.remove('d-none');
+                        previewEmpty.classList.add('d-none');
+                    };
+                    reader.onerror = function () {
+                        resetPreview(formEl);
+                    };
+                    reader.readAsDataURL(file);
+                });
+            });
         })();
 
         (function () {

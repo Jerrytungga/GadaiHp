@@ -327,7 +327,22 @@ $flashSuccess = isset($_SESSION['customer_flash_success']) ? (string)$_SESSION['
 $flashError = isset($_SESSION['customer_flash_error']) ? (string)$_SESSION['customer_flash_error'] : '';
 unset($_SESSION['customer_flash_success'], $_SESSION['customer_flash_error']);
 
-$stmt = $db->prepare("SELECT dg.id, dg.nama, dg.nik, dg.no_wa, dg.jenis_barang, dg.merk_barang, dg.spesifikasi_barang, dg.status, dg.nilai_taksiran, dg.jumlah_pinjaman, dg.jumlah_disetujui, dg.total_tebus, dg.tanggal_gadai, dg.tanggal_jatuh_tempo, dg.updated_at, dg.created_at, dg.perpanjangan_ke, dg.catatan_admin
+$transaksiTableExists = false;
+try {
+    $checkTransaksiStmt = $db->prepare("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'transaksi'");
+    $checkTransaksiStmt->execute();
+    $transaksiTableExists = (int)$checkTransaksiStmt->fetchColumn() > 0;
+} catch (Throwable $e) {
+    $transaksiTableExists = false;
+}
+
+$transferProofSelect = $transaksiTableExists
+    ? ",
+        (SELECT t.bukti FROM transaksi t WHERE t.barang_id = dg.id AND t.keterangan = 'transfer_pinjaman_admin' ORDER BY t.id DESC LIMIT 1) AS transfer_bukti_admin,
+        (SELECT t.created_at FROM transaksi t WHERE t.barang_id = dg.id AND t.keterangan = 'transfer_pinjaman_admin' ORDER BY t.id DESC LIMIT 1) AS transfer_created_admin"
+    : ", NULL AS transfer_bukti_admin, NULL AS transfer_created_admin";
+
+$stmt = $db->prepare("SELECT dg.id, dg.nama, dg.nik, dg.no_wa, dg.jenis_barang, dg.merk_barang, dg.spesifikasi_barang, dg.status, dg.nilai_taksiran, dg.jumlah_pinjaman, dg.jumlah_disetujui, dg.total_tebus, dg.tanggal_gadai, dg.tanggal_jatuh_tempo, dg.updated_at, dg.created_at, dg.perpanjangan_ke, dg.catatan_admin" . $transferProofSelect . "
     FROM data_gadai dg
     WHERE dg.customer_id = ? OR dg.nik = ?
     ORDER BY dg.created_at DESC");
@@ -945,6 +960,16 @@ foreach ($gadaiList as $row) {
                                 $notes = gadai_customer_split_catatan_admin($row['catatan_admin'] ?? null);
                                 $kelengkapan = $notes['kelengkapan'] !== '' ? $notes['kelengkapan'] : '-';
                                 $catatanAdmin = $notes['catatan_admin'] !== '' ? $notes['catatan_admin'] : '-';
+                                $transferProofRaw = trim((string)($row['transfer_bukti_admin'] ?? ''));
+                                $transferProofUrl = '';
+                                if ($transferProofRaw !== '') {
+                                    if (strpos($transferProofRaw, 'admin_transfer/') === 0) {
+                                        $transferProofUrl = 'payment/' . ltrim($transferProofRaw, '/');
+                                    } else {
+                                        $transferProofUrl = 'payment/' . rawurlencode((string)($row['nik'] ?? '')) . '/' . ltrim($transferProofRaw, '/');
+                                    }
+                                }
+                                $transferUploadedAt = !empty($row['transfer_created_admin']) ? date('d M Y H:i', strtotime((string)$row['transfer_created_admin'])) : null;
                             ?>
                             <tr data-gadai-id="<?php echo (int)$row['id']; ?>">
                                 <td><?php echo $index + 1; ?></td>
@@ -996,6 +1021,8 @@ foreach ($gadaiList as $row) {
                                                 "tgl_gadai" => !empty($row["tanggal_gadai"]) ? date("d M Y", strtotime($row["tanggal_gadai"])) : "-",
                                                 "jatuh_tempo" => !empty($row["tanggal_jatuh_tempo"]) ? date("d M Y", strtotime($row["tanggal_jatuh_tempo"])) : "-",
                                                 "updated_at" => !empty($row["updated_at"]) ? date("d M Y H:i", strtotime($row["updated_at"])) : "-",
+                                                "transfer_bukti_url" => $transferProofUrl,
+                                                "transfer_uploaded_at" => $transferUploadedAt,
                                                 "badge_class" => $badgeClass,
                                             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>)'>
                                             Lihat Detail
@@ -1191,6 +1218,23 @@ foreach ($gadaiList as $row) {
         setText('[data-field="tgl_gadai"]', data.tgl_gadai || '-');
         setText('[data-field="jatuh_tempo"]', data.jatuh_tempo || '-');
         setText('[data-field="updated_at"]', data.updated_at || '-');
+        setText('[data-field="transfer_uploaded_at"]', data.transfer_uploaded_at || '-');
+
+        var transferLink = modal.querySelector('[data-field="transfer_bukti_link"]');
+        if (transferLink) {
+            if (data.transfer_bukti_url) {
+                transferLink.href = String(data.transfer_bukti_url);
+                transferLink.classList.remove('d-none');
+            } else {
+                transferLink.href = '#';
+                transferLink.classList.add('d-none');
+            }
+        }
+
+        var transferStatus = modal.querySelector('[data-field="transfer_bukti_status"]');
+        if (transferStatus) {
+            transferStatus.textContent = data.transfer_bukti_url ? 'Sudah diunggah admin' : 'Belum ada bukti transfer';
+        }
 
         var badge = modal.querySelector('[data-field="status_badge"]');
         if (badge) {
@@ -1767,6 +1811,12 @@ foreach ($gadaiList as $row) {
                     <div class="detail-item"><span class="detail-label">Tanggal Gadai</span><div class="detail-value" data-field="tgl_gadai"></div></div>
                     <div class="detail-item"><span class="detail-label">Jatuh Tempo</span><div class="detail-value" data-field="jatuh_tempo"></div></div>
                     <div class="detail-item"><span class="detail-label">Update Terakhir</span><div class="detail-value" data-field="updated_at"></div></div>
+                    <div class="detail-item">
+                        <span class="detail-label">Bukti Transfer Admin</span>
+                        <div class="detail-value" data-field="transfer_bukti_status">-</div>
+                        <a class="btn btn-sm btn-outline-primary mt-2 d-none" data-field="transfer_bukti_link" target="_blank" rel="noopener noreferrer">Lihat Bukti Transfer</a>
+                    </div>
+                    <div class="detail-item"><span class="detail-label">Waktu Upload Bukti</span><div class="detail-value" data-field="transfer_uploaded_at"></div></div>
                 </div>
             </div>
             <div class="modal-footer">

@@ -800,6 +800,29 @@ class WhatsAppHelper {
     }
 
     /**
+     * Notifikasi ke customer saat admin mengunggah bukti transfer pinjaman
+     */
+    public function notifyUserAdminTransferProof($data, $amount, $proofUrl, $adminNote = '') {
+        $message = "💸 *BUKTI TRANSFER PINJAMAN*\n\n";
+        $message .= "Halo " . ($data['nama'] ?? '-') . ",\n\n";
+        $message .= "Admin telah mengunggah bukti transfer pinjaman Anda.\n\n";
+        $message .= "📋 *No. Registrasi:* #" . str_pad((string)($data['id'] ?? 0), 6, '0', STR_PAD_LEFT) . "\n";
+        $message .= "📱 *Barang:* " . (!empty($data['jenis_barang']) ? $data['jenis_barang'] : '-') . (!empty($data['merk_barang']) || !empty($data['spesifikasi_barang']) ? ' - ' . trim((string)(($data['merk_barang'] ?? '') . ' ' . ($data['spesifikasi_barang'] ?? ''))) : '') . "\n";
+        $message .= "💰 *Nominal Transfer:* Rp " . number_format((float)$amount, 0, ',', '.') . "\n";
+        if (!empty($adminNote)) {
+            $message .= "📝 *Catatan Admin:* " . $adminNote . "\n";
+        }
+        if (!empty($proofUrl)) {
+            $message .= "📎 *Bukti Transfer:* " . $proofUrl . "\n";
+        }
+
+        $message .= "\nSilakan cek dan konfirmasi jika sudah diterima.\n";
+        $message .= "Jika ada pertanyaan, hubungi: 0858-2309-1908";
+
+        return $this->sendMessage($data['no_wa'], $message);
+    }
+
+    /**
      * Template pesan ketika status menjadi Gagal Tebus (ke Admin)
      */
     public function notifyAdminGagalTebus($data) {

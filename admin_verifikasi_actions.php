@@ -1441,6 +1441,170 @@ if (!function_exists('adminHandleMarkTerjualAction')) {
     }
 }
 
+if (!function_exists('adminHandleUploadBuktiTransferAction')) {
+    function adminHandleUploadBuktiTransferAction(PDO $db, $whatsapp, string &$message, string &$message_type): void {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['action']) || $_POST['action'] !== 'upload_bukti_transfer_admin') {
+            return;
+        }
+
+        $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+        $transferAmount = (float)($_POST['transfer_amount'] ?? 0);
+        $metode = trim((string)($_POST['metode'] ?? 'transfer_bank_admin'));
+        $adminNoteInput = trim((string)($_POST['keterangan_admin'] ?? ''));
+        $file = $_FILES['bukti_transfer'] ?? null;
+
+        try {
+            if ($id <= 0) {
+                throw new RuntimeException('ID data gadai tidak valid.');
+            }
+
+            if ($transferAmount <= 0) {
+                throw new RuntimeException('Nominal transfer wajib diisi.');
+            }
+
+            if (!$file || !isset($file['error']) || (int)$file['error'] !== UPLOAD_ERR_OK) {
+                throw new RuntimeException('File bukti transfer wajib diunggah.');
+            }
+
+            $maxFileSize = 5 * 1024 * 1024;
+            if ((int)($file['size'] ?? 0) > $maxFileSize) {
+                throw new RuntimeException('Ukuran file terlalu besar. Maksimal 5MB.');
+            }
+
+            $tmpName = (string)($file['tmp_name'] ?? '');
+            if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+                throw new RuntimeException('Upload file tidak valid.');
+            }
+
+            $finfo = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : false;
+            $mimeType = $finfo ? (string)finfo_file($finfo, $tmpName) : '';
+            if ($finfo) {
+                finfo_close($finfo);
+            }
+
+            $allowedMime = [
+                'image/jpeg' => 'jpg',
+                'image/png' => 'png',
+                'image/gif' => 'gif',
+                'image/webp' => 'webp',
+            ];
+
+            if (!isset($allowedMime[$mimeType])) {
+                throw new RuntimeException('Format file tidak didukung. Gunakan JPG, PNG, GIF, atau WEBP.');
+            }
+
+            $stmt = $db->prepare("SELECT * FROM data_gadai WHERE id = ? LIMIT 1");
+            $stmt->execute([$id]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$row) {
+                throw new RuntimeException('Data gadai tidak ditemukan.');
+            }
+
+            if (!gadai_is_active_status((string)($row['status'] ?? ''))) {
+                throw new RuntimeException('Upload bukti transfer hanya tersedia untuk status gadai aktif.');
+            }
+
+            $nikRaw = trim((string)($row['nik'] ?? ''));
+            $nikSafe = preg_replace('/[^0-9A-Za-z_-]/', '', $nikRaw);
+            if ($nikSafe === null || $nikSafe === '') {
+                $nikSafe = 'unknown_nik';
+            }
+
+            $ext = $allowedMime[$mimeType];
+            $fileName = 'admin_transfer_' . $id . '_' . date('YmdHis') . '_' . str_pad((string)random_int(0, 9999), 4, '0', STR_PAD_LEFT) . '.' . $ext;
+
+            $relativeDir = 'payment/admin_transfer/' . $nikSafe;
+            $absoluteDir = __DIR__ . '/' . $relativeDir;
+            if (!is_dir($absoluteDir) && !mkdir($absoluteDir, 0755, true) && !is_dir($absoluteDir)) {
+                throw new RuntimeException('Gagal membuat folder penyimpanan bukti transfer.');
+            }
+
+            $absolutePath = $absoluteDir . '/' . $fileName;
+            $relativeBukti = 'admin_transfer/' . $nikSafe . '/' . $fileName;
+
+            if (!move_uploaded_file($tmpName, $absolutePath)) {
+                throw new RuntimeException('Gagal menyimpan file bukti transfer.');
+            }
+
+            $ctx = adminResolveBaseUrlContext();
+            $proofUrl = $ctx['base_url'] . $ctx['base_path'] . '/payment/admin_transfer/' . rawurlencode($nikSafe) . '/' . rawurlencode($fileName);
+
+            try {
+                $db->beginTransaction();
+
+                $catatan = adminAppendCatatanAdmin(
+                    $row['catatan_admin'] ?? null,
+                    [
+                        'Admin upload bukti transfer pinjaman pada ' . date('d M Y H:i') . ' sebesar Rp ' . number_format($transferAmount, 0, ',', '.') . '.',
+                        $adminNoteInput,
+                    ]
+                );
+
+                $update = $db->prepare("UPDATE data_gadai SET catatan_admin = ?, updated_at = NOW() WHERE id = ?");
+                $update->execute([$catatan, $id]);
+
+                $tblExists = false;
+                try {
+                    $checkTbl = $db->prepare("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'transaksi'");
+                    $checkTbl->execute();
+                    $tblExists = (int)$checkTbl->fetchColumn() > 0;
+                } catch (Throwable $e) {
+                    $tblExists = false;
+                }
+
+                if ($tblExists) {
+                    $insert = $db->prepare("INSERT INTO transaksi (imei, serial_number, jenis_barang, merk, tipe, pelanggan_nik, barang_id, jumlah_bayar, keterangan, metode_pembayaran, bukti) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    $insert->execute([
+                        $row['imei_serial'] ?? null,
+                        $row['imei_serial'] ?? null,
+                        $row['jenis_barang'] ?? null,
+                        $row['merk_barang'] ?? null,
+                        $row['spesifikasi_barang'] ?? null,
+                        $row['nik'] ?? null,
+                        $id,
+                        $transferAmount,
+                        'transfer_pinjaman_admin',
+                        $metode !== '' ? $metode : 'transfer_bank_admin',
+                        $relativeBukti,
+                    ]);
+                }
+
+                $db->commit();
+            } catch (Throwable $txError) {
+                if ($db->inTransaction()) {
+                    $db->rollBack();
+                }
+                if (file_exists($absolutePath)) {
+                    @unlink($absolutePath);
+                }
+                throw $txError;
+            }
+
+            try {
+                if ($whatsapp && method_exists($whatsapp, 'notifyUserAdminTransferProof')) {
+                    $waPayload = [
+                        'id' => $id,
+                        'nama' => $row['nama'] ?? '-',
+                        'no_wa' => $row['no_wa'] ?? '',
+                        'jenis_barang' => $row['jenis_barang'] ?? '',
+                        'merk_barang' => $row['merk_barang'] ?? '',
+                        'spesifikasi_barang' => $row['spesifikasi_barang'] ?? '',
+                    ];
+                    $whatsapp->notifyUserAdminTransferProof($waPayload, $transferAmount, $proofUrl, $adminNoteInput);
+                }
+            } catch (Throwable $waError) {
+                error_log('WhatsApp notify admin transfer proof failed: ' . $waError->getMessage());
+            }
+
+            $message = 'Bukti transfer berhasil diunggah untuk #' . str_pad((string)$id, 6, '0', STR_PAD_LEFT) . '. Nominal: Rp ' . number_format($transferAmount, 0, ',', '.') . '.';
+            $message_type = 'success';
+        } catch (Throwable $e) {
+            $message = 'Gagal upload bukti transfer: ' . $e->getMessage();
+            $message_type = 'danger';
+        }
+    }
+}
+
 if (!function_exists('handleAdminUtilityActions')) {
     function handleAdminUtilityActions(PDO $db, $whatsapp, string &$message, string &$message_type): void {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['action'])) {
@@ -1448,7 +1612,7 @@ if (!function_exists('handleAdminUtilityActions')) {
         }
 
         $action = (string)$_POST['action'];
-        if (!in_array($action, ['manual_add_gadai', 'manual_reminder_overdue', 'manual_notify_gagal_tebus', 'manual_send_nota', 'mark_siap_jual', 'mark_terjual'], true)) {
+        if (!in_array($action, ['manual_add_gadai', 'manual_reminder_overdue', 'manual_notify_gagal_tebus', 'manual_send_nota', 'mark_siap_jual', 'mark_terjual', 'upload_bukti_transfer_admin'], true)) {
             return;
         }
 
@@ -1470,6 +1634,9 @@ if (!function_exists('handleAdminUtilityActions')) {
                 return;
             case 'mark_terjual':
                 adminHandleMarkTerjualAction($db, $message, $message_type);
+                return;
+            case 'upload_bukti_transfer_admin':
+                adminHandleUploadBuktiTransferAction($db, $whatsapp, $message, $message_type);
                 return;
         }
     }
