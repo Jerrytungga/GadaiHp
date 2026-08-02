@@ -5306,3 +5306,70 @@ Message: ⬆️ *REQUEST NAIK PINJAMAN DISETUJUI*
 
 Response: {"detail":"success! message in queue","id":[170900115],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":917,"remaining":916,"used":1}},"requestid":625420888,"status":true,"target":["6285823091908"]}
 
+[2026-08-02 12:21:27] To: 6281241935244
+Message: ✅ *AKUN CUSTOMER BERHASIL DIBUAT*
+
+Halo JERRY CHRISTIAN,
+
+Akun customer Anda berhasil dibuat dan sudah aktif digunakan.
+
+👤 *Nama:* JERRY CHRISTIAN
+🪪 *NIK:* 5555555555555555
+📞 *No. WA:* 081241935244
+✉️ *Email:* jerrytungga18@gmail.com
+
+Silakan login melalui:
+http://127.0.0.1:8000/customer_login.php
+
+Jika ada kendala, hubungi admin: 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[170931983],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":902,"remaining":901,"used":1}},"requestid":625745022,"status":true,"target":["6281241935244"]}
+
+[2026-08-02 12:21:28] To: 6285823091908
+Message: 🔔 *PENDAFTARAN CUSTOMER BARU*
+
+🆔 Customer ID: #1
+👤 Nama: JERRY CHRISTIAN
+🪪 NIK: 5555555555555555
+📞 No. WA: 081241935244
+✉️ Email: jerrytungga18@gmail.com
+🏠 Alamat: Jln Samratulangi Gang Acis
+
+Lihat data customer di panel admin:
+http://127.0.0.1:8000/customer_list.php
+Response: {"detail":"success! message in queue","id":[170931986],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":901,"remaining":900,"used":1}},"requestid":625745033,"status":true,"target":["6285823091908"]}
+
+[2026-08-02 12:22:08] To: 6285823091908
+Message: 🔔 *PENGAJUAN GADAI BARU*
+
+📋 No. Registrasi: #000001
+👤 Nama: JERRY CHRISTIAN
+📱 Barang: HP Apple iphone
+💰 Pengajuan: Rp 1.000.000
+📞 HP: 081241935244
+
+⏳ Status: Menunggu Verifikasi
+
+Klik link untuk verifikasi:
+http://127.0.0.1:8000/admin_verifikasi.php
+Response: {"detail":"success! message in queue","id":[170932040],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":900,"remaining":899,"used":1}},"requestid":625745638,"status":true,"target":["6285823091908"]}
+
+[2026-08-02 12:22:08] To: 6281241935244
+Message: 🔔 *PENGAJUAN GADAI DITERIMA (MENUNGGU VERIFIKASI)*
+
+Halo JERRY CHRISTIAN,
+
+Terima kasih telah mengajukan gadai. Pengajuan Anda telah kami terima dan akan segera diverifikasi oleh admin.
+
+📋 *No. Registrasi:* #000001
+📱 *Barang:* HP - Apple iphone
+
+💰 *Jumlah Pengajuan:* Rp 1.000.000
+📅 *Jatuh Tempo (estimasi):* 02 September 2026
+
+Kami akan menghubungi Anda melalui WhatsApp setelah verifikasi selesai.
+Jika ada pertanyaan, hubungi: 0858-2309-1908
+
+Hormat kami,
+Gadai Cepat Timika Papua
+Response: {"detail":"success! message in queue","id":[170932043],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":899,"remaining":898,"used":1}},"requestid":625745660,"status":true,"target":["6281241935244"]}
+

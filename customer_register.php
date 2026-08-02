@@ -14,7 +14,8 @@ $message_type = 'danger';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nama = trim((string)($_POST['nama'] ?? ''));
-    $nik = trim((string)($_POST['nik'] ?? ''));
+    $nikInput = trim((string)($_POST['nik'] ?? ''));
+    $nik = preg_replace('/\D+/', '', $nikInput) ?? '';
     $no_wa = trim((string)($_POST['no_wa'] ?? ''));
     $alamat = trim((string)($_POST['alamat'] ?? ''));
     $email = trim((string)($_POST['email'] ?? ''));
@@ -23,6 +24,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($nama === '' || $nik === '' || $no_wa === '' || $alamat === '' || $password === '' || $password_confirm === '') {
         $message = 'Semua field wajib harus diisi.';
+    } elseif (strlen($nik) !== 16) {
+        $message = 'NIK harus 16 digit.';
     } elseif ($password !== $password_confirm) {
         $message = 'Password dan konfirmasi password tidak sama.';
     } elseif (strlen($password) < 6) {
@@ -90,6 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Daftar Customer - Gadai Cepat</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&family=Raleway:wght@700;800;900&display=swap" rel="stylesheet">
     <style>
         body {
@@ -156,9 +160,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <p class="mb-0 opacity-75">Gunakan NIK yang sama dengan data gadai Anda untuk menyambungkan akun customer.</p>
                     </div>
                     <div class="content">
-                        <?php if ($message !== ''): ?>
-                            <div class="alert alert-<?php echo $message_type; ?>"><?php echo htmlspecialchars($message); ?></div>
-                        <?php endif; ?>
+                        <div
+                            id="registerFlashData"
+                            data-message="<?php echo htmlspecialchars($message, ENT_QUOTES, 'UTF-8'); ?>"
+                            data-type="<?php echo htmlspecialchars($message_type, ENT_QUOTES, 'UTF-8'); ?>"
+                        ></div>
 
                         <form method="POST" class="row g-3 mt-1">
                             <div class="col-md-6">
@@ -167,7 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold">NIK</label>
-                                <input type="text" name="nik" class="form-control" required placeholder="NIK / No KTP">
+                                <input type="text" name="nik" class="form-control" required placeholder="NIK / No KTP" inputmode="numeric" maxlength="16" pattern="\d{16}" title="NIK harus 16 digit angka">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold">No. WhatsApp</label>
@@ -204,5 +210,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 </div>
+<script>
+    (function () {
+        if (typeof Swal === 'undefined') {
+            return;
+        }
+
+        var flashEl = document.getElementById('registerFlashData');
+        if (!flashEl) {
+            return;
+        }
+
+        var message = String(flashEl.getAttribute('data-message') || '').trim();
+        var type = String(flashEl.getAttribute('data-type') || '').trim();
+
+        if (message) {
+            var isSuccess = type === 'success';
+            Swal.fire({
+                icon: isSuccess ? 'success' : 'error',
+                title: isSuccess ? 'Registrasi Berhasil' : 'Registrasi Gagal',
+                text: message,
+                confirmButtonText: 'OK',
+                confirmButtonColor: isSuccess ? '#0d6efd' : '#dc3545'
+            });
+        }
+
+        var registerForm = document.querySelector('form[method="POST"]');
+        if (!registerForm) {
+            return;
+        }
+
+        registerForm.addEventListener('submit', function (event) {
+            var nikInput = registerForm.querySelector('input[name="nik"]');
+            var nikDigits = nikInput ? String(nikInput.value || '').replace(/\D/g, '') : '';
+
+            if (nikInput) {
+                nikInput.value = nikDigits;
+            }
+
+            if (nikDigits.length !== 16) {
+                event.preventDefault();
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'NIK Belum Lengkap',
+                    text: 'NIK wajib 16 digit angka.',
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: '#f59e0b'
+                });
+                if (nikInput) {
+                    nikInput.focus();
+                }
+                return;
+            }
+
+            Swal.fire({
+                title: 'Memproses Registrasi',
+                text: 'Mohon tunggu, data akun sedang disimpan.',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                didOpen: function () {
+                    Swal.showLoading();
+                }
+            });
+
+            var submitButton = registerForm.querySelector('button[type="submit"]');
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.setAttribute('aria-busy', 'true');
+            }
+        });
+    })();
+</script>
 </body>
 </html>

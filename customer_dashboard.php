@@ -843,16 +843,15 @@ foreach ($gadaiList as $row) {
             <span class="badge bg-primary">Status awal: Pending</span>
         </div>
 
-        <?php if ($flashSuccess !== ''): ?>
-            <div class="alert alert-success"><?php echo htmlspecialchars($flashSuccess); ?></div>
-        <?php endif; ?>
-        <?php if ($flashError !== ''): ?>
-            <div class="alert alert-danger"><?php echo htmlspecialchars($flashError); ?></div>
-        <?php endif; ?>
+        <div
+            id="customerFlashData"
+            data-success="<?php echo htmlspecialchars($flashSuccess, ENT_QUOTES, 'UTF-8'); ?>"
+            data-error="<?php echo htmlspecialchars($flashError, ENT_QUOTES, 'UTF-8'); ?>"
+        ></div>
 
         <div id="realtimeStatusAlert"></div>
 
-        <form method="POST" class="row g-3">
+        <form method="POST" class="row g-3" id="customerSubmitForm" novalidate>
             <input type="hidden" name="action" value="customer_submit_pinjaman">
 
             <div class="col-12">
@@ -1026,7 +1025,7 @@ foreach ($gadaiList as $row) {
                                             </button>
                                         <?php endif; ?>
                                         <?php if ($status === 'Pending'): ?>
-                                            <form method="POST" onsubmit="return confirm('Batalkan pengajuan ini?');">
+                                            <form method="POST" onsubmit="return confirmCancelPengajuan(event, this);">
                                                 <input type="hidden" name="action" value="customer_cancel_pengajuan">
                                                 <input type="hidden" name="gadai_id" value="<?php echo (int)$row['id']; ?>">
                                                 <button type="submit" class="btn btn-sm btn-outline-danger">Batalkan</button>
@@ -1043,8 +1042,129 @@ foreach ($gadaiList as $row) {
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
     var customerRealtimeSnapshot = <?php echo json_encode($customerRealtimeSnapshot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+
+    function confirmCancelPengajuan(event, formEl) {
+        if (event) {
+            event.preventDefault();
+        }
+
+        if (typeof Swal === 'undefined') {
+            if (confirm('Batalkan pengajuan ini?')) {
+                formEl.submit();
+            }
+            return false;
+        }
+
+        Swal.fire({
+            icon: 'warning',
+            title: 'Batalkan Pengajuan?',
+            text: 'Pengajuan yang dibatalkan tidak bisa dikembalikan.',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, batalkan',
+            cancelButtonText: 'Tidak',
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d'
+        }).then(function (result) {
+            if (result.isConfirmed) {
+                submitWithLoading(
+                    formEl,
+                    'Membatalkan Pengajuan',
+                    'Mohon tunggu, sistem sedang memproses pembatalan.'
+                );
+            }
+        });
+
+        return false;
+    }
+
+    function showCustomerFlashNotification() {
+        if (typeof Swal === 'undefined') {
+            return;
+        }
+
+        var flashEl = document.getElementById('customerFlashData');
+        if (!flashEl) {
+            return;
+        }
+
+        var successMessage = String(flashEl.getAttribute('data-success') || '').trim();
+        var errorMessage = String(flashEl.getAttribute('data-error') || '').trim();
+
+        if (successMessage) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Berhasil',
+                text: successMessage,
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#0d6efd'
+            });
+            return;
+        }
+
+        if (errorMessage) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Terjadi Kesalahan',
+                text: errorMessage,
+                confirmButtonText: 'Mengerti',
+                confirmButtonColor: '#dc3545'
+            });
+        }
+    }
+
+    function showSubmittingDialog(title, text) {
+        if (typeof Swal === 'undefined') {
+            return;
+        }
+
+        Swal.fire({
+            title: title,
+            text: text,
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: function () {
+                Swal.showLoading();
+            }
+        });
+    }
+
+    function submitWithLoading(formEl, title, text) {
+        showSubmittingDialog(title, text);
+
+        window.setTimeout(function () {
+            formEl.submit();
+        }, 120);
+    }
+
+    function bindSubmitLoading(selector, options) {
+        var targetEl = document.querySelector(selector);
+        if (!targetEl) {
+            return;
+        }
+
+        var formEl = targetEl.tagName === 'FORM' ? targetEl : targetEl.closest('form');
+        if (!formEl) {
+            return;
+        }
+
+        formEl.addEventListener('submit', function (event) {
+            if (event.defaultPrevented) {
+                return;
+            }
+
+            showSubmittingDialog(options.title, options.text);
+
+            var submitButton = formEl.querySelector('button[type="submit"]');
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.setAttribute('aria-busy', 'true');
+            }
+        });
+    }
 
     function openCustomerDetailModal(data) {
         var modal = document.getElementById('customerDetailModal');
@@ -1245,7 +1365,6 @@ foreach ($gadaiList as $row) {
             }
 
             displayInput.addEventListener('input', function () {
-                displayInput.setCustomValidity('');
                 syncValue();
             });
 
@@ -1255,14 +1374,66 @@ foreach ($gadaiList as $row) {
 
             form.addEventListener('submit', function (event) {
                 syncValue();
+
+                var requiredFields = [
+                    { name: 'jenis_barang', label: 'Jenis Barang' },
+                    { name: 'merk_barang', label: 'Merk Barang' },
+                    { name: 'spesifikasi_barang', label: 'Spesifikasi / Tipe' },
+                    { name: 'imei_serial', label: 'Serial Number / IMEI' },
+                    { name: 'kelengkapan_barang', label: 'Kelengkapan Barang' },
+                    { name: 'kondisi_barang', label: 'Kondisi Barang' }
+                ];
+
+                var firstInvalidField = null;
+                var missingFields = requiredFields.filter(function (field) {
+                    var inputEl = form.querySelector('[name="' + field.name + '"]');
+                    var isMissing = !inputEl || String(inputEl.value || '').trim() === '';
+                    if (isMissing && !firstInvalidField) {
+                        firstInvalidField = inputEl;
+                    }
+                    return isMissing;
+                }).map(function (field) {
+                    return field.label;
+                });
+
+                if (missingFields.length > 0) {
+                    event.preventDefault();
+                    if (typeof Swal !== 'undefined') {
+                        var missingListHtml = '<ul style="text-align:left;margin:8px 0 0 0;padding-left:18px;">'
+                            + missingFields.map(function (fieldLabel) {
+                                return '<li>' + escapeHtml(fieldLabel) + '</li>';
+                            }).join('')
+                            + '</ul>';
+
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Data Belum Lengkap',
+                            html: 'Mohon lengkapi field berikut:' + missingListHtml,
+                            confirmButtonText: 'OK',
+                            confirmButtonColor: '#f59e0b'
+                        });
+                    }
+                    if (firstInvalidField && typeof firstInvalidField.focus === 'function') {
+                        firstInvalidField.focus();
+                    }
+                    return;
+                }
+
                 var value = parseInt(hiddenInput.value || '0', 10);
                 if (!value || value <= 0) {
                     event.preventDefault();
-                    displayInput.setCustomValidity('Jumlah pinjaman wajib lebih besar dari 0.');
-                    displayInput.reportValidity();
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Jumlah Pinjaman Tidak Valid',
+                            text: 'Jumlah pinjaman wajib lebih besar dari 0.',
+                            confirmButtonText: 'OK',
+                            confirmButtonColor: '#f59e0b'
+                        });
+                    }
+                    displayInput.focus();
                     return;
                 }
-                displayInput.setCustomValidity('');
             });
 
             syncValue();
@@ -1297,6 +1468,34 @@ foreach ($gadaiList as $row) {
                 year: 'numeric',
                 hour: '2-digit',
                 minute: '2-digit'
+            });
+        }
+
+        function showRealtimeSweetAlert(inbox) {
+            if (typeof Swal === 'undefined' || !inbox || !Array.isArray(inbox.items)) {
+                return;
+            }
+
+            var previewItems = inbox.items.slice(0, 3).map(function (item) {
+                return '<li style="margin-bottom:4px;">'
+                    + '<strong>' + escapeHtml(item.subject) + '</strong><br>'
+                    + '<span>' + escapeHtml(item.preview) + '</span>'
+                    + '</li>';
+            }).join('');
+
+            var extraCount = inbox.items.length > 3 ? (inbox.items.length - 3) : 0;
+            var extraText = extraCount > 0 ? '<div style="margin-top:4px;">+' + String(extraCount) + ' update lainnya</div>' : '';
+
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'info',
+                title: 'Update verifikasi baru',
+                html: '<ul style="padding-left:18px;margin:6px 0 0 0;text-align:left;">' + previewItems + '</ul>' + extraText,
+                showConfirmButton: false,
+                timer: 9000,
+                timerProgressBar: true,
+                width: 440
             });
         }
 
@@ -1405,6 +1604,7 @@ foreach ($gadaiList as $row) {
                 var inbox = buildRealtimeInbox(previousSnapshot, currentSnapshot || {});
                 if (inbox) {
                     showRealtimeAlert(inbox);
+                    showRealtimeSweetAlert(inbox);
                 }
 
                 sessionStorage.setItem(snapshotKey, JSON.stringify(currentSnapshot || {}));
@@ -1504,11 +1704,24 @@ foreach ($gadaiList as $row) {
         }
 
         window.addEventListener('beforeunload', saveState);
+        showCustomerFlashNotification();
         restoreState();
         setupRupiahInputFormatting();
         syncRealtimeAlert(liveSnapshot);
         setInterval(fetchRealtimeData, 20000);
     })();
+
+    document.addEventListener('DOMContentLoaded', function () {
+        bindSubmitLoading('form input[name="action"][value="customer_submit_pinjaman"]', {
+            title: 'Mengirim Pengajuan',
+            text: 'Mohon tunggu, data pinjaman sedang dikirim.'
+        });
+
+        bindSubmitLoading('form input[name="action"][value="customer_request_naik_pinjaman"]', {
+            title: 'Mengirim Request',
+            text: 'Mohon tunggu, request naik pinjaman sedang diproses.'
+        });
+    });
 </script>
 
 <div class="modal fade" id="customerDetailModal" tabindex="-1" aria-hidden="true">
