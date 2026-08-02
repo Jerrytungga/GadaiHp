@@ -35,6 +35,30 @@ function logResult($step, $status, $message, $details = '') {
     ];
 }
 
+function columnExists(mysqli $mysqli, string $table, string $column): bool {
+    $table = $mysqli->real_escape_string($table);
+    $column = $mysqli->real_escape_string($column);
+    $result = $mysqli->query("SELECT COUNT(*) AS total FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = '{$table}' AND column_name = '{$column}'");
+    $row = $result ? $result->fetch_assoc() : null;
+    return !empty($row['total']);
+}
+
+function constraintExists(mysqli $mysqli, string $table, string $constraintName): bool {
+    $table = $mysqli->real_escape_string($table);
+    $constraintName = $mysqli->real_escape_string($constraintName);
+    $result = $mysqli->query("SELECT COUNT(*) AS total FROM information_schema.table_constraints WHERE table_schema = DATABASE() AND table_name = '{$table}' AND constraint_name = '{$constraintName}'");
+    $row = $result ? $result->fetch_assoc() : null;
+    return !empty($row['total']);
+}
+
+function indexExists(mysqli $mysqli, string $table, string $indexName): bool {
+    $table = $mysqli->real_escape_string($table);
+    $indexName = $mysqli->real_escape_string($indexName);
+    $result = $mysqli->query("SELECT COUNT(*) AS total FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = '{$table}' AND index_name = '{$indexName}'");
+    $row = $result ? $result->fetch_assoc() : null;
+    return !empty($row['total']);
+}
+
 // ============================================
 // STEP 1: Connect to MySQL (without database)
 // ============================================
@@ -107,13 +131,13 @@ $sql_data_gadai = "CREATE TABLE IF NOT EXISTS `data_gadai` (
   `lama_gadai` int(11) DEFAULT 30,
   `tanggal_gadai` date NOT NULL,
   `tanggal_jatuh_tempo` date NOT NULL,
-  `status` enum('Pending','Disetujui','Ditolak','Lunas','Diperpanjang','Jatuh Tempo','Gagal Tebus','Barang Dijual') DEFAULT 'Pending',
+    `status` enum('Pending','Disetujui','Ditolak','Lunas','Diperpanjang','Jatuh Tempo','Gagal Tebus','Barang Dijual','Siap Dijual','Terjual') DEFAULT 'Pending',
   `foto_ktp` varchar(255) DEFAULT NULL,
   `foto_barang` varchar(255) DEFAULT NULL,
   `foto_tambahan` varchar(255) DEFAULT NULL,
   `catatan_admin` text DEFAULT NULL,
   `alasan_penolakan` text DEFAULT NULL,
-  `tanggal_verifikasi` timestamp NULL DEFAULT NULL,
+    `verified_at` timestamp NULL DEFAULT NULL,
   `verified_by` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -319,6 +343,73 @@ try {
     logResult(12, true, "Optimasi tabel selesai", "All tables optimized");
 } catch (Exception $e) {
     logResult(12, false, "Optimasi tabel gagal", $e->getMessage());
+}
+
+// ============================================
+// STEP 13: Create Customer Master Table & Link
+// ============================================
+$sql_customers = "CREATE TABLE IF NOT EXISTS `customers` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `nama` varchar(100) NOT NULL,
+  `nik` varchar(16) NOT NULL,
+  `no_wa` varchar(20) DEFAULT NULL,
+  `alamat` text DEFAULT NULL,
+  `email` varchar(100) DEFAULT NULL,
+    `password` varchar(255) DEFAULT NULL,
+    `is_active` tinyint(1) NOT NULL DEFAULT 1,
+    `last_login` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_customers_nik` (`nik`),
+  KEY `idx_customers_nama` (`nama`),
+    KEY `idx_customers_no_wa` (`no_wa`),
+    KEY `idx_customers_is_active` (`is_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+
+try {
+    $mysqli->query($sql_customers);
+
+    if (!columnExists($mysqli, 'data_gadai', 'customer_id')) {
+        $mysqli->query("ALTER TABLE `data_gadai` ADD COLUMN `customer_id` int(11) DEFAULT NULL AFTER `nik`");
+    }
+
+    if (!columnExists($mysqli, 'customers', 'password')) {
+        $mysqli->query("ALTER TABLE `customers` ADD COLUMN `password` varchar(255) DEFAULT NULL AFTER `email`");
+    }
+
+    if (!columnExists($mysqli, 'customers', 'is_active')) {
+        $mysqli->query("ALTER TABLE `customers` ADD COLUMN `is_active` tinyint(1) NOT NULL DEFAULT 1 AFTER `password`");
+    }
+
+    if (!columnExists($mysqli, 'customers', 'last_login')) {
+        $mysqli->query("ALTER TABLE `customers` ADD COLUMN `last_login` timestamp NULL DEFAULT NULL AFTER `is_active`");
+    }
+
+    if (!indexExists($mysqli, 'data_gadai', 'idx_customer_id')) {
+        $mysqli->query("ALTER TABLE `data_gadai` ADD KEY `idx_customer_id` (`customer_id`)");
+    }
+
+    if (!columnExists($mysqli, 'data_gadai', 'customer_id')) {
+        throw new Exception('Kolom customer_id gagal dibuat.');
+    }
+
+    if (!constraintExists($mysqli, 'data_gadai', 'fk_data_gadai_customer')) {
+        if (!columnExists($mysqli, 'data_gadai', 'customer_id')) {
+            throw new Exception('Kolom customer_id belum tersedia untuk foreign key.');
+        }
+    }
+
+    $mysqli->query("INSERT IGNORE INTO customers (nama, nik, no_wa, alamat) SELECT nama, nik, no_wa, alamat FROM data_gadai WHERE nik IS NOT NULL AND nik <> ''");
+    $mysqli->query("UPDATE data_gadai dg INNER JOIN customers c ON c.nik = dg.nik SET dg.customer_id = c.id WHERE dg.customer_id IS NULL OR dg.customer_id = 0");
+
+    if (!constraintExists($mysqli, 'data_gadai', 'fk_data_gadai_customer')) {
+        $mysqli->query("ALTER TABLE `data_gadai` ADD CONSTRAINT `fk_data_gadai_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers`(`id`) ON UPDATE CASCADE ON DELETE SET NULL");
+    }
+
+    logResult(13, true, "Tabel customer dibuat dan relasi disambungkan", "Backfill customer_id dari data gadai lama selesai");
+} catch (Exception $e) {
+    logResult(13, false, "GAGAL membuat tabel customer", $e->getMessage());
 }
 
 show_results:

@@ -1,5 +1,62 @@
 <?php
 
+if (!function_exists('gadai_parse_catatan_admin')) {
+    function gadai_parse_catatan_admin(?string $raw): array {
+        $text = trim((string)$raw);
+        if ($text === '') {
+            return ['kelengkapan' => '', 'catatan' => ''];
+        }
+
+        $kelengkapan = '';
+        $catatanParts = [];
+        $lines = preg_split('/\R+/', $text) ?: [];
+        foreach ($lines as $line) {
+            $line = trim((string)$line);
+            if ($line === '') {
+                continue;
+            }
+
+            if (stripos($line, 'Kelengkapan Barang:') === 0) {
+                $kelengkapan = trim((string)substr($line, strlen('Kelengkapan Barang:')));
+                continue;
+            }
+
+            if (stripos($line, 'Catatan Admin:') === 0) {
+                $catatan = trim((string)substr($line, strlen('Catatan Admin:')));
+                if ($catatan !== '') {
+                    $catatanParts[] = $catatan;
+                }
+                continue;
+            }
+
+            $catatanParts[] = $line;
+        }
+
+        return [
+            'kelengkapan' => $kelengkapan,
+            'catatan' => trim(implode("\n", $catatanParts)),
+        ];
+    }
+}
+
+if (!function_exists('gadai_build_catatan_admin')) {
+    function gadai_build_catatan_admin(string $kelengkapan = '', string $catatan = ''): ?string {
+        $parts = [];
+        $kelengkapan = trim($kelengkapan);
+        $catatan = trim($catatan);
+
+        if ($kelengkapan !== '') {
+            $parts[] = 'Kelengkapan Barang: ' . $kelengkapan;
+        }
+        if ($catatan !== '') {
+            $parts[] = 'Catatan Admin: ' . $catatan;
+        }
+
+        $final = trim(implode("\n", $parts));
+        return $final !== '' ? $final : null;
+    }
+}
+
 if (!function_exists('handleAdminStatusActions')) {
     function handleAdminStatusActions(PDO $db, $whatsapp, string &$message, string &$message_type): void {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['action']) || !in_array($_POST['action'], ['approve', 'reject', 'acc_pelunasan', 'acc_perpanjangan', 'manual_perpanjang'], true)) {
@@ -47,8 +104,14 @@ if (!function_exists('handleAdminStatusActions')) {
                     'denda_terakumulasi' => 0,
                 ]), 0);
 
+                $parsed = gadai_parse_catatan_admin($data_row['catatan_admin'] ?? null);
+                $catatanMerged = gadai_build_catatan_admin(
+                    (string)($parsed['kelengkapan'] ?? ''),
+                    $keterangan_admin
+                );
+
                 $update = $db->prepare("UPDATE data_gadai SET status = 'Disetujui', nilai_taksiran = ?, jumlah_disetujui = ?, total_tebus = ?, catatan_admin = ?, alasan_penolakan = NULL, verified_at = NOW(), verified_by = ?, updated_at = NOW() WHERE id = ?");
-                $update->execute([$harga_pasar, $jumlah_disetujui, $calc['total_tebus'], $keterangan_admin !== '' ? $keterangan_admin : null, $verified_by, $id]);
+                $update->execute([$harga_pasar, $jumlah_disetujui, $calc['total_tebus'], $catatanMerged, $verified_by, $id]);
 
                 $stmtFresh = $db->prepare("SELECT * FROM data_gadai WHERE id = ? LIMIT 1");
                 $stmtFresh->execute([$id]);
@@ -369,6 +432,156 @@ if (!function_exists('handleAdminManualLunasAction')) {
     }
 }
 
+if (!function_exists('handleAdminPinjamanRequestAction')) {
+    function handleAdminPinjamanRequestAction(PDO $db, $whatsapp, string &$message, string &$message_type): void {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['action']) || !in_array($_POST['action'], ['approve_pinjaman_request', 'reject_pinjaman_request'], true)) {
+            return;
+        }
+
+        $action = (string)$_POST['action'];
+        $requestId = isset($_POST['request_id']) ? (int)$_POST['request_id'] : 0;
+
+        try {
+            if ($requestId <= 0) {
+                throw new RuntimeException('Request pinjaman tidak valid.');
+            }
+
+            $request = gadai_get_pinjaman_request($db, $requestId);
+            if (!$request) {
+                throw new RuntimeException('Request pinjaman tidak ditemukan.');
+            }
+
+            if ((string)($request['status'] ?? '') !== 'Pending') {
+                throw new RuntimeException('Request ini sudah diproses.');
+            }
+
+            $reviewedBy = (isset($_SESSION) && isset($_SESSION['admin_id'])) ? (int)$_SESSION['admin_id'] : 1;
+            $adminNote = trim((string)($_POST['admin_note'] ?? ''));
+            $currentAmount = (float)($request['current_amount'] ?? 0);
+            $requestedAmount = (float)($request['requested_amount'] ?? 0);
+
+            if ($action === 'reject_pinjaman_request') {
+                if ($adminNote === '') {
+                    throw new RuntimeException('Catatan penolakan wajib diisi.');
+                }
+
+                $update = $db->prepare("UPDATE pinjaman_requests SET status = 'Ditolak', admin_note = ?, reviewed_at = NOW(), reviewed_by = ?, updated_at = NOW() WHERE id = ?");
+                $update->execute([$adminNote, $reviewedBy, $requestId]);
+
+                try {
+                    if ($whatsapp) {
+                        $notificationData = [
+                            'request_id' => $requestId,
+                            'nama' => $request['nama'] ?? '-',
+                            'no_wa' => $request['no_wa'] ?? '',
+                            'jenis_barang' => $request['jenis_barang'] ?? '',
+                            'merk_barang' => $request['merk_barang'] ?? '',
+                            'spesifikasi_barang' => $request['spesifikasi_barang'] ?? '',
+                            'barang_detail' => trim((string)(($request['merk_barang'] ?? '') . ' ' . ($request['spesifikasi_barang'] ?? ''))),
+                            'current_amount' => $currentAmount,
+                            'requested_amount' => $requestedAmount,
+                            'admin_note' => $adminNote,
+                            'reviewed_at' => date('Y-m-d H:i:s'),
+                            'status' => 'Ditolak',
+                        ];
+                        if (method_exists($whatsapp, 'notifyUserPinjamanRequestRejected')) {
+                            $whatsapp->notifyUserPinjamanRequestRejected($notificationData);
+                        }
+                        if (method_exists($whatsapp, 'notifyAdminPinjamanRequestProcessed')) {
+                            $whatsapp->notifyAdminPinjamanRequestProcessed($notificationData);
+                        }
+                    }
+                } catch (Throwable $waError) {
+                    error_log('WA pinjaman request rejection notification failed: ' . $waError->getMessage());
+                }
+
+                $message = 'Request kenaikan pinjaman #' . str_pad((string)$requestId, 6, '0', STR_PAD_LEFT) . ' ditolak.';
+                $message_type = 'success';
+                return;
+            }
+
+            $newApprovedAmount = $currentAmount + $requestedAmount;
+
+            $gadaiStmt = $db->prepare("SELECT * FROM data_gadai WHERE id = ? LIMIT 1");
+            $gadaiStmt->execute([(int)$request['gadai_id']]);
+            $gadai = $gadaiStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$gadai) {
+                throw new RuntimeException('Data gadai untuk request ini tidak ditemukan.');
+            }
+
+            if (!gadai_can_transition($gadai['status'] ?? '', $gadai['status'] ?? '')) {
+                // only validate row existence; status is handled by the customer-side filter
+            }
+
+            $parsed = gadai_parse_catatan_admin($gadai['catatan_admin'] ?? null);
+            $existingNote = trim((string)($parsed['catatan'] ?? ''));
+            $requestNote = 'Request naik pinjaman disetujui. Tambahan disetujui: Rp ' . number_format($requestedAmount, 0, ',', '.') . '.';
+            $combinedNoteParts = [];
+            if ($existingNote !== '') {
+                $combinedNoteParts[] = $existingNote;
+            }
+            $combinedNoteParts[] = $requestNote;
+            if ($adminNote !== '') {
+                $combinedNoteParts[] = $adminNote;
+            }
+            $catatanMerged = gadai_build_catatan_admin((string)($parsed['kelengkapan'] ?? ''), trim(implode("\n", array_filter($combinedNoteParts))));
+
+            $existingDenda = !empty($gadai['denda_terakumulasi']) ? (float)$gadai['denda_terakumulasi'] : 0.0;
+            $calc = gadai_calculate_breakdown(array_merge($gadai, [
+                'jumlah_disetujui' => $newApprovedAmount,
+            ]), $existingDenda);
+
+            $db->beginTransaction();
+
+            $updateGadai = $db->prepare("UPDATE data_gadai SET jumlah_disetujui = ?, total_tebus = ?, catatan_admin = ?, updated_at = NOW() WHERE id = ?");
+            $updateGadai->execute([$newApprovedAmount, $calc['total_tebus'], $catatanMerged, (int)$request['gadai_id']]);
+
+            $updateRequest = $db->prepare("UPDATE pinjaman_requests SET status = 'Disetujui', admin_note = ?, reviewed_at = NOW(), reviewed_by = ?, updated_at = NOW() WHERE id = ?");
+            $updateRequest->execute([$adminNote !== '' ? $adminNote : $requestNote, $reviewedBy, $requestId]);
+
+            $db->commit();
+
+            try {
+                if ($whatsapp) {
+                    $processedNote = $adminNote !== '' ? $adminNote : $requestNote;
+                    $notificationData = [
+                        'request_id' => $requestId,
+                        'nama' => $gadai['nama'] ?? '-',
+                        'no_wa' => $gadai['no_wa'] ?? '',
+                        'jenis_barang' => $gadai['jenis_barang'] ?? '',
+                        'merk_barang' => $gadai['merk_barang'] ?? '',
+                        'spesifikasi_barang' => $gadai['spesifikasi_barang'] ?? '',
+                        'barang_detail' => trim((string)(($gadai['merk_barang'] ?? '') . ' ' . ($gadai['spesifikasi_barang'] ?? ''))),
+                        'current_amount' => $currentAmount,
+                        'requested_amount' => $requestedAmount,
+                        'new_approved_amount' => $newApprovedAmount,
+                        'reviewed_at' => date('Y-m-d H:i:s'),
+                        'admin_note' => $processedNote,
+                        'status' => 'Disetujui',
+                    ];
+                    if (method_exists($whatsapp, 'notifyUserPinjamanRequestApproved')) {
+                        $whatsapp->notifyUserPinjamanRequestApproved($notificationData);
+                    }
+                    if (method_exists($whatsapp, 'notifyAdminPinjamanRequestProcessed')) {
+                        $whatsapp->notifyAdminPinjamanRequestProcessed($notificationData);
+                    }
+                }
+            } catch (Throwable $waError) {
+                error_log('WA pinjaman request approval notification failed: ' . $waError->getMessage());
+            }
+
+            $message = 'Request kenaikan pinjaman #' . str_pad((string)$requestId, 6, '0', STR_PAD_LEFT) . ' disetujui.';
+            $message_type = 'success';
+        } catch (Throwable $e) {
+            if ($db instanceof PDO && $db->inTransaction()) {
+                $db->rollBack();
+            }
+            $message = 'Gagal memproses request pinjaman: ' . $e->getMessage();
+            $message_type = 'danger';
+        }
+    }
+}
+
 if (!function_exists('adminResolveBaseUrlContext')) {
     function adminResolveBaseUrlContext(): array {
         $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
@@ -471,6 +684,7 @@ if (!function_exists('adminHandleManualAddGadaiAction')) {
 
         try {
             $nama = trim((string)($_POST['nama'] ?? ''));
+            $nik_input = trim((string)($_POST['nik'] ?? ''));
             $no_wa = trim((string)($_POST['no_wa'] ?? ''));
             $alamat = trim((string)($_POST['alamat'] ?? ''));
             $jenis_barang = trim((string)($_POST['jenis_barang'] ?? ''));
@@ -488,18 +702,29 @@ if (!function_exists('adminHandleManualAddGadaiAction')) {
             $tanggal_gadai = trim((string)($_POST['tanggal_gadai'] ?? ''));
             $tanggal_jatuh_tempo = trim((string)($_POST['tanggal_jatuh_tempo'] ?? ''));
 
-            if ($nama === '' || $no_wa === '' || $alamat === '' || $jenis_barang === '' || $jumlah_pinjaman <= 0 || $tanggal_gadai === '' || $tanggal_jatuh_tempo === '') {
-                $message = 'Lengkapi field wajib (Nama, No. WhatsApp, Alamat, Jenis Barang, Jumlah Pinjaman, Tanggal).';
+            if ($nama === '' || $nik_input === '' || $no_wa === '' || $alamat === '' || $jenis_barang === '' || $jumlah_pinjaman <= 0 || $tanggal_gadai === '' || $tanggal_jatuh_tempo === '') {
+                $message = 'Lengkapi field wajib (Nama, NIK, No. WhatsApp, Alamat, Jenis Barang, Jumlah Pinjaman, Tanggal).';
                 $message_type = 'warning';
                 return;
             }
 
-            $catatan_admin = $kelengkapan_barang !== '' ? $kelengkapan_barang : null;
-            $kelengkapan_hp = $kelengkapan_barang !== '' ? $kelengkapan_barang : null;
+            $catatan_admin = $kelengkapan_barang !== '' ? ('Kelengkapan Barang: ' . $kelengkapan_barang) : null;
+            $nik = preg_replace('/\s+/', '', $nik_input);
+            if ($nik === null || $nik === '') {
+                $nik = date('ymdHis') . str_pad((string)random_int(0, 9999), 4, '0', STR_PAD_LEFT);
+            }
 
-            $baseParams = [
+            $customerId = gadai_upsert_customer($db, [
+                'nama' => $nama,
+                'nik' => $nik,
+                'no_wa' => $no_wa,
+                'alamat' => $alamat,
+            ]);
+
+            $paramsFull = [
+                $customerId,
                 $nama,
-                null,
+                $nik,
                 $no_wa,
                 $alamat,
                 $jenis_barang,
@@ -508,6 +733,26 @@ if (!function_exists('adminHandleManualAddGadaiAction')) {
                 $kondisi_barang,
                 $nilai_taksiran,
                 $jumlah_pinjaman,
+                $jumlah_pinjaman,
+                $bunga,
+                $lama_gadai,
+                $tanggal_gadai,
+                $tanggal_jatuh_tempo,
+                $catatan_admin,
+            ];
+
+            $paramsFallback = [
+                $nama,
+                $nik,
+                $no_wa,
+                $alamat,
+                $jenis_barang,
+                ($merk_barang !== '' ? $merk_barang : null),
+                ($spesifikasi_barang !== '' ? $spesifikasi_barang : null),
+                $kondisi_barang,
+                $nilai_taksiran,
+                $jumlah_pinjaman,
+                $jumlah_pinjaman,
                 $bunga,
                 $lama_gadai,
                 $tanggal_gadai,
@@ -515,22 +760,22 @@ if (!function_exists('adminHandleManualAddGadaiAction')) {
             ];
 
             $sqlFull = "INSERT INTO data_gadai (
-                nama, nik, no_wa, alamat, jenis_barang, merk_barang, spesifikasi_barang,
-                kondisi_barang, nilai_taksiran, jumlah_pinjaman, bunga, lama_gadai,
-                tanggal_gadai, tanggal_jatuh_tempo, status, catatan_admin, kelengkapan_hp
+                customer_id, nama, nik, no_wa, alamat, jenis_barang, merk_barang, spesifikasi_barang,
+                kondisi_barang, nilai_taksiran, jumlah_pinjaman, jumlah_disetujui, bunga, lama_gadai,
+                tanggal_gadai, tanggal_jatuh_tempo, status, catatan_admin
             ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?,
-                ?, ?, 'Disetujui', ?, ?
+                ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?,
+                ?, ?, 'Disetujui', ?
             )";
 
             $sqlFallback = "INSERT INTO data_gadai (
                 nama, nik, no_wa, alamat, jenis_barang, merk_barang, spesifikasi_barang,
-                kondisi_barang, nilai_taksiran, jumlah_pinjaman, bunga, lama_gadai,
+                kondisi_barang, nilai_taksiran, jumlah_pinjaman, jumlah_disetujui, bunga, lama_gadai,
                 tanggal_gadai, tanggal_jatuh_tempo, status
             ) VALUES (
                 ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?,
                 ?, ?, 'Disetujui'
             )";
 
@@ -538,20 +783,15 @@ if (!function_exists('adminHandleManualAddGadaiAction')) {
             $inserted = false;
             while (!$inserted && $attempts < 3) {
                 $attempts++;
-                $nik = date('ymdHis') . str_pad((string)random_int(0, 9999), 4, '0', STR_PAD_LEFT);
-
-                $paramsFull = $baseParams;
-                $paramsFull[1] = $nik;
-
                 try {
                     $stmt = $db->prepare($sqlFull);
-                    $stmt->execute(array_merge($paramsFull, [$catatan_admin, $kelengkapan_hp]));
+                    $stmt->execute($paramsFull);
                     $inserted = true;
                 } catch (PDOException $e) {
                     $msg = $e->getMessage();
                     if (stripos($msg, 'Unknown column') !== false) {
                         $stmt = $db->prepare($sqlFallback);
-                        $stmt->execute($paramsFull);
+                        $stmt->execute($paramsFallback);
                         $inserted = true;
                     } elseif (stripos($msg, 'Duplicate') !== false || stripos($msg, 'duplicate') !== false) {
                         $inserted = false;

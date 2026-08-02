@@ -1535,6 +1535,46 @@
   box-shadow: 0 6px 20px rgba(0, 86, 179, 0.4);
 }
 
+.auth-cta {
+  font-family: 'Raleway', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  border-radius: 999px;
+  padding: 12px 22px;
+  box-shadow: 0 6px 18px rgba(0, 86, 179, 0.12);
+}
+
+.auth-cta-primary {
+  background: linear-gradient(135deg, #0056b3, #0d6efd);
+  border: none;
+  color: #ffffff;
+}
+
+.auth-cta-primary:hover {
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(0, 86, 179, 0.22);
+}
+
+.auth-cta-outline {
+  border: 2px solid #0056b3;
+  color: #0056b3;
+  background: #ffffff;
+}
+
+.auth-cta-outline:hover {
+  background: #0056b3;
+  color: #ffffff;
+  transform: translateY(-2px);
+}
+
+.auth-quick-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+}
+
 .badge-cod {
   font-size: 0.9rem;
   padding: 8px 15px;
@@ -1795,6 +1835,15 @@
     font-size: 0.95rem !important;
     padding: 12px 25px !important;
     width: 100%;
+  }
+
+  .auth-cta {
+    width: 100%;
+    text-align: center;
+  }
+
+  .auth-quick-links {
+    flex-direction: column;
   }
   
   .badge-cod {
@@ -2201,10 +2250,14 @@
               </li>
             </ul>
             <div class="d-flex">
-              <span class="navbar-text">
-                <b>GADAI CEPAT TIMIKA</b>
-                <!-- <a href="login.php" rel="noopener noreferrer">Login</a> -->
-              </span>
+              <div class="d-flex flex-column align-items-lg-end gap-2">
+                <span class="navbar-text text-center text-lg-end">
+                  <b>GADAI CEPAT TIMIKA</b>
+                </span>
+                <div class="d-flex flex-wrap justify-content-center justify-content-lg-end gap-2">
+                  <a href="login.php" class="btn btn-sm auth-cta auth-cta-primary">Login</a>
+                </div>
+              </div>
             </div>
           </div>
         </div>

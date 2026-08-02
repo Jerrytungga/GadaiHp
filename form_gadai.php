@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once 'database.php';
+require_once 'gadai_helpers.php';
 require_once 'whatsapp_helper.php';
 
 // Proses form jika ada submit
@@ -51,24 +52,51 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         // Gabungkan tipe dan imei_serial menjadi spesifikasi_barang
         $spesifikasi_barang = trim($tipe . ($imei_serial ? ' (IMEI: ' . $imei_serial . ')' : ''));
+        $catatan_admin = $kelengkapan_hp !== '' ? 'Kelengkapan Barang: ' . $kelengkapan_hp : null;
+        $customer_id = gadai_upsert_customer($db, [
+            'nama' => $nama_nasabah,
+            'nik' => $no_ktp,
+            'no_wa' => $no_hp,
+            'alamat' => $alamat,
+        ]);
         
         // Insert ke database
         $sql = "INSERT INTO data_gadai (
-            nama, nik, no_wa, alamat, jenis_barang, merk_barang, spesifikasi_barang, 
+            customer_id, nama, nik, no_wa, alamat, jenis_barang, merk_barang, spesifikasi_barang, 
             kondisi_barang, nilai_taksiran, jumlah_pinjaman, bunga, 
             lama_gadai, tanggal_gadai, tanggal_jatuh_tempo, foto_barang, foto_ktp, 
-            kelengkapan_hp, imei_serial, status
+            catatan_admin, status
         ) VALUES (
             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending'
         )";
+
+        $sqlFallback = "INSERT INTO data_gadai (
+            nama, nik, no_wa, alamat, jenis_barang, merk_barang, spesifikasi_barang,
+            kondisi_barang, nilai_taksiran, jumlah_pinjaman, bunga,
+            lama_gadai, tanggal_gadai, tanggal_jatuh_tempo, foto_barang, foto_ktp,
+            catatan_admin, status
+        ) VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending'
+        )";
         
-        $stmt = $db->prepare($sql);
-        $stmt->execute([
-            $nama_nasabah, $no_ktp, $no_hp, $alamat, $jenis_barang, $merk, $spesifikasi_barang,
+        $params = [
+            $customer_id, $nama_nasabah, $no_ktp, $no_hp, $alamat, $jenis_barang, $merk, $spesifikasi_barang,
             $kondisi, $harga_pasar, $jumlah_pinjaman, $bunga,
             $lama_gadai, $tanggal_gadai, $tanggal_jatuh_tempo, $foto_barang, $foto_ktp,
-            $kelengkapan_hp, $imei_serial
-        ]);
+            $catatan_admin
+        ];
+
+        try {
+            $stmt = $db->prepare($sql);
+            $stmt->execute($params);
+        } catch (PDOException $e) {
+            if (stripos($e->getMessage(), 'Unknown column') !== false) {
+                $stmt = $db->prepare($sqlFallback);
+                $stmt->execute(array_slice($params, 1));
+            } else {
+                throw $e;
+            }
+        }
         
         $no_transaksi = $db->lastInsertId();
         $success_message = "Pengajuan gadai berhasil dikirim! Nomor Registrasi: #" . str_pad($no_transaksi, 6, '0', STR_PAD_LEFT) . ". Mohon tunggu verifikasi admin.";
@@ -110,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             error_log("WhatsApp user notification failed: " . $e->getMessage());
         }
         
-    } catch(PDOException $e) {
+    } catch(Throwable $e) {
         $error_message = "Error: " . $e->getMessage();
     }
 }

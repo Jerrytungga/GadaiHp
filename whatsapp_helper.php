@@ -321,6 +321,112 @@ class WhatsAppHelper {
     }
 
     /**
+     * Notifikasi request naik pinjaman dibuat (ke Admin)
+     */
+    public function notifyAdminPinjamanRequest($data) {
+        $message = "⬆️ *REQUEST NAIK PINJAMAN BARU*\n\n";
+        $message .= "📋 Request: #" . str_pad((string)($data['request_id'] ?? 0), 6, '0', STR_PAD_LEFT) . "\n";
+        $message .= "📋 No. Registrasi: #" . str_pad((string)($data['gadai_id'] ?? 0), 6, '0', STR_PAD_LEFT) . "\n";
+        $message .= "👤 Nama: " . ($data['nama'] ?? '-') . "\n";
+        $item = trim((string)(($data['merk_barang'] ?? '') . ' ' . ($data['spesifikasi_barang'] ?? '')));
+        $message .= "📱 Barang: " . (!empty($data['jenis_barang']) ? $data['jenis_barang'] : '-') . (!empty($item) ? " - {$item}" : '') . "\n";
+        $message .= "💰 Pinjaman Saat Ini: Rp " . number_format((float)($data['current_amount'] ?? 0), 0, ',', '.') . "\n";
+        $message .= "➕ Request Tambahan: Rp " . number_format((float)($data['requested_amount'] ?? 0), 0, ',', '.') . "\n";
+        $message .= "🎯 Batas Tambahan: Rp " . number_format((float)($data['max_additional'] ?? 0), 0, ',', '.') . "\n";
+        if (!empty($data['alasan'])) {
+            $message .= "📝 Alasan: " . $data['alasan'] . "\n";
+        }
+        $message .= "\nBuka panel admin untuk proses verifikasi.\n";
+        $message .= $this->getBaseUrl() . "/GadaiHp/admin_verifikasi.php";
+
+        return $this->sendMessage($this->sender_number, $message);
+    }
+
+    /**
+     * Notifikasi ke user saat request naik pinjaman terkirim
+     */
+    public function notifyUserPinjamanRequestReceived($data) {
+        $message = "🔔 *REQUEST NAIK PINJAMAN DITERIMA*\n\n";
+        $message .= "Halo " . ($data['nama'] ?? '-') . ",\n\n";
+        $message .= "Request kenaikan pinjaman Anda sudah kami terima dan sedang menunggu verifikasi admin.\n\n";
+        $message .= "📋 *Request:* #" . str_pad((string)($data['request_id'] ?? 0), 6, '0', STR_PAD_LEFT) . "\n";
+        $message .= "📱 *Barang:* " . (!empty($data['jenis_barang']) ? $data['jenis_barang'] : '-') . (!empty($data['barang_detail']) ? ' - ' . $data['barang_detail'] : '') . "\n";
+        $message .= "💰 *Pinjaman Saat Ini:* Rp " . number_format((float)($data['current_amount'] ?? 0), 0, ',', '.') . "\n";
+        $message .= "➕ *Request Tambahan:* Rp " . number_format((float)($data['requested_amount'] ?? 0), 0, ',', '.') . "\n";
+        $message .= "🎯 *Batas Tambahan:* Rp " . number_format((float)($data['max_additional'] ?? 0), 0, ',', '.') . "\n";
+        if (!empty($data['alasan'])) {
+            $message .= "📝 *Alasan:* " . $data['alasan'] . "\n";
+        }
+        $message .= "\nKami akan mengabari Anda setelah request diproses admin.\n";
+        $message .= "Jika ada pertanyaan, hubungi: 0858-2309-1908";
+
+        return $this->sendMessage($data['no_wa'], $message);
+    }
+
+    /**
+     * Notifikasi ke user saat request naik pinjaman disetujui
+     */
+    public function notifyUserPinjamanRequestApproved($data) {
+        $message = "✅ *REQUEST NAIK PINJAMAN DISETUJUI*\n\n";
+        $message .= "Halo " . ($data['nama'] ?? '-') . ",\n\n";
+        $message .= "Request kenaikan pinjaman Anda telah disetujui admin.\n\n";
+        $message .= "📋 *Request:* #" . str_pad((string)($data['request_id'] ?? 0), 6, '0', STR_PAD_LEFT) . "\n";
+        $message .= "📱 *Barang:* " . (!empty($data['jenis_barang']) ? $data['jenis_barang'] : '-') . (!empty($data['barang_detail']) ? ' - ' . $data['barang_detail'] : '') . "\n";
+        $message .= "💰 *Pinjaman Saat Ini:* Rp " . number_format((float)($data['current_amount'] ?? 0), 0, ',', '.') . "\n";
+        $message .= "➕ *Tambahan Disetujui:* Rp " . number_format((float)($data['requested_amount'] ?? 0), 0, ',', '.') . "\n";
+        $message .= "💵 *Pinjaman Baru:* Rp " . number_format((float)($data['new_approved_amount'] ?? 0), 0, ',', '.') . "\n";
+        if (!empty($data['reviewed_at'])) {
+            $message .= "🕒 *Diproses:* " . date('d F Y H:i', strtotime((string)$data['reviewed_at'])) . "\n";
+        }
+        if (!empty($data['admin_note'])) {
+            $message .= "📝 *Catatan Admin:* " . $data['admin_note'] . "\n";
+        }
+        $message .= "\nSilakan cek riwayat di dashboard customer Anda.\n";
+        $message .= "Jika ada pertanyaan, hubungi: 0858-2309-1908";
+
+        return $this->sendMessage($data['no_wa'], $message);
+    }
+
+    /**
+     * Notifikasi ke user saat request naik pinjaman ditolak
+     */
+    public function notifyUserPinjamanRequestRejected($data) {
+        $message = "❌ *REQUEST NAIK PINJAMAN DITOLAK*\n\n";
+        $message .= "Halo " . ($data['nama'] ?? '-') . ",\n\n";
+        $message .= "Mohon maaf, request kenaikan pinjaman Anda ditolak oleh admin.\n\n";
+        $message .= "📋 *Request:* #" . str_pad((string)($data['request_id'] ?? 0), 6, '0', STR_PAD_LEFT) . "\n";
+        $message .= "📱 *Barang:* " . (!empty($data['jenis_barang']) ? $data['jenis_barang'] : '-') . (!empty($data['barang_detail']) ? ' - ' . $data['barang_detail'] : '') . "\n";
+        $message .= "💰 *Pinjaman Saat Ini:* Rp " . number_format((float)($data['current_amount'] ?? 0), 0, ',', '.') . "\n";
+        $message .= "➕ *Request Tambahan:* Rp " . number_format((float)($data['requested_amount'] ?? 0), 0, ',', '.') . "\n";
+        if (!empty($data['reviewed_at'])) {
+            $message .= "🕒 *Diproses:* " . date('d F Y H:i', strtotime((string)$data['reviewed_at'])) . "\n";
+        }
+        if (!empty($data['admin_note'])) {
+            $message .= "📝 *Alasan / Catatan Admin:* " . $data['admin_note'] . "\n";
+        }
+        $message .= "\nAnda bisa mengajukan kembali jika ada perubahan kondisi barang atau kebutuhan lain.\n";
+        $message .= "Jika ada pertanyaan, hubungi: 0858-2309-1908";
+
+        return $this->sendMessage($data['no_wa'], $message);
+    }
+
+    /**
+     * Notifikasi ringkas ke admin setelah request diproses
+     */
+    public function notifyAdminPinjamanRequestProcessed($data) {
+        $status = !empty($data['status']) ? (string)$data['status'] : 'Diproses';
+        $message = "⬆️ *REQUEST NAIK PINJAMAN " . strtoupper($status) . "*\n\n";
+        $message .= "📋 Request: #" . str_pad((string)($data['request_id'] ?? 0), 6, '0', STR_PAD_LEFT) . "\n";
+        $message .= "👤 Nama: " . ($data['nama'] ?? '-') . "\n";
+        $message .= "📱 Barang: " . (!empty($data['jenis_barang']) ? $data['jenis_barang'] : '-') . (!empty($data['barang_detail']) ? ' - ' . $data['barang_detail'] : '') . "\n";
+        $message .= "📌 Status: " . $status . "\n";
+        if (!empty($data['admin_note'])) {
+            $message .= "📝 Catatan: " . $data['admin_note'] . "\n";
+        }
+        return $this->sendMessage($this->sender_number, $message);
+    }
+
+    /**
      * Template pesan untuk perpanjangan gadai (ke User)
      */
     public function notifyUserExtension($data, $new_due_date) {

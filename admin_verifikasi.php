@@ -3,6 +3,9 @@ require_once 'database.php';
 require_once 'whatsapp_helper.php';
 require_once 'gadai_helpers.php';
 require_once 'admin_verifikasi_actions.php';
+require_once 'auth_guard.php';
+
+gadai_require_admin();
 
 // Global message for user feedback (initialize to avoid undefined variable warnings)
 $message = '';
@@ -175,6 +178,9 @@ handleAdminUtilityActions($db, $whatsapp, $message, $message_type);
 // --- Manual pelunasan oleh admin dipindahkan ke file proses terpisah ---
 handleAdminManualLunasAction($db, $whatsapp, $message, $message_type);
 
+// --- Request kenaikan pinjaman customer ---
+handleAdminPinjamanRequestAction($db, $whatsapp, $message, $message_type);
+
 // Authentication handled by auth_check.php (included at top of file)
 
 // --- Auto: jika telat >7 hari, tandai sebagai Gagal Tebus (gagal bayar) ---
@@ -229,6 +235,13 @@ $rejected_sql = "SELECT * FROM data_gadai WHERE status = 'Ditolak' ORDER BY upda
 $rejected_stmt = $db->query($rejected_sql);
 $rejected_data = $rejected_stmt->fetchAll(PDO::FETCH_ASSOC);
 
+$pinjaman_request_pending = [];
+try {
+    $pinjaman_request_pending = gadai_get_pending_pinjaman_requests($db);
+} catch (Throwable $e) {
+    $pinjaman_request_pending = [];
+}
+
 $transaksi_table_exists = false;
 try {
     $checkTransaksiTableStmt = $db->prepare("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'transaksi'");
@@ -238,11 +251,11 @@ try {
     $transaksi_table_exists = false;
 }
 
-// Fetch all submissions (for list table) - include fields needed for search and detail view
+// Fetch all submissions (for list table) - include fields needed for search, detail view, and customer master
 $all_profit_select = $transaksi_table_exists
-    ? ", (SELECT COALESCE(SUM(t.jumlah_bayar), 0) FROM transaksi t WHERE t.barang_id = data_gadai.id AND t.keterangan LIKE 'perpanjangan%') AS total_profit_perpanjangan"
+    ? ", (SELECT COALESCE(SUM(t.jumlah_bayar), 0) FROM transaksi t WHERE t.barang_id = dg.id AND t.keterangan LIKE 'perpanjangan%') AS total_profit_perpanjangan"
     : ", 0 AS total_profit_perpanjangan";
-$all_sql = "SELECT id, nama, nik, no_wa, alamat, jenis_barang, merk_barang, spesifikasi_barang, kondisi_barang, nilai_taksiran, jumlah_pinjaman, jumlah_disetujui, bunga, lama_gadai, denda_terakumulasi, total_tebus, tanggal_gadai, tanggal_jatuh_tempo, status, catatan_admin, perpanjangan_ke, created_at, updated_at" . $all_profit_select . " FROM data_gadai ORDER BY created_at DESC";
+$all_sql = "SELECT dg.id, dg.customer_id, dg.nama, dg.nik, dg.no_wa, dg.alamat, dg.jenis_barang, dg.merk_barang, dg.spesifikasi_barang, dg.kondisi_barang, dg.nilai_taksiran, dg.jumlah_pinjaman, dg.jumlah_disetujui, dg.bunga, dg.lama_gadai, dg.denda_terakumulasi, dg.total_tebus, dg.tanggal_gadai, dg.tanggal_jatuh_tempo, dg.status, dg.catatan_admin, dg.perpanjangan_ke, dg.created_at, dg.updated_at, c.nama AS customer_nama, c.no_wa AS customer_no_wa" . $all_profit_select . " FROM data_gadai dg LEFT JOIN customers c ON c.id = dg.customer_id ORDER BY dg.created_at DESC";
 $all_stmt = $db->query($all_sql);
 $all_data = $all_stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -251,9 +264,12 @@ if ($list_search !== '') {
     $all_data = array_values(array_filter($all_data, static function (array $row) use ($needle): bool {
         $haystack = implode(' ', [
             (string)($row['id'] ?? ''),
+            (string)($row['customer_id'] ?? ''),
             (string)($row['nama'] ?? ''),
+            (string)($row['customer_nama'] ?? ''),
             (string)($row['nik'] ?? ''),
             (string)($row['no_wa'] ?? ''),
+            (string)($row['customer_no_wa'] ?? ''),
             (string)($row['alamat'] ?? ''),
             (string)($row['jenis_barang'] ?? ''),
             (string)($row['merk_barang'] ?? ''),
@@ -891,9 +907,11 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                 </div>
                 <div class="header-actions">
                     <span class="quick-chip">📅 <?php echo date('d M Y'); ?></span>
+                    <a href="admin_tools.php" class="quick-chip light text-decoration-none">🛠️ Admin Tools</a>
                     <button type="button" class="quick-chip light" data-bs-toggle="modal" data-bs-target="#addGadaiModal">➕ Input Gadai</button>
                     <button type="button" class="quick-chip" data-bs-toggle="tab" data-bs-target="#pending">⏳ Lihat Pending</button>
                     <button type="button" class="quick-chip" data-bs-toggle="tab" data-bs-target="#profit">📈 Cek Profit</button>
+                    <a href="admin_logout.php" class="quick-chip light text-decoration-none">🚪 Logout</a>
                 </div>
             </div>
         </div>
@@ -911,25 +929,25 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
         <div class="row mb-4">
             <div class="col-md-3">
                 <div class="stats-card">
-                    <div class="stats-number"><?php echo $stats['total']; ?></div>
+                    <div class="stats-number" id="rt-stats-total"><?php echo $stats['total']; ?></div>
                     <div class="stats-label">📊 Total Pengajuan</div>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="stats-card" style="border-left-color: #ffc107;">
-                    <div class="stats-number" style="color: #ff9800;"><?php echo $stats['pending']; ?></div>
+                    <div class="stats-number" style="color: #ff9800;" id="rt-stats-pending"><?php echo $stats['pending']; ?></div>
                     <div class="stats-label">⏳ Menunggu Verifikasi</div>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="stats-card" style="border-left-color: #28a745;">
-                    <div class="stats-number" style="color: #28a745;"><?php echo $stats['approved']; ?></div>
+                    <div class="stats-number" style="color: #28a745;" id="rt-stats-approved"><?php echo $stats['approved']; ?></div>
                     <div class="stats-label">✅ Disetujui</div>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="stats-card" style="border-left-color: #dc3545;">
-                    <div class="stats-number" style="color: #dc3545;"><?php echo $stats['rejected']; ?></div>
+                    <div class="stats-number" style="color: #dc3545;" id="rt-stats-rejected"><?php echo $stats['rejected']; ?></div>
                     <div class="stats-label">❌ Ditolak</div>
                 </div>
             </div>
@@ -938,13 +956,14 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
         <div class="dashboard-intro">
             <div>
                 <h5>✨ Menu cepat admin</h5>
-                <p>Pilih tab sesuai pekerjaan: verifikasi baru, cek bukti bayar, kirim reminder, atau lihat daftar gadai lengkap.</p>
+                <p>Pilih tab sesuai pekerjaan: verifikasi baru, cek bukti bayar, kirim reminder, lihat daftar gadai, atau buka master customer.</p>
             </div>
             <div class="quick-action-group">
                 <button type="button" class="btn btn-sm btn-outline-primary rounded-pill" data-bs-toggle="tab" data-bs-target="#approved">Gadai Aktif</button>
                 <button type="button" class="btn btn-sm btn-outline-success rounded-pill" data-bs-toggle="tab" data-bs-target="#pelunasan">Pelunasan</button>
                 <button type="button" class="btn btn-sm btn-outline-warning rounded-pill" data-bs-toggle="tab" data-bs-target="#reminder">Reminder</button>
                 <button type="button" class="btn btn-sm btn-outline-dark rounded-pill" data-bs-toggle="tab" data-bs-target="#list">Daftar Lengkap</button>
+                <a href="customer_list.php" class="btn btn-sm btn-outline-success rounded-pill">Customer Master</a>
             </div>
         </div>
 
@@ -952,17 +971,22 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
         <ul class="nav nav-tabs" id="myTab" role="tablist">
             <li class="nav-item" role="presentation">
                 <button class="nav-link active" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button">
-                    ⏳ Menunggu Verifikasi (<?php echo count($pending_data); ?>)
+                    ⏳ Menunggu Verifikasi (<span id="rt-tab-pending"><?php echo count($pending_data); ?></span>)
                 </button>
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="approved-tab" data-bs-toggle="tab" data-bs-target="#approved" type="button">
-                    ✅ Disetujui / Aktif (<?php echo count($approved_data); ?>)
+                    ✅ Disetujui / Aktif (<span id="rt-tab-approved"><?php echo count($approved_data); ?></span>)
                 </button>
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="rejected-tab" data-bs-toggle="tab" data-bs-target="#rejected" type="button">
-                    ❌ Ditolak (<?php echo count($rejected_data); ?>)
+                    ❌ Ditolak (<span id="rt-tab-rejected"><?php echo count($rejected_data); ?></span>)
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="pinjaman-request-tab" data-bs-toggle="tab" data-bs-target="#pinjaman-request" type="button">
+                    ⬆️ Request Naik Pinjaman (<span id="rt-tab-pinjaman-request"><?php echo count($pinjaman_request_pending); ?></span>)
                 </button>
             </li>
             <li class="nav-item" role="presentation">
@@ -997,7 +1021,7 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="list-tab" data-bs-toggle="tab" data-bs-target="#list" type="button">
-                    📋 Daftar Gadai (<?php echo count($all_data); ?>)
+                    📋 Daftar Gadai (<span id="rt-tab-list"><?php echo count($all_data); ?></span>)
                 </button>
             </li>
         </ul>
@@ -1294,6 +1318,9 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                         $total_tebus_admin = !empty($row['total_tebus']) ? (float)$row['total_tebus'] : (float)$calcAdmin['total_tebus'];
                         $biaya_perpanjangan_manual = (float)$calcAdmin['biaya_perpanjangan'];
                         $tanggal_jt_baru_preview = !empty($row['tanggal_jatuh_tempo']) ? date('d M Y', strtotime($row['tanggal_jatuh_tempo'] . ' +30 days')) : date('d M Y', strtotime('+30 days'));
+                                        $notesAdmin = gadai_parse_catatan_admin($row['catatan_admin'] ?? null);
+                                        $kelengkapan_admin = $notesAdmin['kelengkapan'] !== '' ? $notesAdmin['kelengkapan'] : '-';
+                                        $catatan_admin = $notesAdmin['catatan'] !== '' ? $notesAdmin['catatan'] : '-';
                         ?>
                         <div class="data-card approved">
                             <div class="d-flex justify-content-between align-items-start mb-3">
@@ -1355,8 +1382,8 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                             </div>
                             
                             <?php if ($row['catatan_admin']): ?>
-                                <div class="alert alert-info mt-3 mb-0" style="padding: 10px; font-size: 0.9rem;">
-                                    <strong>📝 Catatan Admin:</strong> <?php echo nl2br(htmlspecialchars($row['catatan_admin'])); ?>
+                                <div class="alert mt-3 mb-0" style="padding: 14px 16px; font-size: 0.9rem; background: linear-gradient(135deg, #fff5f5, #fffafc); border: 1px solid #f5c2c7; border-radius: 16px; box-shadow: 0 8px 18px rgba(176, 42, 55, 0.06);">
+                                    <strong style="color: #dc3545;">📝 Catatan Admin:</strong> <span style="color: #dc3545; font-weight: 600;"><?php echo nl2br(htmlspecialchars($catatan_admin)); ?></span>
                                 </div>
                             <?php endif; ?>
                             <div class="d-flex gap-2 justify-content-end mt-3 flex-wrap">
@@ -1494,6 +1521,62 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                     <strong>Alasan Penolakan:</strong> <?php echo htmlspecialchars($row['alasan_penolakan']); ?>
                                 </div>
                             <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+
+            <!-- Request Naik Pinjaman Tab -->
+            <div class="tab-pane fade" id="pinjaman-request" role="tabpanel">
+                <?php if (empty($pinjaman_request_pending)): ?>
+                    <div class="alert alert-info">Belum ada request kenaikan pinjaman yang menunggu proses.</div>
+                <?php else: ?>
+                    <?php foreach ($pinjaman_request_pending as $req): ?>
+                        <?php
+                            $barangRequest = trim((string)(($req['jenis_barang'] ?? '') . ': ' . ($req['merk_barang'] ?? '') . ' ' . ($req['spesifikasi_barang'] ?? '')));
+                            $barangRequest = trim(preg_replace('/\s+/', ' ', $barangRequest));
+                        ?>
+                        <div class="data-card approved">
+                            <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+                                <div>
+                                    <div class="no-transaksi">#<?php echo str_pad((string)$req['id'], 6, '0', STR_PAD_LEFT); ?></div>
+                                    <small class="text-muted">Diajukan: <?php echo date('d M Y H:i', strtotime($req['created_at'])); ?></small>
+                                </div>
+                                <span class="badge bg-warning text-dark">⬆️ PENDING REQUEST</span>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <div class="info-row"><span class="info-label">Nasabah</span><span class="info-value"><?php echo htmlspecialchars($req['nama'] ?? '-'); ?></span></div>
+                                    <div class="info-row"><span class="info-label">Barang</span><span class="info-value"><?php echo htmlspecialchars($barangRequest !== '' ? $barangRequest : '-'); ?></span></div>
+                                    <div class="info-row"><span class="info-label">Status Gadai</span><span class="info-value"><?php echo htmlspecialchars($req['gadai_status'] ?? '-'); ?></span></div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="info-row"><span class="info-label">Pinjaman Saat Ini</span><span class="info-value">Rp <?php echo number_format((float)($req['current_amount'] ?? 0), 0, ',', '.'); ?></span></div>
+                                    <div class="info-row"><span class="info-label">Request Tambahan</span><span class="info-value text-success">Rp <?php echo number_format((float)($req['requested_amount'] ?? 0), 0, ',', '.'); ?></span></div>
+                                    <div class="info-row"><span class="info-label">Batas Tambahan</span><span class="info-value">Rp <?php echo number_format((float)($req['max_additional'] ?? 0), 0, ',', '.'); ?></span></div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="info-row"><span class="info-label">Alasan Request</span><span class="info-value"><?php echo nl2br(htmlspecialchars($req['alasan'] ?? '-')); ?></span></div>
+                                </div>
+                            </div>
+
+                            <div class="mt-3 p-3 rounded-3" style="background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;">
+                                <strong class="d-block mb-1">Catatan Proses</strong>
+                                Request ini belum memengaruhi data pokok sebelum disetujui. Setelah approve, pinjaman aktif akan dihitung ulang dan customer menerima notifikasi WA otomatis.
+                            </div>
+
+                            <form method="POST" class="mt-3">
+                                <input type="hidden" name="request_id" value="<?php echo (int)$req['id']; ?>">
+                                <div class="mb-3">
+                                    <label class="form-label">Catatan Admin</label>
+                                    <textarea name="admin_note" class="form-control" rows="2" placeholder="Catatan untuk request ini."></textarea>
+                                </div>
+                                <div class="d-flex gap-2 justify-content-end flex-wrap">
+                                    <button type="submit" name="action" value="reject_pinjaman_request" class="btn btn-danger">Tolak Request</button>
+                                    <button type="submit" name="action" value="approve_pinjaman_request" class="btn btn-success">Setujui Request</button>
+                                </div>
+                            </form>
                         </div>
                     <?php endforeach; ?>
                 <?php endif; ?>
@@ -1785,8 +1868,8 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                             </div>
 
                             <?php if (!empty($row['catatan_admin'])): ?>
-                                <div class="alert alert-info mt-3 mb-0" style="padding:10px; font-size:0.92rem;">
-                                    <strong>📝 Catatan Internal:</strong> <?php echo nl2br(htmlspecialchars($row['catatan_admin'])); ?>
+                                <div class="alert mt-3 mb-0" style="padding:14px 16px; font-size:0.92rem; background: linear-gradient(135deg, #fff5f5, #fffafc); border: 1px solid #f5c2c7; border-radius: 16px; box-shadow: 0 8px 18px rgba(176, 42, 55, 0.06);">
+                                    <strong style="color: #dc3545;">📝 Catatan Internal:</strong> <span style="color: #dc3545; font-weight: 600;"><?php echo nl2br(htmlspecialchars($catatan_admin)); ?></span>
                                 </div>
                             <?php endif; ?>
 
@@ -2107,13 +2190,19 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
 
                                     <div class="row g-3">
                                         <div class="col-md-6">
+                                            <label class="form-label">NIK <span class="text-danger">*</span></label>
+                                            <input type="text" name="nik" id="manualNIKInput" class="form-control" required placeholder="Masukkan NIK customer">
+                                            <small id="manualNIKStatus" class="text-muted">Isi NIK untuk mencari customer terdaftar otomatis.</small>
+                                        </div>
+
+                                        <div class="col-md-6">
                                             <label class="form-label">Nama <span class="text-danger">*</span></label>
-                                            <input type="text" name="nama" class="form-control" required>
+                                            <input type="text" name="nama" id="manualNamaInput" class="form-control" required>
                                         </div>
 
                                         <div class="col-md-6">
                                             <label class="form-label">No. WhatsApp <span class="text-danger">*</span></label>
-                                            <input type="text" name="no_wa" class="form-control" required>
+                                            <input type="text" name="no_wa" id="manualNoWaInput" class="form-control" required>
                                         </div>
                                         <div class="col-md-6">
                                             <label class="form-label">Jenis Barang <span class="text-danger">*</span></label>
@@ -2122,7 +2211,7 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
 
                                         <div class="col-12">
                                             <label class="form-label">Alamat <span class="text-danger">*</span></label>
-                                            <textarea name="alamat" class="form-control" rows="2" required></textarea>
+                                            <textarea name="alamat" id="manualAlamatInput" class="form-control" rows="2" required></textarea>
                                         </div>
 
                                         <div class="col-md-4">
@@ -2215,6 +2304,7 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                 <tr>
                                     <th>No</th>
                                     <th>Nama</th>
+                                    <th>Customer</th>
                                     <th>No Hp</th>
                                     <th>Merek Hp</th>
                                     <th>Kelengkapan</th>
@@ -2233,7 +2323,11 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                     <?php
                                         // Determine principal: approved amount if present, otherwise requested
                                         $pengajuan_list = (float)($row['jumlah_pinjaman'] ?? 0);
+                                        $status_value = (string)($row['status'] ?? '-');
                                         $disetujui_list = !empty($row['jumlah_disetujui']) ? (float)$row['jumlah_disetujui'] : null;
+                                        if ($disetujui_list === null && in_array($status_value, ['Disetujui', 'Diperpanjang', 'Lunas'], true)) {
+                                            $disetujui_list = $pengajuan_list;
+                                        }
                                         $denda_info_list = gadai_calculate_denda($row['tanggal_jatuh_tempo'] ?? null, $row['denda_terakumulasi'] ?? 0);
                                         $calcList = calculateGadaiBreakdown($row, $denda_info_list['denda']);
                                         $pokok = $calcList['pokok'];
@@ -2252,13 +2346,12 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                             $note = (string)$row['catatan_admin'];
                                             $prefix = 'Kelengkapan Barang:';
                                             if (stripos($note, $prefix) === 0) {
-                                                $kelengkapan = trim(substr($note, strlen($prefix)));
-                                            } else {
-                                                $kelengkapan = $note;
+                                                $lines = preg_split('/\R+/', $note) ?: [];
+                                                $firstLine = trim((string)($lines[0] ?? ''));
+                                                $kelengkapan = trim((string)substr($firstLine, strlen($prefix)));
                                             }
                                         }
 
-                                        $status_value = (string)($row['status'] ?? '-');
                                         $status_badge = 'bg-secondary';
                                         if ($status_value === 'Pending') {
                                             $status_badge = 'bg-warning text-dark';
@@ -2277,6 +2370,12 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                     <tr>
                                         <td><?php echo $index + 1; ?></td>
                                         <td><?php echo htmlspecialchars($row['nama']); ?></td>
+                                        <td>
+                                            <div><strong><?php echo htmlspecialchars($row['customer_nama'] ?? $row['nama']); ?></strong></div>
+                                            <small class="text-muted">
+                                                ID Customer: <?php echo !empty($row['customer_id']) ? (int)$row['customer_id'] : '-'; ?>
+                                            </small>
+                                        </td>
                                         <td><?php echo htmlspecialchars($row['no_wa']); ?></td>
                                         <td><?php echo htmlspecialchars($row['merk_barang']); ?></td>
                                         <td><?php echo htmlspecialchars($kelengkapan !== '' ? $kelengkapan : '-'); ?></td>
@@ -2333,6 +2432,7 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                                         <div class="modal-body">
                                                             <div class="detail-grid">
                                                                 <div class="detail-item"><span class="detail-label">Nama</span><div class="detail-value"><?php echo htmlspecialchars($row['nama'] ?? '-'); ?></div></div>
+                                                                <div class="detail-item"><span class="detail-label">Customer Master</span><div class="detail-value"><?php echo htmlspecialchars(($row['customer_nama'] ?? $row['nama'] ?? '-') . (!empty($row['customer_id']) ? ' (#' . $row['customer_id'] . ')' : '')); ?></div></div>
                                                                 <div class="detail-item"><span class="detail-label">NIK</span><div class="detail-value"><?php echo htmlspecialchars($row['nik'] ?? '-'); ?></div></div>
                                                                 <div class="detail-item"><span class="detail-label">No. WhatsApp</span><div class="detail-value"><?php echo htmlspecialchars($row['no_wa'] ?? '-'); ?></div></div>
                                                                 <div class="detail-item"><span class="detail-label">Alamat</span><div class="detail-value"><?php echo htmlspecialchars($row['alamat'] ?? '-'); ?></div></div>
@@ -2349,9 +2449,9 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                                                 <div class="detail-item"><span class="detail-label">Jatuh Tempo</span><div class="detail-value"><?php echo !empty($row['tanggal_jatuh_tempo']) ? date('d M Y', strtotime($row['tanggal_jatuh_tempo'])) : '-'; ?></div></div>
                                                             </div>
 
-                                                            <div class="detail-item mt-3">
-                                                                <span class="detail-label">Catatan Admin / Kelengkapan</span>
-                                                                <div class="detail-value"><?php echo nl2br(htmlspecialchars($row['catatan_admin'] ?? '-')); ?></div>
+                                                            <div class="detail-grid mt-3">
+                                                                <div class="detail-item"><span class="detail-label">Kelengkapan Barang</span><div class="detail-value"><?php echo nl2br(htmlspecialchars($kelengkapan_admin)); ?></div></div>
+                                                                <div class="detail-item" style="background: linear-gradient(135deg, #fff5f5, #fffafc); border: 1px solid #f5c2c7; border-radius: 14px; box-shadow: 0 8px 18px rgba(176, 42, 55, 0.06);"><span class="detail-label" style="color:#b02a37;">Catatan Admin</span><div class="detail-value" style="color:#b02a37; font-weight:600; white-space:pre-line;"><?php echo nl2br(htmlspecialchars($catatan_admin)); ?></div></div>
                                                             </div>
                                                         </div>
                                                         <div class="modal-footer">
@@ -2407,6 +2507,182 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
             } catch (e) {
                 console.error('Error restoring active tab', e);
             }
+        })();
+
+        (function () {
+            var nikInput = document.getElementById('manualNIKInput');
+            var namaInput = document.getElementById('manualNamaInput');
+            var noWaInput = document.getElementById('manualNoWaInput');
+            var alamatInput = document.getElementById('manualAlamatInput');
+            var statusEl = document.getElementById('manualNIKStatus');
+
+            if (!nikInput || !namaInput || !noWaInput || !alamatInput || !statusEl) {
+                return;
+            }
+
+            var debounceTimer = null;
+            var requestCounter = 0;
+
+            function setStatus(text, cssClass) {
+                statusEl.className = cssClass;
+                statusEl.textContent = text;
+            }
+
+            function fillFromLookup(input, value) {
+                input.value = value ? String(value) : '';
+            }
+
+            function lookupByNik(nik) {
+                requestCounter += 1;
+                var currentRequest = requestCounter;
+
+                setStatus('Mencari data customer...', 'text-info');
+
+                fetch('customer_lookup.php?nik=' + encodeURIComponent(nik), {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(function (response) {
+                    if (!response.ok) {
+                        throw new Error('Lookup gagal');
+                    }
+                    return response.json();
+                })
+                .then(function (data) {
+                    if (currentRequest !== requestCounter) {
+                        return;
+                    }
+
+                    if (data && data.success && data.found && data.customer) {
+                        fillFromLookup(namaInput, data.customer.nama || '');
+                        fillFromLookup(noWaInput, data.customer.no_wa || '');
+                        fillFromLookup(alamatInput, data.customer.alamat || '');
+                        setStatus('Customer ditemukan. Data terisi otomatis dan tetap bisa diedit.', 'text-success');
+                        return;
+                    }
+
+                    setStatus('NIK belum terdaftar. Silakan isi data customer secara manual.', 'text-warning');
+                })
+                .catch(function () {
+                    if (currentRequest !== requestCounter) {
+                        return;
+                    }
+                    setStatus('Tidak bisa menghubungi layanan pencarian customer.', 'text-danger');
+                });
+            }
+
+            nikInput.addEventListener('input', function () {
+                var nik = String(nikInput.value || '').trim();
+                if (debounceTimer) {
+                    clearTimeout(debounceTimer);
+                }
+
+                if (nik.length < 8) {
+                    setStatus('Isi NIK minimal 8 digit untuk pencarian otomatis.', 'text-muted');
+                    return;
+                }
+
+                debounceTimer = setTimeout(function () {
+                    lookupByNik(nik);
+                }, 450);
+            });
+        })();
+
+        (function () {
+            var stateKey = 'gadai_admin_dashboard_live';
+
+            function setTextById(id, value) {
+                var el = document.getElementById(id);
+                if (!el) {
+                    return;
+                }
+                el.textContent = String(value);
+            }
+
+            function applyRealtimeCounts(payload) {
+                if (!payload || !payload.success || !payload.counts) {
+                    return;
+                }
+
+                var counts = payload.counts;
+                setTextById('rt-stats-total', counts.total != null ? counts.total : 0);
+                setTextById('rt-stats-pending', counts.pending != null ? counts.pending : 0);
+                setTextById('rt-stats-approved', counts.approved != null ? counts.approved : 0);
+                setTextById('rt-stats-rejected', counts.rejected != null ? counts.rejected : 0);
+
+                setTextById('rt-tab-pending', counts.pending != null ? counts.pending : 0);
+                setTextById('rt-tab-approved', counts.approved != null ? counts.approved : 0);
+                setTextById('rt-tab-rejected', counts.rejected != null ? counts.rejected : 0);
+                setTextById('rt-tab-pinjaman-request', counts.pinjaman_request_pending != null ? counts.pinjaman_request_pending : 0);
+                setTextById('rt-tab-list', counts.total != null ? counts.total : 0);
+            }
+
+            function pollRealtimeCounts() {
+                if (document.hidden) {
+                    return;
+                }
+
+                fetch('admin_realtime_counts.php', {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(function (response) {
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(function (payload) {
+                    applyRealtimeCounts(payload);
+                })
+                .catch(function () {
+                    return;
+                });
+            }
+
+            function saveState() {
+                try {
+                    sessionStorage.setItem(stateKey + ':scrollY', String(window.scrollY || 0));
+                    var activeTab = document.querySelector('.nav-link.active[data-bs-toggle="tab"], .quick-chip.active[data-bs-toggle="tab"]');
+                    if (activeTab) {
+                        var target = activeTab.getAttribute('data-bs-target');
+                        if (target && target.charAt(0) === '#') {
+                            sessionStorage.setItem(stateKey + ':tab', target.substring(1));
+                        }
+                    }
+                } catch (e) {
+                    return;
+                }
+            }
+
+            function restoreState() {
+                try {
+                    var scrollY = parseInt(sessionStorage.getItem(stateKey + ':scrollY') || '0', 10);
+                    if (scrollY > 0) {
+                        window.scrollTo(0, scrollY);
+                    }
+
+                    var savedTab = sessionStorage.getItem(stateKey + ':tab');
+                    if (savedTab && typeof bootstrap !== 'undefined') {
+                        var trigger = document.querySelector('[data-bs-toggle="tab"][data-bs-target="#' + savedTab + '"]');
+                        if (trigger) {
+                            bootstrap.Tab.getOrCreateInstance(trigger).show();
+                        }
+                    }
+                } catch (e) {
+                    return;
+                }
+            }
+
+            document.querySelectorAll('[data-bs-toggle="tab"]').forEach(function (tabTrigger) {
+                tabTrigger.addEventListener('shown.bs.tab', saveState);
+            });
+
+            window.addEventListener('beforeunload', saveState);
+            restoreState();
+            setInterval(pollRealtimeCounts, 15000);
         })();
     </script>
 </body>

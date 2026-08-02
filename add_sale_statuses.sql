@@ -12,3 +12,7 @@ MODIFY COLUMN status ENUM(
     'Siap Dijual',
     'Terjual'
 ) DEFAULT 'Pending';
+
+-- Samakan nama kolom verifikasi yang dipakai kode aplikasi
+ALTER TABLE data_gadai
+ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP NULL DEFAULT NULL AFTER tanggal_jatuh_tempo;

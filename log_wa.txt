@@ -4888,3 +4888,421 @@ Buka detail di:
 http://172.20.10.5/GadaiHp/admin_verifikasi.php
 Response: {"detail":"success! message in queue","id":[151271168],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":833,"remaining":832,"used":1}},"requestid":443615471,"status":true,"target":["6285823091908"]}
 
+[2026-08-01 15:47:35] To: 6281241935244
+Message: Assalamualaikum JERRY CHRISTIAN,
+
+Data gadai Anda sudah dibuat dan *Disetujui*.
+
+No. Registrasi: #000001
+Barang: HP Apple iphone
+Tanggal Gadai: 01 Aug 2026
+Jatuh Tempo: 20 Aug 2026
+Pinjaman: Rp 1.200.000
+
+Cek status/riwayat di link berikut:
+http://127.0.0.1:8000/cek_status.php?no_registrasi=1
+
+Simpan pesan ini sebagai bukti transaksi.
+Terima kasih.
+Gadai Cepat Timika Papua
+WA: 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[170820589],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":936,"remaining":935,"used":1}},"requestid":624655197,"status":true,"target":["6281241935244"]}
+
+[2026-08-01 16:06:33] To: 6285823091908
+Message: 🔔 *PENGAJUAN GADAI BARU*
+
+📋 No. Registrasi: #000002
+👤 Nama: JERRY CHRISTIAN
+📱 Barang: Laptop Hp 14s
+💰 Pengajuan: Rp 1.500.000
+📞 HP: 081241935244
+
+⏳ Status: Menunggu Verifikasi
+
+Klik link untuk verifikasi:
+http://127.0.0.1:8000/GadaiHp/admin_verifikasi.php
+Response: {"detail":"success! message in queue","id":[170822087],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":935,"remaining":934,"used":1}},"requestid":624670676,"status":true,"target":["6285823091908"]}
+
+[2026-08-01 16:06:33] To: 6281241935244
+Message: 🔔 *PENGAJUAN GADAI DITERIMA (MENUNGGU VERIFIKASI)*
+
+Halo JERRY CHRISTIAN,
+
+Terima kasih telah mengajukan gadai. Pengajuan Anda telah kami terima dan akan segera diverifikasi oleh admin.
+
+📋 *No. Registrasi:* #000002
+📱 *Barang:* Laptop - Hp 14s
+
+💰 *Jumlah Pengajuan:* Rp 1.500.000
+📅 *Jatuh Tempo (estimasi):* 01 September 2026
+
+Kami akan menghubungi Anda melalui WhatsApp setelah verifikasi selesai.
+Jika ada pertanyaan, hubungi: 0858-2309-1908
+
+Hormat kami,
+Gadai Cepat Timika Papua
+Response: {"detail":"success! message in queue","id":[170822088],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":934,"remaining":933,"used":1}},"requestid":624670681,"status":true,"target":["6281241935244"]}
+
+[2026-08-01 16:08:44] To: 6281241935244
+Message: ✅ *PENGAJUAN DISETUJUI*
+
+Halo JERRY CHRISTIAN,
+
+📋 *No. Registrasi:* #000002
+📱 *Barang:* Laptop - Hp 14s
+💰 *Pengajuan:* Rp 1.500.000
+✅ *Disetujui:* Rp 1.500.000
+📅 *Jatuh Tempo:* 01 September 2026
+
+*Kelengkapan:* -
+*Kondisi:* Bekas - Baik
+*IMEI/Serial Number:* -
+
+*Rincian Pembiayaan:*
+- *Pokok pinjaman:* Rp 1.500.000
+- *Bunga:* Rp 450.000 (30% x 1 bulan)
+- *Biaya administrasi (1%):* Rp 15.000
+- *Biaya asuransi:* Rp 10.000
+
+*Perkiraan Total Yang Harus Dibayar:* Rp 1.975.000
+
+📝 *Catatan Admin:* Pastikan kelengkapan dibawa
+
+Silakan datang ke kantor kami untuk proses pencairan dana.
+
+📍 Gadai Cepat Timika Papua
+📞 WA: 0858-2309-1908
+
+
+Response: {"detail":"success! message in queue","id":[170822258],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":933,"remaining":932,"used":1}},"requestid":624671826,"status":true,"target":["6281241935244"]}
+
+[2026-08-01 16:18:58] To: 6285823091908
+Message: 🔔 *PENGAJUAN GADAI BARU*
+
+📋 No. Registrasi: #000003
+👤 Nama: JERRY CHRISTIAN
+📱 Barang: Laptop Samsung vivo
+💰 Pengajuan: Rp 3.000.000
+📞 HP: 081241935244
+
+⏳ Status: Menunggu Verifikasi
+
+Klik link untuk verifikasi:
+http://127.0.0.1:8000/GadaiHp/admin_verifikasi.php
+Response: {"detail":"success! message in queue","id":[170822875],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":932,"remaining":931,"used":1}},"requestid":624679730,"status":true,"target":["6285823091908"]}
+
+[2026-08-01 16:18:58] To: 6281241935244
+Message: 🔔 *PENGAJUAN GADAI DITERIMA (MENUNGGU VERIFIKASI)*
+
+Halo JERRY CHRISTIAN,
+
+Terima kasih telah mengajukan gadai. Pengajuan Anda telah kami terima dan akan segera diverifikasi oleh admin.
+
+📋 *No. Registrasi:* #000003
+📱 *Barang:* Laptop - Samsung vivo
+
+💰 *Jumlah Pengajuan:* Rp 3.000.000
+📅 *Jatuh Tempo (estimasi):* 01 September 2026
+
+Kami akan menghubungi Anda melalui WhatsApp setelah verifikasi selesai.
+Jika ada pertanyaan, hubungi: 0858-2309-1908
+
+Hormat kami,
+Gadai Cepat Timika Papua
+Response: {"detail":"success! message in queue","id":[170822878],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":931,"remaining":930,"used":1}},"requestid":624679737,"status":true,"target":["6281241935244"]}
+
+[2026-08-01 16:19:51] To: 6281241935244
+Message: ✅ *PENGAJUAN DISETUJUI*
+
+Halo JERRY CHRISTIAN,
+
+📋 *No. Registrasi:* #000003
+📱 *Barang:* Laptop - Samsung vivo (IMEI/Serial: 738367472893)
+💰 *Pengajuan:* Rp 3.000.000
+✅ *Disetujui:* Rp 3.000.000
+📅 *Jatuh Tempo:* 01 September 2026
+
+*Kelengkapan:* -
+*Kondisi:* Bekas - Baik
+*IMEI/Serial Number:* -
+
+*Rincian Pembiayaan:*
+- *Pokok pinjaman:* Rp 3.000.000
+- *Bunga:* Rp 900.000 (30% x 1 bulan)
+- *Biaya administrasi (1%):* Rp 30.000
+- *Biaya asuransi:* Rp 10.000
+
+*Perkiraan Total Yang Harus Dibayar:* Rp 3.940.000
+
+📝 *Catatan Admin:* Kelengkapan Barang: Lengkap
+Catatan Admin: Bwa
+
+Silakan datang ke kantor kami untuk proses pencairan dana.
+
+📍 Gadai Cepat Timika Papua
+📞 WA: 0858-2309-1908
+
+
+Response: {"detail":"success! message in queue","id":[170822923],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":930,"remaining":929,"used":1}},"requestid":624680175,"status":true,"target":["6281241935244"]}
+
+[2026-08-01 17:09:00] To: 6285823091908
+Message: ⬆️ *REQUEST NAIK PINJAMAN BARU*
+
+📋 Request: #000003
+📋 No. Registrasi: #000003
+👤 Nama: JERRY CHRISTIAN
+📱 Barang: Laptop - Samsung vivo (IMEI/Serial: 738367472893)
+💰 Pinjaman Saat Ini: Rp 4.010.000
+➕ Request Tambahan: Rp 5.000
+🎯 Batas Tambahan: Rp 190.000
+📝 Alasan: test
+
+Buka panel admin untuk proses verifikasi.
+http://127.0.0.1:8000/GadaiHp/admin_verifikasi.php
+Response: {"detail":"success! message in queue","id":[170825902],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":929,"remaining":928,"used":1}},"requestid":624718786,"status":true,"target":["6285823091908"]}
+
+[2026-08-01 17:09:00] To: 62
+Message: 🔔 *REQUEST NAIK PINJAMAN DITERIMA*
+
+Halo JERRY CHRISTIAN,
+
+Request kenaikan pinjaman Anda sudah kami terima dan sedang menunggu verifikasi admin.
+
+📋 *Request:* #000003
+📱 *Barang:* Laptop - Samsung vivo (IMEI/Serial: 738367472893)
+💰 *Pinjaman Saat Ini:* Rp 4.010.000
+➕ *Request Tambahan:* Rp 5.000
+🎯 *Batas Tambahan:* Rp 190.000
+📝 *Alasan:* test
+
+Kami akan mengabari Anda setelah request diproses admin.
+Jika ada pertanyaan, hubungi: 0858-2309-1908
+Response: {"reason":"target input invalid","requestid":624718791,"status":false,"target":"62"}
+
+[2026-08-01 17:09:39] To: 6281241935244
+Message: ✅ *REQUEST NAIK PINJAMAN DISETUJUI*
+
+Halo JERRY CHRISTIAN,
+
+Request kenaikan pinjaman Anda telah disetujui admin.
+
+📋 *Request:* #000003
+📱 *Barang:* Laptop - Samsung vivo (IMEI/Serial: 738367472893)
+💰 *Pinjaman Saat Ini:* Rp 4.010.000
+➕ *Tambahan Disetujui:* Rp 5.000
+💵 *Pinjaman Baru:* Rp 4.015.000
+🕒 *Diproses:* 01 August 2026 17:09
+📝 *Catatan Admin:* as
+
+Silakan cek riwayat di dashboard customer Anda.
+Jika ada pertanyaan, hubungi: 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[170825950],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":928,"remaining":927,"used":1}},"requestid":624719227,"status":true,"target":["6281241935244"]}
+
+[2026-08-01 17:09:40] To: 6285823091908
+Message: ⬆️ *REQUEST NAIK PINJAMAN DISETUJUI*
+
+📋 Request: #000003
+👤 Nama: JERRY CHRISTIAN
+📱 Barang: Laptop - Samsung vivo (IMEI/Serial: 738367472893)
+📌 Status: Disetujui
+📝 Catatan: as
+
+Response: {"detail":"success! message in queue","id":[170825954],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":927,"remaining":926,"used":1}},"requestid":624719236,"status":true,"target":["6285823091908"]}
+
+[2026-08-01 17:15:06] To: 6285823091908
+Message: ⬆️ *REQUEST NAIK PINJAMAN BARU*
+
+📋 Request: #000004
+📋 No. Registrasi: #000003
+👤 Nama: JERRY CHRISTIAN
+📱 Barang: Laptop - Samsung vivo (IMEI/Serial: 738367472893)
+💰 Pinjaman Saat Ini: Rp 4.015.000
+➕ Request Tambahan: Rp 5
+🎯 Batas Tambahan: Rp 185.000
+📝 Alasan: edd
+
+Buka panel admin untuk proses verifikasi.
+http://127.0.0.1:8000/GadaiHp/admin_verifikasi.php
+Response: {"detail":"success! message in queue","id":[170826398],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":926,"remaining":925,"used":1}},"requestid":624723644,"status":true,"target":["6285823091908"]}
+
+[2026-08-01 17:15:07] To: 62
+Message: 🔔 *REQUEST NAIK PINJAMAN DITERIMA*
+
+Halo JERRY CHRISTIAN,
+
+Request kenaikan pinjaman Anda sudah kami terima dan sedang menunggu verifikasi admin.
+
+📋 *Request:* #000004
+📱 *Barang:* Laptop - Samsung vivo (IMEI/Serial: 738367472893)
+💰 *Pinjaman Saat Ini:* Rp 4.015.000
+➕ *Request Tambahan:* Rp 5
+🎯 *Batas Tambahan:* Rp 185.000
+📝 *Alasan:* edd
+
+Kami akan mengabari Anda setelah request diproses admin.
+Jika ada pertanyaan, hubungi: 0858-2309-1908
+Response: {"reason":"target input invalid","requestid":624723674,"status":false,"target":"62"}
+
+[2026-08-01 17:15:18] To: 6281241935244
+Message: ✅ *REQUEST NAIK PINJAMAN DISETUJUI*
+
+Halo JERRY CHRISTIAN,
+
+Request kenaikan pinjaman Anda telah disetujui admin.
+
+📋 *Request:* #000004
+📱 *Barang:* Laptop - Samsung vivo (IMEI/Serial: 738367472893)
+💰 *Pinjaman Saat Ini:* Rp 4.015.000
+➕ *Tambahan Disetujui:* Rp 5
+💵 *Pinjaman Baru:* Rp 4.015.005
+🕒 *Diproses:* 01 August 2026 17:15
+📝 *Catatan Admin:* dd
+
+Silakan cek riwayat di dashboard customer Anda.
+Jika ada pertanyaan, hubungi: 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[170826410],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":925,"remaining":924,"used":1}},"requestid":624724166,"status":true,"target":["6281241935244"]}
+
+[2026-08-01 17:15:19] To: 6285823091908
+Message: ⬆️ *REQUEST NAIK PINJAMAN DISETUJUI*
+
+📋 Request: #000004
+👤 Nama: JERRY CHRISTIAN
+📱 Barang: Laptop - Samsung vivo (IMEI/Serial: 738367472893)
+📌 Status: Disetujui
+📝 Catatan: dd
+
+Response: {"detail":"success! message in queue","id":[170826411],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":924,"remaining":923,"used":1}},"requestid":624724190,"status":true,"target":["6285823091908"]}
+
+[2026-08-02 07:07:15] To: 6285823091908
+Message: 🔔 *PENGAJUAN GADAI BARU*
+
+📋 No. Registrasi: #000004
+👤 Nama: JERRY CHRISTIAN
+📱 Barang: dfasd asdasd sdasd
+💰 Pengajuan: Rp 1.500.000
+📞 HP: 081241935244
+
+⏳ Status: Menunggu Verifikasi
+
+Klik link untuk verifikasi:
+http://127.0.0.1:8000/GadaiHp/admin_verifikasi.php
+Response: {"detail":"success! message in queue","id":[170899857],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":922,"remaining":921,"used":1}},"requestid":625419426,"status":true,"target":["6285823091908"]}
+
+[2026-08-02 07:07:15] To: 6281241935244
+Message: 🔔 *PENGAJUAN GADAI DITERIMA (MENUNGGU VERIFIKASI)*
+
+Halo JERRY CHRISTIAN,
+
+Terima kasih telah mengajukan gadai. Pengajuan Anda telah kami terima dan akan segera diverifikasi oleh admin.
+
+📋 *No. Registrasi:* #000004
+📱 *Barang:* dfasd - asdasd sdasd
+
+💰 *Jumlah Pengajuan:* Rp 1.500.000
+📅 *Jatuh Tempo (estimasi):* 02 September 2026
+
+Kami akan menghubungi Anda melalui WhatsApp setelah verifikasi selesai.
+Jika ada pertanyaan, hubungi: 0858-2309-1908
+
+Hormat kami,
+Gadai Cepat Timika Papua
+Response: {"detail":"success! message in queue","id":[170899861],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":921,"remaining":920,"used":1}},"requestid":625419432,"status":true,"target":["6281241935244"]}
+
+[2026-08-02 07:08:17] To: 6281241935244
+Message: ✅ *PENGAJUAN DISETUJUI*
+
+Halo JERRY CHRISTIAN,
+
+📋 *No. Registrasi:* #000004
+📱 *Barang:* dfasd - asdasd sdasd (IMEI: 12312312)
+💰 *Pengajuan:* Rp 1.500.000
+✅ *Disetujui:* Rp 1.500.000
+📅 *Jatuh Tempo:* 02 September 2026
+
+*Kelengkapan:* -
+*Kondisi:* Bekas - Baik
+*IMEI/Serial Number:* -
+
+*Rincian Pembiayaan:*
+- *Pokok pinjaman:* Rp 1.500.000
+- *Bunga:* Rp 450.000 (30% x 1 bulan)
+- *Biaya administrasi (1%):* Rp 15.000
+- *Biaya asuransi:* Rp 10.000
+
+*Perkiraan Total Yang Harus Dibayar:* Rp 1.975.000
+
+📝 *Catatan Admin:* Kelengkapan Barang: adasdasd
+Catatan Admin: ssad
+
+Silakan datang ke kantor kami untuk proses pencairan dana.
+
+📍 Gadai Cepat Timika Papua
+📞 WA: 0858-2309-1908
+
+
+Response: {"detail":"success! message in queue","id":[170899950],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":920,"remaining":919,"used":1}},"requestid":625420017,"status":true,"target":["6281241935244"]}
+
+[2026-08-02 07:09:25] To: 6285823091908
+Message: ⬆️ *REQUEST NAIK PINJAMAN BARU*
+
+📋 Request: #000005
+📋 No. Registrasi: #000004
+👤 Nama: JERRY CHRISTIAN
+📱 Barang: dfasd - asdasd sdasd (IMEI: 12312312)
+💰 Pinjaman Saat Ini: Rp 1.500.000
+➕ Request Tambahan: Rp 250.000
+🎯 Batas Tambahan: Rp 250.000
+📝 Alasan: asdas
+
+Buka panel admin untuk proses verifikasi.
+http://127.0.0.1:8000/GadaiHp/admin_verifikasi.php
+Response: {"detail":"success! message in queue","id":[170900047],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":919,"remaining":918,"used":1}},"requestid":625420646,"status":true,"target":["6285823091908"]}
+
+[2026-08-02 07:09:25] To: 62
+Message: 🔔 *REQUEST NAIK PINJAMAN DITERIMA*
+
+Halo JERRY CHRISTIAN,
+
+Request kenaikan pinjaman Anda sudah kami terima dan sedang menunggu verifikasi admin.
+
+📋 *Request:* #000005
+📱 *Barang:* dfasd - asdasd sdasd (IMEI: 12312312)
+💰 *Pinjaman Saat Ini:* Rp 1.500.000
+➕ *Request Tambahan:* Rp 250.000
+🎯 *Batas Tambahan:* Rp 250.000
+📝 *Alasan:* asdas
+
+Kami akan mengabari Anda setelah request diproses admin.
+Jika ada pertanyaan, hubungi: 0858-2309-1908
+Response: {"reason":"target input invalid","requestid":625420654,"status":false,"target":"62"}
+
+[2026-08-02 07:10:02] To: 6281241935244
+Message: ✅ *REQUEST NAIK PINJAMAN DISETUJUI*
+
+Halo JERRY CHRISTIAN,
+
+Request kenaikan pinjaman Anda telah disetujui admin.
+
+📋 *Request:* #000005
+📱 *Barang:* dfasd - asdasd sdasd (IMEI: 12312312)
+💰 *Pinjaman Saat Ini:* Rp 1.500.000
+➕ *Tambahan Disetujui:* Rp 250.000
+💵 *Pinjaman Baru:* Rp 1.750.000
+🕒 *Diproses:* 02 August 2026 07:10
+📝 *Catatan Admin:* dfdf
+
+Silakan cek riwayat di dashboard customer Anda.
+Jika ada pertanyaan, hubungi: 0858-2309-1908
+Response: {"detail":"success! message in queue","id":[170900113],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":918,"remaining":917,"used":1}},"requestid":625420874,"status":true,"target":["6281241935244"]}
+
+[2026-08-02 07:10:03] To: 6285823091908
+Message: ⬆️ *REQUEST NAIK PINJAMAN DISETUJUI*
+
+📋 Request: #000005
+👤 Nama: JERRY CHRISTIAN
+📱 Barang: dfasd - asdasd sdasd (IMEI: 12312312)
+📌 Status: Disetujui
+📝 Catatan: dfdf
+
+Response: {"detail":"success! message in queue","id":[170900115],"process":"pending","quota":{"085823091908":{"details":"deduced from total quota","quota":917,"remaining":916,"used":1}},"requestid":625420888,"status":true,"target":["6285823091908"]}
+

@@ -27,10 +27,24 @@ try {
     
     if (!$check) {
         echo "<p class='info'>Kolom verified_at tidak ditemukan. Menambahkan...</p>";
-        $db->exec("ALTER TABLE `data_gadai` ADD COLUMN `verified_at` timestamp NULL DEFAULT NULL AFTER `reminder_telat_last_day`");
+        $afterColumn = 'updated_at';
+        $legacyCheck = $db->query("SHOW COLUMNS FROM data_gadai LIKE 'tanggal_verifikasi'")->fetch();
+        if ($legacyCheck) {
+            $afterColumn = 'tanggal_verifikasi';
+        }
+
+        $db->exec("ALTER TABLE `data_gadai` ADD COLUMN `verified_at` timestamp NULL DEFAULT NULL AFTER `{$afterColumn}`");
         echo "<p class='success'>✓ Kolom verified_at berhasil ditambahkan!</p>";
     } else {
         echo "<p class='success'>✓ Kolom verified_at sudah ada.</p>";
+    }
+
+    // Jika masih ada kolom tanggal_verifikasi, salin nilainya ke verified_at lalu biarkan sebagai legacy column
+    $legacyDateCheck = $db->query("SHOW COLUMNS FROM data_gadai LIKE 'tanggal_verifikasi'")->fetch();
+    if ($legacyDateCheck) {
+        echo "<p class='info'>Kolom tanggal_verifikasi ditemukan. Menyalin data ke verified_at jika diperlukan...</p>";
+        $db->exec("UPDATE data_gadai SET verified_at = tanggal_verifikasi WHERE verified_at IS NULL AND tanggal_verifikasi IS NOT NULL");
+        echo "<p class='success'>✓ Data verifikasi lama sudah disalin ke verified_at.</p>";
     }
 
     // Cek kolom verified_by
@@ -75,6 +89,17 @@ try {
         echo "<p class='success'>✓ Kolom catatan_admin berhasil ditambahkan!</p>";
     } else {
         echo "<p class='success'>✓ Kolom catatan_admin sudah ada.</p>";
+    }
+
+    // Cek dan perluas status penjualan internal
+    echo "<h3>Mengecek status penjualan internal...</h3>";
+    $statusColumn = $db->query("SHOW COLUMNS FROM data_gadai LIKE 'status'")->fetch(PDO::FETCH_ASSOC);
+    if ($statusColumn && strpos($statusColumn['Type'], 'Siap Dijual') === false) {
+        echo "<p class='info'>Status penjualan belum lengkap. Menambahkan Siap Dijual dan Terjual...</p>";
+        $db->exec("ALTER TABLE `data_gadai` MODIFY COLUMN `status` ENUM('Pending','Disetujui','Ditolak','Lunas','Diperpanjang','Jatuh Tempo','Gagal Tebus','Barang Dijual','Siap Dijual','Terjual') DEFAULT 'Pending'");
+        echo "<p class='success'>✓ Status penjualan berhasil diperluas.</p>";
+    } else {
+        echo "<p class='success'>✓ Status penjualan sudah mendukung alur internal.</p>";
     }
 
     echo "<h3>Semua pengecekan selesai!</h3>";

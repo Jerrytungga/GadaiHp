@@ -1,3 +1,7 @@
+<?php
+require_once 'auth_guard.php';
+gadai_require_admin();
+?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -42,7 +46,10 @@
     <div class="container">
         <div class="header-card">
             <h1>🛠️ Admin Tools & Troubleshooting</h1>
-            <p class="text-muted mb-0">Pilih tool yang Anda butuhkan untuk setup atau troubleshoot sistem login</p>
+            <p class="text-muted mb-0">Pilih tool untuk setup, troubleshoot login, atau membuka master customer yang sudah terhubung ke pengajuan</p>
+            <div class="mt-3">
+                <a href="admin_logout.php" class="btn btn-outline-danger rounded-pill px-4">🚪 Logout Admin</a>
+            </div>
         </div>
         
         <div class="row">
@@ -139,6 +146,38 @@
                         Dashboard
                     </a>
                     <small class="text-muted d-block mt-2">Halaman setelah login berhasil</small>
+                </div>
+            </div>
+
+            <!-- Customer List -->
+            <div class="col-md-4">
+                <div class="tool-card text-center">
+                    <div class="tool-icon text-success">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <h4>Daftar Customer</h4>
+                    <p class="text-muted">Lihat master customer sederhana yang sudah terhubung ke data gadai</p>
+                    <a href="customer_list.php" class="btn btn-success w-100">
+                        <i class="fas fa-address-book me-2"></i>
+                        Buka Customer List
+                    </a>
+                    <small class="text-muted d-block mt-2">Data customer + histori gadai</small>
+                </div>
+            </div>
+
+            <!-- Customer Accounts -->
+            <div class="col-md-4">
+                <div class="tool-card text-center">
+                    <div class="tool-icon text-primary">
+                        <i class="fas fa-user-shield"></i>
+                    </div>
+                    <h4>Akun Customer</h4>
+                    <p class="text-muted">Kelola password, aktif/nonaktif, dan akses login customer</p>
+                    <a href="admin_customer_accounts.php" class="btn btn-primary w-100">
+                        <i class="fas fa-user-cog me-2"></i>
+                        Kelola Akun
+                    </a>
+                    <small class="text-muted d-block mt-2">Alur admin untuk customer login</small>
                 </div>
             </div>
             
