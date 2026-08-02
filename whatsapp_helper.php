@@ -197,7 +197,7 @@ class WhatsAppHelper {
         $message .= "📞 HP: {$data['no_wa']}\n\n";
         $message .= "⏳ Status: Menunggu Verifikasi\n\n";
         $message .= "Klik link untuk verifikasi:\n";
-        $message .= $this->getBaseUrl() . "/GadaiHp/admin_verifikasi.php";
+        $message .= $this->getBaseUrl() . "/admin_verifikasi.php";
         
         return $this->sendMessage($this->sender_number, $message);
     }
@@ -263,7 +263,7 @@ class WhatsAppHelper {
         }
 
         $message .= "\nSilakan login melalui:\n";
-        $message .= $this->getBaseUrl() . "/GadaiHp/customer_login.php\n\n";
+        $message .= $this->getBaseUrl() . "/customer_login.php\n\n";
         $message .= "Jika ada kendala, hubungi admin: 0858-2309-1908";
 
         return $this->sendMessage($data['no_wa'], $message);
@@ -290,7 +290,7 @@ class WhatsAppHelper {
         }
 
         $message .= "\nLihat data customer di panel admin:\n";
-        $message .= $this->getBaseUrl() . "/GadaiHp/customer_list.php";
+        $message .= $this->getBaseUrl() . "/customer_list.php";
 
         return $this->sendMessage($this->sender_number, $message);
     }
@@ -393,7 +393,7 @@ class WhatsAppHelper {
             $message .= "📝 Alasan: " . $data['alasan'] . "\n";
         }
         $message .= "\nBuka panel admin untuk proses verifikasi.\n";
-        $message .= $this->getBaseUrl() . "/GadaiHp/admin_verifikasi.php";
+        $message .= $this->getBaseUrl() . "/admin_verifikasi.php";
 
         return $this->sendMessage($this->sender_number, $message);
     }
@@ -508,7 +508,7 @@ class WhatsAppHelper {
         $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk_barang']} {$data['spesifikasi_barang']}\n";
         $message .= "📅 Jatuh Tempo Baru: " . date('d F Y', strtotime($new_due_date)) . "\n\n";
         $message .= "Buka detail di:\n";
-        $message .= $this->getBaseUrl() . "/GadaiHp/admin_verifikasi.php";
+        $message .= $this->getBaseUrl() . "/admin_verifikasi.php";
 
         return $this->sendMessage($this->sender_number, $message);
     }
@@ -527,12 +527,12 @@ class WhatsAppHelper {
         $message .= "\nStatus: *Menunggu ACC Admin*\n";
 
         if (!empty($buktiFile) && !empty($data['nik'])) {
-            $buktiUrl = rtrim($this->getBaseUrl(), '/') . "/GadaiHp/payment/" . rawurlencode($data['nik']) . "/" . rawurlencode($buktiFile);
+            $buktiUrl = rtrim($this->getBaseUrl(), '/') . "/payment/" . rawurlencode($data['nik']) . "/" . rawurlencode($buktiFile);
             $message .= "Bukti: " . $buktiUrl . "\n";
         }
 
         $message .= "\nBuka detail di:\n";
-        $message .= $this->getBaseUrl() . "/GadaiHp/admin_verifikasi.php";
+        $message .= $this->getBaseUrl() . "/admin_verifikasi.php";
 
         return $this->sendMessage($this->sender_number, $message);
     }
@@ -550,7 +550,7 @@ class WhatsAppHelper {
             $message .= "💸 Nominal dibayar (bunga+denda): Rp " . number_format($amount, 0, ',', '.') . "\n";
         }
         if (!empty($buktiFile) && !empty($data['nik'])) {
-            $buktiUrl = rtrim($this->getBaseUrl(), '/') . "/GadaiHp/payment/" . rawurlencode($data['nik']) . "/" . rawurlencode($buktiFile);
+            $buktiUrl = rtrim($this->getBaseUrl(), '/') . "/payment/" . rawurlencode($data['nik']) . "/" . rawurlencode($buktiFile);
             $message .= "Bukti: " . $buktiUrl . "\n";
         }
 
@@ -620,7 +620,7 @@ class WhatsAppHelper {
         $message .= "👤 Nama: {$data['nama']}\n";
         $message .= "📱 Barang: {$data['jenis_barang']} {$data['merk_barang']} {$data['spesifikasi_barang']}\n\n";
         $message .= "Buka detail di:\n";
-        $message .= $this->getBaseUrl() . "/GadaiHp/admin_verifikasi.php";
+        $message .= $this->getBaseUrl() . "/admin_verifikasi.php";
 
         return $this->sendMessage($this->sender_number, $message);
     }
@@ -710,7 +710,7 @@ class WhatsAppHelper {
     $message .= "\n*Estimasi Total Tebus (tanpa denda):* Rp " . number_format($total_tebus_est, 0, ',', '.') . "\n\n";
     $message .= "Silakan siapkan pelunasan atau hubungi kami untuk opsi perpanjangan.\n\n";
     $message .= "Cek status di: \n";
-    $message .= $this->getBaseUrl() . "/GadaiHp/cek_status.php?no_registrasi=" . $data['id'] . "\n\n";
+    $message .= $this->getBaseUrl() . "/cek_status.php?no_registrasi=" . $data['id'] . "\n\n";
     $message .= "Hormat kami,\nGadai Cepat Timika Papua\n";
     $message .= "📞 0858-2309-1908";
 
@@ -764,7 +764,7 @@ class WhatsAppHelper {
         $message .= "Catatan: denda dihitung hingga maksimal 7 hari; jika tidak ada pelunasan hingga hari ke-8, pengajuan akan dinyatakan Gagal Tebus.\n\n";
     }
     $message .= "Cek status di:\n";
-    $message .= $this->getBaseUrl() . "/GadaiHp/cek_status.php?no_registrasi=" . $data['id'] . "\n\n";
+    $message .= $this->getBaseUrl() . "/cek_status.php?no_registrasi=" . $data['id'] . "\n\n";
     $message .= "Hormat kami,\nGadai Cepat Timika Papua\n";
     $message .= "📞 0858-2309-1908";
 
@@ -818,7 +818,7 @@ class WhatsAppHelper {
             $message .= "💰 Total Tebus: Rp " . number_format($data['total_tebus'], 0, ',', '.') . "\n";
         }
         $message .= "\nBuka detail di:\n";
-        $message .= $this->getBaseUrl() . "/GadaiHp/admin_verifikasi.php";
+        $message .= $this->getBaseUrl() . "/admin_verifikasi.php";
 
         return $this->sendMessage($this->sender_number, $message);
     }
