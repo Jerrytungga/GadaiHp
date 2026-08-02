@@ -1,4 +1,4 @@
--- SQL: create_transaksi_table.sql
+
 -- Membuat tabel `transaksi` untuk menyimpan bukti pembayaran / cicilan/pelunasan
 -- Jalankan di database yang sama (mis. GadaiCepat)
 

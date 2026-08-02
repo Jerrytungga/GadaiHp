@@ -9,9 +9,19 @@ if (!function_exists('gadai_get_pokok')) {
 }
 
 if (!function_exists('gadai_ensure_customer_table')) {
+    function gadai_normalize_nik(string $nik): string {
+        return preg_replace('/\D+/', '', trim($nik)) ?? '';
+    }
+
     function gadai_customer_column_exists(PDO $db, string $columnName): bool {
         $stmt = $db->prepare("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'customers' AND column_name = ?");
         $stmt->execute([$columnName]);
+        return (int)$stmt->fetchColumn() > 0;
+    }
+
+    function gadai_customer_index_exists(PDO $db, string $indexName): bool {
+        $stmt = $db->prepare("SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'customers' AND index_name = ?");
+        $stmt->execute([$indexName]);
         return (int)$stmt->fetchColumn() > 0;
     }
 
@@ -46,6 +56,15 @@ if (!function_exists('gadai_ensure_customer_table')) {
         if (!gadai_customer_column_exists($db, 'last_login')) {
             $db->exec("ALTER TABLE customers ADD COLUMN last_login timestamp NULL DEFAULT NULL AFTER is_active");
         }
+
+        if (!gadai_customer_index_exists($db, 'uq_customers_nik')) {
+            $duplicateStmt = $db->query("SELECT nik FROM customers WHERE nik IS NOT NULL AND nik <> '' GROUP BY nik HAVING COUNT(*) > 1 LIMIT 1");
+            $duplicateNik = $duplicateStmt->fetchColumn();
+            if ($duplicateNik !== false) {
+                throw new RuntimeException('Ditemukan NIK customer duplikat. Jalankan migration repair_customer_duplicate_nik.sql terlebih dahulu.');
+            }
+            $db->exec("ALTER TABLE customers ADD UNIQUE KEY uq_customers_nik (nik)");
+        }
     }
 }
 
@@ -54,7 +73,7 @@ if (!function_exists('gadai_upsert_customer')) {
         gadai_ensure_customer_table($db);
 
         $nama = trim((string)($data['nama'] ?? ''));
-        $nik = trim((string)($data['nik'] ?? ''));
+        $nik = gadai_normalize_nik((string)($data['nik'] ?? ''));
         $noWa = trim((string)($data['no_wa'] ?? ''));
         $alamat = trim((string)($data['alamat'] ?? ''));
         $email = trim((string)($data['email'] ?? ''));
@@ -88,8 +107,9 @@ if (!function_exists('gadai_upsert_customer')) {
 if (!function_exists('gadai_get_customer_by_nik')) {
     function gadai_get_customer_by_nik(PDO $db, string $nik): ?array {
         gadai_ensure_customer_table($db);
+        $normalizedNik = gadai_normalize_nik($nik);
         $stmt = $db->prepare("SELECT * FROM customers WHERE nik = ? LIMIT 1");
-        $stmt->execute([trim($nik)]);
+        $stmt->execute([$normalizedNik]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return $row ?: null;
     }

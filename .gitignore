@@ -1,0 +1,9 @@
+# Runtime logs
+log_wa.txt
+
+# Runtime upload/storage directories
+payment/
+uploads/nota/
+
+# Optional local artifacts
+*.log
