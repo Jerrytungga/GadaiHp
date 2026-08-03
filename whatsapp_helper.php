@@ -1,4 +1,34 @@
 <?php
+if (!function_exists('gadai_ensure_system_settings_table')) {
+    function gadai_ensure_system_settings_table(PDO $db): void {
+        $db->exec("CREATE TABLE IF NOT EXISTS system_settings (
+            setting_key VARCHAR(100) NOT NULL PRIMARY KEY,
+            setting_value VARCHAR(255) NOT NULL,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    }
+}
+
+if (!function_exists('gadai_whatsapp_notifications_enabled')) {
+    function gadai_whatsapp_notifications_enabled(PDO $db): bool {
+        gadai_ensure_system_settings_table($db);
+        $stmt = $db->prepare('SELECT setting_value FROM system_settings WHERE setting_key = ? LIMIT 1');
+        $stmt->execute(['whatsapp_notifications_enabled']);
+        $value = $stmt->fetchColumn();
+
+        return $value === false || $value === '1';
+    }
+}
+
+if (!function_exists('gadai_set_whatsapp_notifications_enabled')) {
+    function gadai_set_whatsapp_notifications_enabled(PDO $db, bool $enabled): void {
+        gadai_ensure_system_settings_table($db);
+        $stmt = $db->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?)
+            ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = CURRENT_TIMESTAMP");
+        $stmt->execute(['whatsapp_notifications_enabled', $enabled ? '1' : '0']);
+    }
+}
+
 /**
  * WhatsApp Helper - Integration with WhatsApp Business API
  * Support: Fonnte, Wablas, atau WhatsApp Web API lainnya
@@ -20,6 +50,16 @@ class WhatsAppHelper {
      * @return array Response dari API
      */
     public function sendMessage($phone, $message) {
+        global $db;
+
+        if ($db instanceof PDO && !gadai_whatsapp_notifications_enabled($db)) {
+            return [
+                'success' => false,
+                'skipped' => true,
+                'message' => 'Notifikasi WhatsApp sedang dinonaktifkan oleh admin.',
+            ];
+        }
+
         // Format nomor telepon
         $phone = $this->formatPhoneNumber($phone);
         

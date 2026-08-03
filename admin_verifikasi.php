@@ -14,6 +14,26 @@ $active_status_sql = gadai_active_status_sql_list();
 $sale_status_sql = gadai_sale_status_sql_list();
 $list_search = trim((string)($_GET['list_search'] ?? ''));
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_whatsapp_status') {
+    try {
+        $whatsappEnabled = isset($_POST['whatsapp_notifications_enabled']) && $_POST['whatsapp_notifications_enabled'] === '1';
+        gadai_set_whatsapp_notifications_enabled($db, $whatsappEnabled);
+        $message = $whatsappEnabled
+            ? 'Notifikasi WhatsApp diaktifkan untuk seluruh sistem.'
+            : 'Semua notifikasi WhatsApp sudah dinonaktifkan.';
+        $message_type = 'success';
+    } catch (Throwable $e) {
+        $message = 'Gagal menyimpan pengaturan WhatsApp: ' . $e->getMessage();
+        $message_type = 'danger';
+    }
+}
+
+try {
+    $whatsappNotificationsEnabled = gadai_whatsapp_notifications_enabled($db);
+} catch (Throwable $e) {
+    $whatsappNotificationsEnabled = true;
+}
+
 function calculateGadaiBreakdown(array $row, ?float $overrideDenda = null): array {
     return gadai_calculate_breakdown($row, $overrideDenda);
 }
@@ -558,6 +578,7 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Verifikasi - Gadai Cepat Timika</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@700;800;900&family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
         * {
@@ -913,6 +934,50 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
             word-break: break-word;
         }
 
+        .admin-tools-panel {
+            margin-bottom: 18px;
+            border: 1px solid #d9e9ff;
+            border-radius: 14px;
+            background: #f8fbff;
+            overflow: hidden;
+        }
+
+        .admin-tools-panel.wa-enabled {
+            background: #f0fdf4;
+            border-color: #86efac;
+        }
+
+        .admin-tools-panel.wa-disabled {
+            background: #fff1f2;
+            border-color: #fda4af;
+        }
+
+        .admin-tools-panel summary {
+            cursor: pointer;
+            padding: 13px 16px;
+            font-weight: 700;
+            color: #214a7a;
+        }
+
+        .admin-tools-panel.wa-enabled summary { color: #166534; }
+        .admin-tools-panel.wa-disabled summary { color: #9f1239; }
+
+        .admin-tools-content {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            padding: 0 16px 16px;
+        }
+
+        .wa-status-badge {
+            border-radius: 999px;
+            padding: 5px 10px;
+        }
+
+        .wa-status-badge.enabled { background: #bbf7d0; color: #166534; }
+        .wa-status-badge.disabled { background: #fecdd3; color: #9f1239; }
+
         @media (max-width: 768px) {
             .header {
                 border-radius: 0 0 18px 18px;
@@ -963,7 +1028,6 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                 </div>
                 <div class="header-actions">
                     <span class="quick-chip">📅 <?php echo date('d M Y'); ?></span>
-                    <a href="admin_tools.php" class="quick-chip light text-decoration-none">🛠️ Admin Tools</a>
                     <button type="button" class="quick-chip light" data-bs-toggle="modal" data-bs-target="#addGadaiModal">➕ Input Gadai</button>
                     <button type="button" class="quick-chip" data-bs-toggle="tab" data-bs-target="#pending">⏳ Lihat Pending</button>
                     <button type="button" class="quick-chip" data-bs-toggle="tab" data-bs-target="#profit">📈 Cek Profit</button>
@@ -1022,6 +1086,25 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                 <a href="customer_list.php" class="btn btn-sm btn-outline-success rounded-pill">Customer Master</a>
             </div>
         </div>
+
+        <details class="admin-tools-panel <?php echo $whatsappNotificationsEnabled ? 'wa-enabled' : 'wa-disabled'; ?>">
+            <summary>🛠️ Menu Admin</summary>
+            <div class="admin-tools-content">
+                <a href="customer_list.php" class="btn btn-sm btn-outline-primary">Customer Master</a>
+                <a href="admin_customer_accounts.php" class="btn btn-sm btn-outline-primary">Akun Customer</a>
+                <a href="admin_whatsapp_settings.php" class="btn btn-sm btn-outline-secondary">Pengaturan WA</a>
+                <form method="POST" class="d-flex align-items-center gap-2 ms-md-auto">
+                    <input type="hidden" name="action" value="save_whatsapp_status">
+                    <input type="hidden" name="whatsapp_notifications_enabled" value="<?php echo $whatsappNotificationsEnabled ? '0' : '1'; ?>">
+                    <span class="small fw-semibold wa-status-badge <?php echo $whatsappNotificationsEnabled ? 'enabled' : 'disabled'; ?>">
+                        WA <?php echo $whatsappNotificationsEnabled ? 'Aktif' : 'Nonaktif'; ?>
+                    </span>
+                    <button type="submit" class="btn btn-sm btn-<?php echo $whatsappNotificationsEnabled ? 'outline-danger' : 'success'; ?>">
+                        <?php echo $whatsappNotificationsEnabled ? 'Nonaktifkan WA' : 'Aktifkan WA'; ?>
+                    </button>
+                </form>
+            </div>
+        </details>
 
         <!-- Tabs -->
         <ul class="nav nav-tabs" id="myTab" role="tablist">
@@ -2674,6 +2757,141 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        window.adminNotificationAudioContext = null;
+
+        window.unlockAdminNotificationSound = function () {
+            try {
+                var AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextClass) return;
+
+                if (!window.adminNotificationAudioContext || window.adminNotificationAudioContext.state === 'closed') {
+                    window.adminNotificationAudioContext = new AudioContextClass();
+                }
+                if (window.adminNotificationAudioContext.state === 'suspended') {
+                    window.adminNotificationAudioContext.resume();
+                }
+            } catch (error) {
+                return;
+            }
+        };
+
+        ['pointerdown', 'touchstart', 'keydown'].forEach(function (eventName) {
+            document.addEventListener(eventName, window.unlockAdminNotificationSound, { once: true, passive: true });
+        });
+
+        window.playAdminNotificationSound = function (type) {
+            try {
+                var AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextClass) return;
+
+                window.unlockAdminNotificationSound();
+                var context = window.adminNotificationAudioContext;
+                if (!context || context.state !== 'running') return;
+                var notes = type === 'success'
+                    ? [659.25, 783.99, 987.77]
+                    : (type === 'error' ? [493.88, 392.0, 329.63] : [587.33, 739.99]);
+                var startTime = context.currentTime;
+                var masterGain = context.createGain();
+                masterGain.gain.setValueAtTime(0.14, startTime);
+                masterGain.connect(context.destination);
+
+                notes.forEach(function (frequency, index) {
+                    var toneStart = startTime + (index * 0.12);
+                    var gain = context.createGain();
+                    gain.gain.setValueAtTime(0.0001, toneStart);
+                    gain.gain.exponentialRampToValueAtTime(0.75, toneStart + 0.018);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, toneStart + 0.42);
+                    gain.connect(masterGain);
+
+                    ['sine', 'triangle'].forEach(function (waveform, harmonicIndex) {
+                        var oscillator = context.createOscillator();
+                        oscillator.type = waveform;
+                        oscillator.frequency.setValueAtTime(frequency * (harmonicIndex === 0 ? 1 : 2), toneStart);
+                        oscillator.detune.setValueAtTime(harmonicIndex === 0 ? 0 : 4, toneStart);
+                        oscillator.connect(gain);
+                        oscillator.start(toneStart);
+                        oscillator.stop(toneStart + 0.44);
+                    });
+                });
+
+            } catch (error) {
+                return;
+            }
+        };
+
+        (function () {
+            var message = <?php echo json_encode(strip_tags((string)$message), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+            var messageType = <?php echo json_encode((string)$message_type); ?>;
+            if (!message || typeof Swal === 'undefined') return;
+
+            var notificationType = messageType === 'success' ? 'success' : (messageType === 'danger' ? 'error' : 'warning');
+            window.playAdminNotificationSound(notificationType);
+
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: notificationType,
+                title: message,
+                showConfirmButton: false,
+                timer: 4500,
+                timerProgressBar: true
+            });
+        })();
+
+        (function () {
+            var actionLabels = {
+                approve: { title: 'Setujui pengajuan?', text: 'Status pengajuan akan menjadi Disetujui.', icon: 'question', button: 'Ya, setujui' },
+                reject: { title: 'Tolak pengajuan?', text: 'Pastikan alasan penolakan sudah benar.', icon: 'warning', button: 'Ya, tolak' },
+                acc_pelunasan: { title: 'ACC pelunasan?', text: 'Status gadai akan berubah menjadi Lunas.', icon: 'warning', button: 'Ya, ACC pelunasan' },
+                acc_perpanjangan: { title: 'ACC perpanjangan?', text: 'Masa gadai akan diperpanjang.', icon: 'warning', button: 'Ya, perpanjang' },
+                manual_perpanjang: { title: 'Proses perpanjangan manual?', text: 'Transaksi dan jatuh tempo baru akan dicatat.', icon: 'warning', button: 'Ya, perpanjang' },
+                manual_lunas: { title: 'Tandai sebagai lunas?', text: 'Data transaksi pelunasan akan dicatat.', icon: 'warning', button: 'Ya, lunaskan' },
+                upload_bukti_transfer_admin: { title: 'Upload bukti transfer?', text: 'Bukti dan nominal transfer akan disimpan untuk customer.', icon: 'question', button: 'Ya, upload' },
+                approve_pinjaman_request: { title: 'Setujui request pinjaman?', text: 'Nominal pinjaman customer akan diperbarui.', icon: 'question', button: 'Ya, setujui' },
+                reject_pinjaman_request: { title: 'Tolak request pinjaman?', text: 'Customer akan menerima hasil keputusan ini.', icon: 'warning', button: 'Ya, tolak' },
+                manual_reminder_overdue: { title: 'Kirim reminder WhatsApp?', text: 'Reminder akan dikirim ke customer.', icon: 'question', button: 'Ya, kirim' },
+                mark_siap_jual: { title: 'Masukkan ke penjualan?', text: 'Status barang akan berubah menjadi Siap Dijual.', icon: 'warning', button: 'Ya, lanjutkan' },
+                mark_terjual: { title: 'Simpan penjualan barang?', text: 'Status barang akan berubah menjadi Terjual.', icon: 'question', button: 'Ya, simpan' },
+                save_whatsapp_status: { title: 'Ubah status notifikasi WhatsApp?', text: 'Perubahan berlaku untuk seluruh notifikasi sistem.', icon: 'warning', button: 'Ya, ubah status' }
+            };
+
+            document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(function (form) {
+                form.addEventListener('submit', function (event) {
+                    if (form.dataset.swalConfirmed === '1' || typeof Swal === 'undefined') return;
+
+                    var actionInput = form.querySelector('input[name="action"]');
+                    var action = actionInput ? actionInput.value : '';
+                    var submitter = event.submitter;
+                    if (submitter && submitter.name === 'action') action = submitter.value;
+                    var config = actionLabels[action];
+                    if (!config) return;
+
+                    event.preventDefault();
+                    Swal.fire({
+                        title: config.title,
+                        text: config.text,
+                        icon: config.icon,
+                        showCancelButton: true,
+                        confirmButtonText: config.button,
+                        cancelButtonText: 'Batal',
+                        confirmButtonColor: action.indexOf('reject') !== -1 ? '#dc3545' : '#0d6efd'
+                    }).then(function (result) {
+                        if (!result.isConfirmed) return;
+
+                        if (!actionInput && action !== '') {
+                            actionInput = document.createElement('input');
+                            actionInput.type = 'hidden';
+                            actionInput.name = 'action';
+                            actionInput.value = action;
+                            form.appendChild(actionInput);
+                        }
+                        form.dataset.swalConfirmed = '1';
+                        form.submit();
+                    });
+                });
+            });
+        })();
+
         // Move modals to document.body when opened to avoid stacking-context/z-index issues inside cards/tabs
         (function () {
             try {
@@ -2908,6 +3126,8 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
 
         (function () {
             var stateKey = 'gadai_admin_dashboard_live';
+            var lastPendingCount = null;
+            var lastPinjamanRequestCount = null;
 
             function setTextById(id, value) {
                 var el = document.getElementById(id);
@@ -2933,6 +3153,29 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                 setTextById('rt-tab-rejected', counts.rejected != null ? counts.rejected : 0);
                 setTextById('rt-tab-pinjaman-request', counts.pinjaman_request_pending != null ? counts.pinjaman_request_pending : 0);
                 setTextById('rt-tab-list', counts.total != null ? counts.total : 0);
+
+                var pendingCount = Number(counts.pending || 0);
+                var pinjamanRequestCount = Number(counts.pinjaman_request_pending || 0);
+                var hasNewSubmission = lastPendingCount !== null && pendingCount > lastPendingCount;
+                var hasNewPinjamanRequest = lastPinjamanRequestCount !== null && pinjamanRequestCount > lastPinjamanRequestCount;
+
+                if (hasNewSubmission || hasNewPinjamanRequest) {
+                    window.playAdminNotificationSound('success');
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'info',
+                            title: hasNewSubmission ? 'Pengajuan gadai baru masuk.' : 'Request naik pinjaman baru masuk.',
+                            showConfirmButton: false,
+                            timer: 5000,
+                            timerProgressBar: true
+                        });
+                    }
+                }
+
+                lastPendingCount = pendingCount;
+                lastPinjamanRequestCount = pinjamanRequestCount;
             }
 
             function pollRealtimeCounts() {
