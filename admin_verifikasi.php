@@ -13,6 +13,21 @@ $message_type = '';
 $active_status_sql = gadai_active_status_sql_list();
 $sale_status_sql = gadai_sale_status_sql_list();
 $list_search = trim((string)($_GET['list_search'] ?? ''));
+$due_month = trim((string)($_GET['due_month'] ?? ''));
+$due_month_start = null;
+$due_month_end = null;
+
+if (preg_match('/^\d{4}-\d{2}$/', $due_month)) {
+    $due_month_date = DateTime::createFromFormat('!Y-m', $due_month);
+    if ($due_month_date !== false && $due_month_date->format('Y-m') === $due_month) {
+        $due_month_start = $due_month_date->format('Y-m-d');
+        $due_month_end = (clone $due_month_date)->modify('+1 month')->format('Y-m-d');
+    } else {
+        $due_month = '';
+    }
+} else {
+    $due_month = '';
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_whatsapp_status') {
     try {
@@ -331,8 +346,15 @@ try {
 $all_profit_select = $transaksi_table_exists
     ? ", (SELECT COALESCE(SUM(t.jumlah_bayar), 0) FROM transaksi t WHERE t.barang_id = dg.id AND t.keterangan LIKE 'perpanjangan%') AS total_profit_perpanjangan"
     : ", 0 AS total_profit_perpanjangan";
-$all_sql = "SELECT dg.id, dg.customer_id, dg.nama, dg.nik, dg.no_wa, dg.alamat, dg.jenis_barang, dg.merk_barang, dg.spesifikasi_barang, dg.kondisi_barang, dg.nilai_taksiran, dg.jumlah_pinjaman, dg.jumlah_disetujui, dg.bunga, dg.lama_gadai, dg.denda_terakumulasi, dg.total_tebus, dg.tanggal_gadai, dg.tanggal_jatuh_tempo, dg.status, dg.catatan_admin, dg.perpanjangan_ke, dg.created_at, dg.updated_at, c.nama AS customer_nama, c.no_wa AS customer_no_wa" . $all_profit_select . " FROM data_gadai dg LEFT JOIN customers c ON c.id = dg.customer_id ORDER BY dg.created_at DESC";
-$all_stmt = $db->query($all_sql);
+$all_sql = "SELECT dg.id, dg.customer_id, dg.nama, dg.nik, dg.no_wa, dg.alamat, dg.jenis_barang, dg.merk_barang, dg.spesifikasi_barang, dg.kondisi_barang, dg.nilai_taksiran, dg.jumlah_pinjaman, dg.jumlah_disetujui, dg.bunga, dg.lama_gadai, dg.denda_terakumulasi, dg.total_tebus, dg.tanggal_gadai, dg.tanggal_jatuh_tempo, dg.status, dg.catatan_admin, dg.perpanjangan_ke, dg.created_at, dg.updated_at, c.nama AS customer_nama, c.no_wa AS customer_no_wa" . $all_profit_select . " FROM data_gadai dg LEFT JOIN customers c ON c.id = dg.customer_id";
+$all_params = [];
+if ($due_month_start !== null && $due_month_end !== null) {
+    $all_sql .= " WHERE dg.tanggal_jatuh_tempo >= ? AND dg.tanggal_jatuh_tempo < ?";
+    $all_params = [$due_month_start, $due_month_end];
+}
+$all_sql .= " ORDER BY dg.created_at DESC";
+$all_stmt = $db->prepare($all_sql);
+$all_stmt->execute($all_params);
 $all_data = $all_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 if ($list_search !== '') {
@@ -561,6 +583,47 @@ try {
 } catch (Throwable $e) {
     $profit_error = 'Gagal menghitung keuntungan: ' . $e->getMessage();
 }
+
+$profit_year_total = 0.0;
+foreach ($profit_months as $profit_month) {
+    $profit_year_total += (float)$profit_month['lunas_profit'] + (float)$profit_month['perp_profit'] + (float)$profit_month['jual_profit'];
+}
+$profit_current_month_number = (int)date('n');
+$profit_current_month_total = (float)$profit_months[$profit_current_month_number]['lunas_profit']
+    + (float)$profit_months[$profit_current_month_number]['perp_profit']
+    + (float)$profit_months[$profit_current_month_number]['jual_profit'];
+
+$pawn_growth = [
+    'current_pawns' => 0,
+    'previous_pawns' => 0,
+    'current_customers' => 0,
+    'previous_customers' => 0,
+];
+try {
+    $pawnGrowthSql = "SELECT
+        SUM(CASE WHEN created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01') THEN 1 ELSE 0 END) AS current_pawns,
+        SUM(CASE WHEN created_at >= DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m-01') AND created_at < DATE_FORMAT(CURDATE(), '%Y-%m-01') THEN 1 ELSE 0 END) AS previous_pawns,
+        COUNT(DISTINCT CASE WHEN created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01') THEN COALESCE(NULLIF(nik, ''), CONCAT('gadai-', id)) END) AS current_customers,
+        COUNT(DISTINCT CASE WHEN created_at >= DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m-01') AND created_at < DATE_FORMAT(CURDATE(), '%Y-%m-01') THEN COALESCE(NULLIF(nik, ''), CONCAT('gadai-', id)) END) AS previous_customers
+        FROM data_gadai";
+    $pawn_growth_row = $db->query($pawnGrowthSql)->fetch(PDO::FETCH_ASSOC) ?: [];
+    foreach ($pawn_growth as $key => $value) {
+        $pawn_growth[$key] = (int)($pawn_growth_row[$key] ?? 0);
+    }
+} catch (Throwable $e) {
+    // Statistik tambahan tidak boleh mengganggu dashboard utama.
+}
+
+$format_growth = static function (int $current, int $previous): string {
+    if ($previous <= 0) {
+        return $current > 0 ? 'Baru' : 'Tetap';
+    }
+
+    $percent = (($current - $previous) / $previous) * 100;
+    return ($percent >= 0 ? '+' : '') . number_format($percent, 1, ',', '.') . '%';
+};
+$pawn_growth_label = $format_growth($pawn_growth['current_pawns'], $pawn_growth['previous_pawns']);
+$customer_growth_label = $format_growth($pawn_growth['current_customers'], $pawn_growth['previous_customers']);
 
 // Statistics
 $stats_sql = "SELECT 
@@ -1031,6 +1094,7 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                     <button type="button" class="quick-chip light" data-bs-toggle="modal" data-bs-target="#addGadaiModal">➕ Input Gadai</button>
                     <button type="button" class="quick-chip" data-bs-toggle="tab" data-bs-target="#pending">⏳ Lihat Pending</button>
                     <button type="button" class="quick-chip" data-bs-toggle="tab" data-bs-target="#profit">📈 Cek Profit</button>
+                    <a href="admin_grafik.php" class="quick-chip light text-decoration-none">📊 Grafik</a>
                     <a href="admin_logout.php" class="quick-chip light text-decoration-none">🚪 Logout</a>
                 </div>
             </div>
@@ -1069,6 +1133,33 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                 <div class="stats-card" style="border-left-color: #dc3545;">
                     <div class="stats-number" style="color: #dc3545;" id="rt-stats-rejected"><?php echo $stats['rejected']; ?></div>
                     <div class="stats-label">❌ Ditolak</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="stats-card" style="border-left-color: #0d6efd;">
+                    <div class="stats-number" style="color: #0d6efd;">Rp <?php echo number_format($profit_current_month_total, 0, ',', '.'); ?></div>
+                    <div class="stats-label">📈 Total Profit <?php echo date('F') . ' ' . (int)$profit_year; ?></div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card" style="border-left-color: #6610f2;">
+                    <div class="stats-number" style="color: #6610f2;">Rp <?php echo number_format($profit_year_total, 0, ',', '.'); ?></div>
+                    <div class="stats-label">💰 Total Profit Tahun <?php echo (int)$profit_year; ?></div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card" style="border-left-color: #20c997;">
+                    <div class="stats-number" style="color: #20c997;"><?php echo $pawn_growth['current_pawns']; ?></div>
+                    <div class="stats-label">📝 Pengajuan Bulan Ini (<?php echo htmlspecialchars($pawn_growth_label, ENT_QUOTES, 'UTF-8'); ?>)</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card" style="border-left-color: #fd7e14;">
+                    <div class="stats-number" style="color: #fd7e14;"><?php echo $pawn_growth['current_customers']; ?></div>
+                    <div class="stats-label">👥 Orang Gadai Bulan Ini (<?php echo htmlspecialchars($customer_growth_label, ENT_QUOTES, 'UTF-8'); ?>)</div>
                 </div>
             </div>
         </div>
@@ -2568,19 +2659,22 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                         <div class="col-lg-6 col-md-7">
                             <input type="text" name="list_search" class="form-control" value="<?php echo htmlspecialchars($list_search, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Cari nama, NIK, no HP, barang, atau status...">
                         </div>
+                        <div class="col-md-3">
+                            <input type="month" name="due_month" class="form-control" value="<?php echo htmlspecialchars($due_month, ENT_QUOTES, 'UTF-8'); ?>" aria-label="Filter bulan jatuh tempo">
+                        </div>
                         <div class="col-md-auto d-flex gap-2">
                             <button type="submit" class="btn btn-primary">🔎 Cari</button>
                             <a href="admin_verifikasi.php?tab=list" class="btn btn-outline-secondary">Reset</a>
-                            <a href="admin_verifikasi.php?tab=list&amp;export=excel_total_gadai<?php echo $list_search !== '' ? '&amp;list_search=' . urlencode($list_search) : ''; ?><?php echo !empty($profit_year) ? '&amp;profit_year=' . (int)$profit_year : ''; ?>" class="btn btn-success">⬇ Download Excel</a>
+                            <a href="admin_verifikasi.php?tab=list&amp;export=excel_total_gadai<?php echo $list_search !== '' ? '&amp;list_search=' . urlencode($list_search) : ''; ?><?php echo $due_month !== '' ? '&amp;due_month=' . urlencode($due_month) : ''; ?><?php echo !empty($profit_year) ? '&amp;profit_year=' . (int)$profit_year : ''; ?>" class="btn btn-success">⬇ Download Excel</a>
                         </div>
                         <div class="col text-md-end">
-                            <small class="text-muted">Menampilkan <strong><?php echo count($all_data); ?></strong> data<?php echo $list_search !== '' ? ' untuk pencarian “' . htmlspecialchars($list_search, ENT_QUOTES, 'UTF-8') . '”' : ''; ?>.</small>
+                            <small class="text-muted">Menampilkan <strong><?php echo count($all_data); ?></strong> data<?php echo $list_search !== '' ? ' untuk pencarian “' . htmlspecialchars($list_search, ENT_QUOTES, 'UTF-8') . '”' : ''; ?><?php echo $due_month !== '' ? ($list_search !== '' ? ' dan' : ' untuk') . ' jatuh tempo bulan ' . htmlspecialchars($due_month, ENT_QUOTES, 'UTF-8') : ''; ?>.</small>
                         </div>
                     </form>
                 </div>
 
                 <?php if (empty($all_data)): ?>
-                    <div class="alert alert-info">Belum ada data gadai<?php echo $list_search !== '' ? ' yang cocok dengan pencarian.' : '.'; ?></div>
+                    <div class="alert alert-info">Belum ada data gadai<?php echo ($list_search !== '' || $due_month !== '') ? ' yang cocok dengan filter.' : '.'; ?></div>
                 <?php else: ?>
                     <div class="table-responsive">
                         <table class="table table-striped table-hover align-middle">
@@ -2616,6 +2710,8 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                         $calcList = calculateGadaiBreakdown($row, $denda_info_list['denda']);
                                         $pokok = $calcList['pokok'];
                                         $bunga_pct = $calcList['bunga_pct'];
+                                        $bulan_bunga = $calcList['lama'];
+                                        $bunga_terakumulasi = $calcList['bunga_total'];
                                         if (!empty($row['total_tebus']) && (float)$row['total_tebus'] > 0) {
                                             $total_kembali = (float)$row['total_tebus'];
                                         } else {
@@ -2675,7 +2771,10 @@ $stats = $db->query($stats_sql)->fetch(PDO::FETCH_ASSOC);
                                                 Rp <?php echo number_format($pengajuan_list, 0, ',', '.'); ?>
                                             <?php endif; ?>
                                         </td>
-                                        <td><?php echo htmlspecialchars($bunga_pct) . '%'; ?></td>
+                                        <td>
+                                            <div><?php echo htmlspecialchars($bunga_pct) . '% / bulan'; ?></div>
+                                            <small class="text-muted"><?php echo (int)$bulan_bunga; ?> bulan: Rp <?php echo number_format($bunga_terakumulasi, 0, ',', '.'); ?></small>
+                                        </td>
                                         <td>Rp <?php echo number_format($total_kembali, 0, ',', '.'); ?></td>
                                         <td><?php echo $row['tanggal_gadai'] ? date('d M Y', strtotime($row['tanggal_gadai'])) : '-'; ?></td>
                                         <td><?php echo $row['tanggal_jatuh_tempo'] ? date('d M Y', strtotime($row['tanggal_jatuh_tempo'])) : '-'; ?></td>

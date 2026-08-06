@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/gadai_helpers.php';
+
 if (!function_exists('gadai_ensure_system_settings_table')) {
     function gadai_ensure_system_settings_table(PDO $db): void {
         $db->exec("CREATE TABLE IF NOT EXISTS system_settings (
@@ -340,15 +342,16 @@ class WhatsAppHelper {
      */
     public function notifyUserApproved($data) {
         // Calculate financial breakdown
-        $pokok = !empty($data['jumlah_disetujui']) ? (float)$data['jumlah_disetujui'] : (float)$data['jumlah_pinjaman'];
         $harga_pasar = !empty($data['harga_pasar']) ? (float)$data['harga_pasar'] : 0.0;
-        $bunga_pct = isset($data['bunga']) ? (float)$data['bunga'] : 0.0;
-        $lama = isset($data['lama_gadai']) ? (int)$data['lama_gadai'] : 0;
-        $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
-    $admin_fee = round($pokok * 0.01); // 1% biaya admin, rounded to nearest rupiah
-        $biaya_asuransi = 10000; // Biaya asuransi tetap
         $denda = !empty($data['denda_terakumulasi']) ? (float)$data['denda_terakumulasi'] : 0.0;
-        $total_tebus_calc = $pokok + $bunga_total + $admin_fee + $biaya_asuransi + $denda;
+        $calc = gadai_calculate_breakdown($data, $denda);
+        $pokok = $calc['pokok'];
+        $bunga_pct = $calc['bunga_pct'];
+        $lama = $calc['lama'];
+        $bunga_total = $calc['bunga_total'];
+        $admin_fee = $calc['admin_fee'];
+        $biaya_asuransi = $calc['biaya_asuransi'];
+        $total_tebus_calc = $calc['total_tebus'];
 
         // Build message matching provided template
         $pengajuan_display = isset($data['jumlah_pinjaman']) ? (float)$data['jumlah_pinjaman'] : 0.0;
@@ -604,12 +607,13 @@ class WhatsAppHelper {
      * Template pesan untuk pelunasan gadai (ke User)
      */
     public function notifyUserPelunasan($data, $amount = null, $briva_number = null, $briva_name = null) {
-        $pokok = !empty($data['jumlah_disetujui']) ? (float)$data['jumlah_disetujui'] : (float)$data['jumlah_pinjaman'];
-        $bunga_pct = isset($data['bunga']) ? (float)$data['bunga'] : 0.0;
-        $lama = isset($data['lama_gadai']) ? (int)$data['lama_gadai'] : 0;
-        $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
-    $admin_fee = round($pokok * 0.01);
-        $biaya_asuransi = 10000; // Biaya asuransi tetap
+        $calc = gadai_calculate_breakdown($data);
+        $pokok = $calc['pokok'];
+        $bunga_pct = $calc['bunga_pct'];
+        $lama = $calc['lama'];
+        $bunga_total = $calc['bunga_total'];
+        $admin_fee = $calc['admin_fee'];
+        $biaya_asuransi = $calc['biaya_asuransi'];
 
     $message = "💰 *PERMINTAAN PELUNASAN DITERIMA*\n\n";
     $message .= "Yth. Bapak/Ibu {$data['nama']},\n\n";
@@ -669,14 +673,15 @@ class WhatsAppHelper {
      * Template pesan pelunasan terverifikasi (ke User)
      */
     public function notifyUserPelunasanVerified($data) {
-        $pokok = !empty($data['jumlah_disetujui']) ? (float)$data['jumlah_disetujui'] : (float)$data['jumlah_pinjaman'];
-        $bunga_pct = isset($data['bunga']) ? (float)$data['bunga'] : 0.0;
-        $lama = isset($data['lama_gadai']) ? (int)$data['lama_gadai'] : 0;
-        $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
-    $admin_fee = round($pokok * 0.01);
-        $biaya_asuransi = 10000; // Biaya asuransi tetap
         $denda = !empty($data['denda_terakumulasi']) ? (float)$data['denda_terakumulasi'] : 0.0;
-        $total_tebus_calc = $pokok + $bunga_total + $admin_fee + $biaya_asuransi + $denda;
+        $calc = gadai_calculate_breakdown($data, $denda);
+        $pokok = $calc['pokok'];
+        $bunga_pct = $calc['bunga_pct'];
+        $lama = $calc['lama'];
+        $bunga_total = $calc['bunga_total'];
+        $admin_fee = $calc['admin_fee'];
+        $biaya_asuransi = $calc['biaya_asuransi'];
+        $total_tebus_calc = $calc['total_tebus'];
 
         $message = "✅ *PEMBAYARAN TERVERIFIKASI*\n\n";
         $message .= "Yth. Bapak/Ibu {$data['nama']},\n\n";
@@ -717,13 +722,14 @@ class WhatsAppHelper {
      * Template pesan reminder 3 hari sebelum jatuh tempo (ke User)
      */
     public function notifyUserDueSoon($data) {
-        $pokok = !empty($data['jumlah_disetujui']) ? (float)$data['jumlah_disetujui'] : (float)$data['jumlah_pinjaman'];
-        $bunga_pct = isset($data['bunga']) ? (float)$data['bunga'] : 0.0;
-        $lama = isset($data['lama_gadai']) ? (int)$data['lama_gadai'] : 0;
-        $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
-    $admin_fee = round($pokok * 0.01);
-        $biaya_asuransi = 10000; // Biaya asuransi tetap
-        $total_tebus_est = $pokok + $bunga_total + $admin_fee + $biaya_asuransi;
+        $calc = gadai_calculate_breakdown($data);
+        $pokok = $calc['pokok'];
+        $bunga_pct = $calc['bunga_pct'];
+        $lama = $calc['lama'];
+        $bunga_total = $calc['bunga_total'];
+        $admin_fee = $calc['admin_fee'];
+        $biaya_asuransi = $calc['biaya_asuransi'];
+        $total_tebus_est = $calc['total_tebus'];
 
     $message = "⏰ *PENGINGAT JATUH TEMPO (3 HARI)*\n\n";
     $message .= "Yth. Bapak/Ibu {$data['nama']},\n\n";
@@ -761,17 +767,18 @@ class WhatsAppHelper {
      * Template pesan reminder terlambat (H+1 sampai H+7)
      */
     public function notifyUserOverdue($data, $days_overdue) {
-        $pokok = !empty($data['jumlah_disetujui']) ? (float)$data['jumlah_disetujui'] : (float)$data['jumlah_pinjaman'];
-        $bunga = (float)$data['bunga'];
-        $lama = (int)$data['lama_gadai'];
-        $bunga_total = $pokok * ($bunga / 100) * $lama;
-        $admin_fee = round($pokok * 0.01);
-        $biaya_asuransi = 10000; // Biaya asuransi tetap
     $denda_harian = 30000;
     // Denda hanya dihitung sampai maksimal 7 hari; pada hari ke-8 sistem akan menandai sebagai Gagal Tebus
     $denda_days_counted = min($days_overdue, 7);
     $denda_total = $denda_harian * $denda_days_counted;
-    $total_tebus = $pokok + $bunga_total + $admin_fee + $biaya_asuransi + $denda_total;
+        $calc = gadai_calculate_breakdown($data, $denda_total);
+        $pokok = $calc['pokok'];
+        $bunga = $calc['bunga_pct'];
+        $lama = $calc['lama'];
+        $bunga_total = $calc['bunga_total'];
+        $admin_fee = $calc['admin_fee'];
+        $biaya_asuransi = $calc['biaya_asuransi'];
+        $total_tebus = $calc['total_tebus'];
 
     $message = "⚠️ *PENGINGAT: JATUH TEMPO TERLEWAT*\n\n";
     $message .= "Yth. Bapak/Ibu {$data['nama']},\n\n";

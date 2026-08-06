@@ -17,6 +17,7 @@ if ($provided_token !== $required_token) {
 
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/whatsapp_helper.php';
+require_once __DIR__ . '/gadai_helpers.php';
 
 $logFile = __DIR__ . '/reminder_batch.log';
 function logLine($msg) {
@@ -72,13 +73,7 @@ try {
                 $denda_days = min($days_overdue, 7);
                 $denda_total = $denda_harian * $denda_days;
 
-                $pokok = !empty($row['jumlah_disetujui']) ? (float)$row['jumlah_disetujui'] : (float)$row['jumlah_pinjaman'];
-                $bunga_pct = isset($row['bunga']) ? (float)$row['bunga'] : 0.0;
-                $lama = isset($row['lama_gadai']) ? (int)$row['lama_gadai'] : 0;
-                $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
-                $admin_fee = round($pokok * 0.01);
-                $biaya_asuransi = 10000;
-                $total_tebus = $pokok + $bunga_total + $admin_fee + $biaya_asuransi + $denda_total;
+                $total_tebus = (float)gadai_calculate_breakdown($row, $denda_total)['total_tebus'];
 
                 $last_sent_date = !empty($row['reminder_telat_at']) ? date('Y-m-d', strtotime($row['reminder_telat_at'])) : null;
                 $should_send = ($last_sent_date !== $today);
@@ -113,13 +108,7 @@ try {
                 $denda_harian = 30000;
                 $denda_total = $denda_harian * 7;
 
-                $pokok = !empty($row['jumlah_disetujui']) ? (float)$row['jumlah_disetujui'] : (float)$row['jumlah_pinjaman'];
-                $bunga_pct = isset($row['bunga']) ? (float)$row['bunga'] : 0.0;
-                $lama = isset($row['lama_gadai']) ? (int)$row['lama_gadai'] : 0;
-                $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
-                $admin_fee = round($pokok * 0.01);
-                $biaya_asuransi = 10000;
-                $total_tebus = $pokok + $bunga_total + $admin_fee + $biaya_asuransi + $denda_total;
+                $total_tebus = (float)gadai_calculate_breakdown($row, $denda_total)['total_tebus'];
 
                 $u = $db->prepare("UPDATE data_gadai SET status = 'Gagal Tebus', gagal_tebus_at = NOW(), denda_terakumulasi = ?, total_tebus = ? WHERE id = ?");
                 $u->execute([$denda_total, $total_tebus, $row['id']]);

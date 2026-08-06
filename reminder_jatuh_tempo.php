@@ -1,6 +1,7 @@
 <?php
 require_once 'database.php';
 require_once 'whatsapp_helper.php';
+require_once 'gadai_helpers.php';
 
 $target_date = date('Y-m-d', strtotime('+3 days'));
 $today_date = date('Y-m-d');
@@ -57,14 +58,7 @@ try {
             $denda_days = min($days_overdue, 7);
             $denda_total = $denda_harian * $denda_days;
 
-            // Financial recalculation
-            $pokok = !empty($row['jumlah_disetujui']) ? (float)$row['jumlah_disetujui'] : (float)$row['jumlah_pinjaman'];
-            $bunga_pct = isset($row['bunga']) ? (float)$row['bunga'] : 0.0;
-            $lama = isset($row['lama_gadai']) ? (int)$row['lama_gadai'] : 0;
-            $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
-            $admin_fee = round($pokok * 0.01);
-            $biaya_asuransi = 10000;
-            $total_tebus = $pokok + $bunga_total + $admin_fee + $biaya_asuransi + $denda_total;
+            $total_tebus = (float)gadai_calculate_breakdown($row, $denda_total)['total_tebus'];
 
             // Update DB: denda_terakumulasi and total_tebus, and reminder metadata
             $update_sql = "UPDATE data_gadai
@@ -109,14 +103,7 @@ try {
             $denda_harian = 30000;
             $denda_total = $denda_harian * 7;
 
-            // Financial recalculation
-            $pokok = !empty($row['jumlah_disetujui']) ? (float)$row['jumlah_disetujui'] : (float)$row['jumlah_pinjaman'];
-            $bunga_pct = isset($row['bunga']) ? (float)$row['bunga'] : 0.0;
-            $lama = isset($row['lama_gadai']) ? (int)$row['lama_gadai'] : 0;
-            $bunga_total = $pokok * ($bunga_pct / 100) * $lama;
-            $admin_fee = round($pokok * 0.01);
-            $biaya_asuransi = 10000;
-            $total_tebus = $pokok + $bunga_total + $admin_fee + $biaya_asuransi + $denda_total;
+            $total_tebus = (float)gadai_calculate_breakdown($row, $denda_total)['total_tebus'];
 
             // Update status to Gagal Tebus and persist penalty/total
             $update_sql = "UPDATE data_gadai

@@ -329,12 +329,38 @@ if (!function_exists('gadai_calculate_denda')) {
     }
 }
 
+if (!function_exists('gadai_get_bulan_bunga_akumulasi')) {
+    function gadai_get_bulan_bunga_akumulasi(array $row): int {
+        $lamaKontrak = max(0, (int)($row['lama_gadai'] ?? 0));
+        $tanggalGadai = trim((string)($row['tanggal_gadai'] ?? ''));
+        $tanggalMulai = DateTime::createFromFormat('!Y-m-d', $tanggalGadai);
+
+        if ($tanggalMulai === false || $tanggalMulai->format('Y-m-d') !== $tanggalGadai) {
+            return $lamaKontrak;
+        }
+
+        $hariIni = new DateTime('today');
+        if ($hariIni < $tanggalMulai) {
+            return $lamaKontrak;
+        }
+
+        $selisih = $tanggalMulai->diff($hariIni);
+        $bulanBerjalan = ($selisih->y * 12) + $selisih->m;
+        if ($selisih->d > 0) {
+            $bulanBerjalan++;
+        }
+
+        return max($lamaKontrak, $bulanBerjalan);
+    }
+}
+
 if (!function_exists('gadai_calculate_breakdown')) {
     function gadai_calculate_breakdown(array $row, ?float $overrideDenda = null): array {
         $pokok = gadai_get_pokok($row);
         $bungaPct = isset($row['bunga']) ? (float)$row['bunga'] : 0.0;
-        $lama = isset($row['lama_gadai']) ? (int)$row['lama_gadai'] : 0;
-        $bungaTotal = $pokok * ($bungaPct / 100) * $lama;
+        $lama = gadai_get_bulan_bunga_akumulasi($row);
+        $bungaBulanan = $pokok * ($bungaPct / 100);
+        $bungaTotal = $bungaBulanan * $lama;
         $adminFee = round($pokok * 0.01);
         $biayaAsuransi = 10000;
         $denda = $overrideDenda !== null
@@ -346,6 +372,7 @@ if (!function_exists('gadai_calculate_breakdown')) {
             'pokok' => $pokok,
             'bunga_pct' => $bungaPct,
             'lama' => $lama,
+            'bunga_bulanan' => $bungaBulanan,
             'bunga_total' => $bungaTotal,
             'admin_fee' => $adminFee,
             'biaya_asuransi' => $biayaAsuransi,
